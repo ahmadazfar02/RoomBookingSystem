@@ -1,7 +1,7 @@
 <?php
 require_once 'dbconfig.php';
 
-if ($SERVER["REQUEST_METHOD"] == "POST"){
+if ($_SERVER["REQUEST_METHOD"] == "POST"){
     $email = $_POST["email"];
     $password = $_POST["password"];
 
@@ -26,7 +26,7 @@ if ($SERVER["REQUEST_METHOD"] == "POST"){
                     if($role == 'admin'){
                         header("location: index-admin.html");
                     } else{
-                        header("locaiton: index.html");
+                        header("location: index.html");
                     }
                     exit;
                 } 
