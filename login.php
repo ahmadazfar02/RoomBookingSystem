@@ -1,11 +1,11 @@
 <?php
-require_once 'dbconfig.php';
+require_once 'db_connect.php';
 
 if ($_SERVER["REQUEST_METHOD"] == "POST"){
-    $email = $_POST["email"];
+    $email = $_POST["username"];
     $password = $_POST["password"];
 
-    $sql = "SELECT id, email, password_hash, role FROM users WHERE email = ?";
+    $sql = "SELECT id, username, password_hash, role FROM users WHERE username = ?";
 
     if ($stmt = $conn->prepare($sql)){
         $stmt->bind_param("s", $email);
@@ -20,7 +20,7 @@ if ($_SERVER["REQUEST_METHOD"] == "POST"){
                     session_start();
                     $_SESSION["loggedin"] = true;
                     $_SESSION["id"] = $id;
-                    $_SESSION["email"] = $email;
+                    $_SESSION["username"] = $username;
                     $_SESSION["role"] = $role;
 
                     if($role == 'admin'){
@@ -32,10 +32,12 @@ if ($_SERVER["REQUEST_METHOD"] == "POST"){
                 } 
                 else{
                     $login_err = "Invalid username or password.";
+                    echo "<script>alert('Invalid password'); window.location.href='loginterface.html';</script>";
                     } 
             }
             else{
                     $login_err = "Invalid username or password.";
+                    echo "<script>alert('User not found'); window.location.href='loginterface.html';</script>";
                 }
         }
         $stmt->close();
