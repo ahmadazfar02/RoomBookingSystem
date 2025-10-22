@@ -74,6 +74,18 @@
     .login-btn:hover {
         background-color: #a31313;
     }
+        .login-link {
+        text-align: center;
+        margin-top: 20px;
+        color: #fff;
+        font-size: 14px;
+    }
+
+    .login-link a {
+        color: #fff;
+        text-decoration: underline;
+    }
+
 </style>
 </head>
 <body>
@@ -86,8 +98,14 @@
             <h2>ROOM RESERVATION SYSTEM</h2>
             <input type="text" name="username" placeholder="Username" required><br>
             <input type="password" name="password" placeholder="Password" required><br>
+
+            <div class="login-link">
+                Already have an account? <a href="register.html">Login here</a>
+            </div>
+            <br>
             <button type="submit" class="login-btn">login</button>
         </div>
     </form>
+    
 </body>
 </html>
