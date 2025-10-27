@@ -23,7 +23,7 @@ if ($_SERVER["REQUEST_METHOD"] == "POST"){
                     $_SESSION["username"] = $username;
                     $_SESSION["User_Type"] = $User_Type;
 
-                    if($User_Type == 'admin'){
+                    if($User_Type == 'Admin'){
                         header("location: index-admin.html");
                     } else{
                         header("location: index.html");
