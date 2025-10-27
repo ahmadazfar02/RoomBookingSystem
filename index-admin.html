@@ -1,0 +1,94 @@
+<?php
+session_start();
+if (!isset($_SESSION["loggedin"]) || $_SESSION["role"] !== 'admin') {
+    header("location: login.html");
+    exit;
+}
+$total_rooms = 20;
+$active_bookings = 8;
+$pending_approvals = 3;
+?>
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Admin Home</title>
+<link href="style.css" rel="stylesheet">
+<link href="admin.css" rel="stylesheet">
+</head>
+
+<body>
+    <header class="main-header">
+        <div class="header-content">
+        <img src="img/utmlogo.png" alt="UTM Logo" class="logo">
+        </div>
+    </header>
+    
+    <main class="main-content dashboard-layout">
+        <div class="dashboard-container">
+
+            <!-- navigation -->
+            <nav class="dashboard-nav">
+                <a href="#" class="nav-tab active">Dashboard</a>
+                <a href="approval.php" class="nav-tab">Reservation Request</a>
+                <a href="timetable.php" class="nav-tab">Timetable</a>
+                <a href="logbook.php" class="nav-tab">Logbook</a>
+            </nav>
+            <!-- navigation end -->
+
+            <!-- stats row -->
+            <div class="stats-row">
+                <div class="stat-card">
+                    <div class="card-title">Total Rooms</div>
+                    <div class="card-value"><?php echo $total_rooms; ?></div>
+                </div>
+                <div class="stat-card">
+                    <div class="card-title">Active Bookings Today</div>
+                    <div class="card-value"><?php echo $active_bookings; ?></div>
+                </div>
+                <div class="stat-card pending">
+                    <div class="card-title">Pending Approvals</div>
+                    <div class="card-value"><?php echo $pending_approvals; ?></div>
+                </div>
+            </div> 
+            <!-- stats row end -->
+            
+            <!-- Table main grid -->
+             <div class="main-grid">
+                <h3>Booking Requests</h3>
+                <table class="booking-table">
+                    <thead>
+                        <tr>
+                            <th>Ticket</th><th>Room Name</th><th>Room No.</th><th>User</th><th>Date</th><th>Time</th><th>Status</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <tr> <td>1001</td> <td>Bilik Kuliah 1</td> <td>02.31.01</td> <td>Khairul</td> <td>7/6/2025</td> <td>8:00 am - 9:00 am</td> <td><span class="status-badge pending">Pending</span></td> </tr>
+                        <tr> <td>1002</td> <td>Bilik Kuliah 2</td> <td>02.31.02</td> <td>Azfar</td> <td>7/6/2025</td> <td>8:00 am - 9:00 am</td> <td><button class="action-btn approve-btn">Approve</button></td> </tr>
+                        <tr> <td>1003</td> <td>Bilik Kuliah 3</td> <td>02.31.03</td> <td>Hussein</td> <td>7/6/2025</td> <td>8:00 am - 9:00 am</td> <td><button class="action-btn cancel-btn">Cancel</button></td> </tr>
+                    </tbody>
+                </table>
+             </div>
+             <!-- Table main grid end -->
+
+             <!-- side panel -->
+             <div class="side-panel-container">
+
+                <div class="side-panel notifications-panel">
+                    <h4>Notifications</h4>
+                     <div clas="notification-item">Room 02.31.01 reserved by Amir has been approved.</div>
+                     <div class="notification-item maintenance">Room 02.31.01 under maintenance today (8-10 AM).</div>
+                </div>
+
+                <div class="side-panel reports-panel">
+                    <h4>Reports</h4>
+                    <button class="report-btn">Generate Reports<span class="arrow-icon">&gt</span></button>
+                </div>
+             </div>
+            <!-- side panel end -->
+        </div>
+    </main>
+    
+</body>
+</html>
