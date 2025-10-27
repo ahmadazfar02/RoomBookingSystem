@@ -1,3 +1,15 @@
+<?php
+session_start(); 
+
+if (!isset($_SESSION['loggedin'])) {
+    // Redirect if not logged in
+    header("location: login.php"); 
+    exit;
+}
+
+$user_name = $_SESSION['Fullname'] ?? $_SESSION['username'] ?? 'User'; 
+?>
+
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -11,12 +23,21 @@
         <div class="header-content">
         <img src="img/utmlogo.png" alt="UTM Logo" class="logo">
             <div class = "header-controls">
+                
+                <div class = "header-controls">
+                <div class="user-control-area">
+                    <div class="greeting">
+                        Hi, <?php echo htmlspecialchars($user_name); ?>
+                    </div>
+                    <a href="logout.php">Logout</a>
+                </div>
+
                 <button class="booking-status-btn"> 
                     Booking Status 
                     <span class="notification-badge"></span>
                 </button>
             </div>
-        </div>
+            </div>
     </header>
     
     <main class="main-content">
