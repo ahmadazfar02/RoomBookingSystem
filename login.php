@@ -5,7 +5,7 @@ if ($_SERVER["REQUEST_METHOD"] == "POST"){
     $email = $_POST["username"];
     $password = $_POST["password"];
 
-    $sql = "SELECT id, username, password_hash, User_Type FROM users WHERE username = ?";
+    $sql = "SELECT id, username, Fullname, password_hash, User_Type FROM users WHERE username = ?";
 
     if ($stmt = $conn->prepare($sql)){
         $stmt->bind_param("s", $email);
@@ -13,7 +13,7 @@ if ($_SERVER["REQUEST_METHOD"] == "POST"){
         if($stmt->execute()){
             $stmt->store_result();
             if($stmt->num_rows == 1){
-                $stmt->bind_result($id, $email, $hashed_password, $User_Type);
+                $stmt->bind_result($id, $username, $fullname, $hashed_password, $User_Type);
                 $stmt->fetch();
 
                 if (password_verify($password, $hashed_password)){
@@ -21,12 +21,13 @@ if ($_SERVER["REQUEST_METHOD"] == "POST"){
                     $_SESSION["loggedin"] = true;
                     $_SESSION["id"] = $id;
                     $_SESSION["username"] = $username;
+                    $_SESSION["Fullname"] = $fullname;
                     $_SESSION["User_Type"] = $User_Type;
 
-                    if($User_Type == 'admin'){
-                        header("location: index-admin.html");
+                    if($User_Type == 'Admin'){
+                        header("location: index-admin.php");
                     } else{
-                        header("location: index.html");
+                        header("location: index.php");
                     }
                     exit;
                 } 

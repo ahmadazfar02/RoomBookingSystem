@@ -16,7 +16,7 @@ $admin_name = $_SESSION['Fullname'] ?? 'Admin';
     top: 25px; 
     right: 150px; 
     text-align: right;
-    color: #333; 
+    color: #333; /
     font-family: Arial, sans-serif;
     z-index: 100;
 }
