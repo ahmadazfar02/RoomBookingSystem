@@ -114,3 +114,34 @@
         box-shadow: 0 2px 5px rgba(0, 0, 0, 0.15);
 
     }
+
+.header-controls {
+    /* Ensure the controls container uses flex to align items horizontally */
+    display: flex;
+    align-items: center; 
+     /* Adds space between the user area and the button */
+}
+
+.user-control-area {
+    /* Style for the text area */
+    text-align: right;
+    /* You can add more styling here if needed */
+    margin-left: auto;
+    margin-right: 125px;
+}
+
+.user-control-area .greeting {
+    font-weight: bold;
+    font-size: 1.1rem;
+    color: #5a0813; /* UTM Red color from your button style */
+}
+
+.user-control-area a {
+    color: #1b2ea6; /* UTM Blue link color */
+    text-decoration: none;
+    font-size: 0.9rem;
+}
+
+.user-control-area a:hover {
+    text-decoration: underline;
+}
