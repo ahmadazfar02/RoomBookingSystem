@@ -86,6 +86,17 @@
         text-decoration: underline;
     }
 
+    .remember-me {
+        text-align: left;
+        margin: 10px 0;
+        font-size: 14px;
+        color: #000;
+    }
+
+    .remember-me input {
+        vertical-align: middle;
+    }
+
 </style>
 </head>
 <body>
@@ -98,9 +109,17 @@
             <h2>ROOM RESERVATION SYSTEM</h2>
             <input type="text" name="username" placeholder="Username" required><br>
             <input type="password" name="password" placeholder="Password" required><br>
+            
+            <div class="remember-me">
+                <input type="checkbox" id="remember" name="remember">
+                <label for="remember">Remember Me</label>
+            </div>
 
             <div class="login-link">
                 Don't have an account yet? <a href="register.php">Sign Up</a>
+            </div>
+            <div class="login-link">
+                <a href="forgot_password.php">Forgot Password?</a>
             </div>
             <br>
             <button type="submit" class="login-btn">login</button>          
