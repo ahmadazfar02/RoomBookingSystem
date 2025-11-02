@@ -39,7 +39,7 @@ if ($_SERVER["REQUEST_METHOD"] == "POST"){
                         setcookie('remember_me', $token, time() + 60 * 60 * 24 * 30, '/');
                     }
 
-                    if($User_Type == 'Admin'){
+                    if($User_Type == 'admin'){
                         header("location: index-admin.php");
                     } else{
                         header("location: index.php");

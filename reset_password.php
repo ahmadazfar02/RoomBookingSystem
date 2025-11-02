@@ -150,7 +150,7 @@
         $error_message = "Invalid password reset link.";
     } else {
         // Verify token
-        $sql = "SELECT id, username, reset_token_expiry FROM users WHERE reset_token = ?";
+        $sql = "SELECT user_id, reset_token_expiry FROM forgot_password WHERE reset_token = ?";
         
         if ($stmt = $conn->prepare($sql)) {
             $stmt->bind_param("s", $token);
@@ -159,7 +159,7 @@
                 $stmt->store_result();
                 
                 if ($stmt->num_rows == 1) {
-                    $stmt->bind_result($user_id, $username, $token_expiry);
+                    $stmt->bind_result($user_id, $token_expiry);
                     $stmt->fetch();
                     
                     $current_time = new DateTime();
