@@ -27,7 +27,7 @@ if ($_SERVER["REQUEST_METHOD"] == "POST"){
                     if($User_Type == 'Admin'){
                         header("location: index-admin.php");
                     } else{
-                        header("location: index.php");
+                        header("location: timetable.html");
                     }
                     exit;
                 } 

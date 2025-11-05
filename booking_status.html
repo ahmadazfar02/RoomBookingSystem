@@ -1,0 +1,571 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Booking Status - UTM Room Booking</title>
+  <style>
+    :root{ 
+        --accent: #5c6bc0;
+        --accent-dark: #3f51b5;
+        --bg-gradient: linear-gradient(135deg, #7986cb 10%, #B3E5FC 50%, #FF8A80 100%);
+        --card-bg: #ffffff;
+        --text-primary: #1f2937;
+        --text-secondary: #6b7280;
+        --border: #e5e7eb;
+        --pending: #f59e0b;
+        --approved: #5DBB63;
+        --rejected: #ef4444;
+        --cancelled: #6b7280;
+        --table-header: #5c6bc0;
+    }
+    
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    
+    body { 
+        font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+        background: var(--bg-gradient);
+        min-height: 100vh;
+        color: var(--text-primary);
+    }
+    
+    /* Header */
+    .main-header {
+        background: rgba(255, 255, 255, 0.98);
+        backdrop-filter: blur(10px);
+        box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
+        position: sticky;
+        top: 0;
+        z-index: 1000;
+    }
+    
+    .header-content {
+        max-width: 1400px;
+        margin: 0 auto;
+        padding: 16px 24px;
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+    }
+    
+    .logo { height: 72px; }
+    
+    .header-title {
+        display: flex;
+        flex-direction: column;
+        gap: 4px;
+    }
+    
+    .header-title h1 {
+        font-size: 28px;
+        color: var(--accent);
+        margin: 0;
+    }
+    
+    .header-subtitle {
+        font-size: 14px;
+        color: var(--text-secondary);
+    }
+    
+    .btn {
+        padding: 10px 20px;
+        border: none;
+        border-radius: 8px;
+        font-size: 15px;
+        font-weight: 600;
+        cursor: pointer;
+        transition: all 0.3s ease;
+        text-decoration: none;
+        display: inline-block;
+    }
+    
+    .btn-secondary {
+        background: var(--accent);
+        color: white;
+        box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+    }
+    
+    .btn-secondary:hover {
+        background: var(--accent-dark);
+        transform: translateY(-2px);
+        box-shadow: 0 6px 16px rgba(0, 0, 0, 0.2);
+    }
+    
+    /* Main Container */
+    .container {
+        max-width: 1400px;
+        margin: 0 auto;
+        padding: 24px;
+    }
+    
+    /* Filters Card */
+    .filters-card {
+        background: rgba(255, 255, 255, 0.95);
+        backdrop-filter: blur(10px);
+        padding: 20px 24px;
+        border-radius: 16px;
+        box-shadow: 0 10px 25px rgba(0, 0, 0, 0.1);
+        margin-bottom: 24px;
+    }
+    
+    .filters {
+        display: flex;
+        gap: 12px;
+        align-items: center;
+        flex-wrap: wrap;
+    }
+    
+    .filter-btn {
+        padding: 10px 20px;
+        border-radius: 8px;
+        border: 2px solid var(--border);
+        background: white;
+        color: var(--text-primary);
+        cursor: pointer;
+        font-size: 14px;
+        font-weight: 600;
+        transition: all 0.3s ease;
+    }
+    
+    .filter-btn:hover {
+        border-color: var(--accent);
+        color: var(--accent);
+        transform: translateY(-2px);
+        box-shadow: 0 4px 12px rgba(0, 0, 0, 0.12);
+    }
+    
+    .filter-btn.active {
+        background: var(--accent);
+        color: white;
+        border-color: var(--accent);
+        box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+    }
+    
+    .status-count {
+        margin-left: auto;
+        font-size: 14px;
+        color: var(--text-secondary);
+        font-weight: 600;
+        padding: 8px 16px;
+        background: #f3f4f6;
+        border-radius: 8px;
+    }
+    
+    /* Table Card */
+    .table-card {
+        background: rgba(255, 255, 255, 0.95);
+        backdrop-filter: blur(10px);
+        padding: 24px;
+        border-radius: 16px;
+        box-shadow: 0 10px 30px rgba(0, 0, 0, 0.15);
+        overflow: hidden;
+    }
+    
+    .table-wrapper {
+        overflow-x: auto;
+        border-radius: 12px;
+        box-shadow: 0 4px 12px rgba(0, 0, 0, 0.08);
+    }
+    
+    table {
+        width: 100%;
+        border-collapse: separate;
+        border-spacing: 0;
+        font-size: 14px;
+    }
+    
+    th, td {
+        padding: 16px 12px;
+        text-align: left;
+        border-bottom: 1px solid var(--border);
+    }
+    
+    thead th {
+        background: var(--table-header);
+        color: white;
+        font-weight: 600;
+        position: sticky;
+        top: 0;
+        z-index: 10;
+        border-bottom: 2px solid rgba(255, 255, 255, 0.2);
+        text-shadow: 0 1px 2px rgba(0, 0, 0, 0.1);
+        border: 1px solid white;
+    }
+    
+    tbody tr {
+        background: white;
+        transition: all 0.2s ease;
+    }
+    
+    tbody tr:hover {
+        background: #f5f7ff;
+        transform: translateY(-2px);
+        box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+    }
+    
+    tbody tr:last-child td {
+        border-bottom: none;
+    }
+    
+    /* Status Badges */
+    .status-pending {
+        color: #92400e;
+        background: linear-gradient(135deg, #fde68a 0%, #fbbf24 100%);
+        padding: 4px 12px;
+        border-radius: 6px;
+        font-weight: 600;
+        font-size: 13px;
+        display: inline-block;
+    }
+    
+    .status-booked {
+        color: #065f46;
+        background: linear-gradient(135deg, #d1fae5 0%, #6ee7b7 100%);
+        padding: 4px 12px;
+        border-radius: 6px;
+        font-weight: 600;
+        font-size: 13px;
+        display: inline-block;
+    }
+    
+    .status-cancelled {
+        color: #374151;
+        background: linear-gradient(135deg, #e5e7eb 0%, #d1d5db 100%);
+        padding: 4px 12px;
+        border-radius: 6px;
+        font-weight: 600;
+        font-size: 13px;
+        display: inline-block;
+    }
+    
+    .status-rejected {
+        color: #7f1d1d;
+        background: linear-gradient(135deg, #fecaca 0%, #f87171 100%);
+        padding: 4px 12px;
+        border-radius: 6px;
+        font-weight: 600;
+        font-size: 13px;
+        display: inline-block;
+    }
+    
+    /* Action Button */
+    .btn-cancel {
+        padding: 6px 16px;
+        background: linear-gradient(135deg, #ef4444 0%, #dc2626 100%);
+        color: white;
+        border: none;
+        border-radius: 6px;
+        font-size: 13px;
+        font-weight: 600;
+        cursor: pointer;
+        transition: all 0.3s ease;
+        box-shadow: 0 2px 4px rgba(239, 68, 68, 0.3);
+    }
+    
+    .btn-cancel:hover:not(:disabled) {
+        transform: translateY(-2px);
+        box-shadow: 0 4px 8px rgba(239, 68, 68, 0.4);
+    }
+    
+    .btn-cancel:disabled {
+        opacity: 0.5;
+        cursor: not-allowed;
+    }
+    
+    /* Loading State */
+    .loading-cell {
+        text-align: center;
+        padding: 40px !important;
+        color: var(--text-secondary);
+        font-size: 15px;
+    }
+    
+    .error-cell {
+        text-align: left;
+        padding: 20px !important;
+        color: #dc2626;
+        background: #fef2f2;
+        border-radius: 8px;
+    }
+    
+    /* Responsive */
+    @media (max-width: 800px) {
+        .header-content {
+            flex-direction: column;
+            gap: 16px;
+            align-items: flex-start;
+        }
+        
+        .filters {
+            justify-content: center;
+        }
+        
+        .status-count {
+            margin-left: 0;
+            width: 100%;
+            text-align: center;
+        }
+        
+        table, thead, tbody, th, td, tr {
+            display: block;
+        }
+        
+        thead {
+            display: none;
+        }
+        
+        tbody tr {
+            margin-bottom: 16px;
+            border: 2px solid var(--border);
+            border-radius: 12px;
+            padding: 16px;
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.05);
+        }
+        
+        td {
+            border: 0;
+            padding: 8px 0;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        
+        td::before {
+            content: attr(data-label);
+            font-weight: 600;
+            color: var(--text-secondary);
+            margin-right: 12px;
+        }
+    }
+  </style>
+</head>
+<body>
+  <header class="main-header">
+    <div class="header-content">
+      <img src="img/utmlogo.png" alt="UTM Logo" class="logo">
+      <div class="header-title">
+        <h1>Booking Status</h1>
+      </div>
+      <a href="timetable.html" class="btn btn-secondary">← Back to Timetable</a>
+    </div>
+  </header>
+
+  <div class="container">
+    <div class="filters-card">
+      <div class="filters" aria-label="Booking filters">
+        <button class="filter-btn active" data-filter="pending">Booking Request</button>
+        <button class="filter-btn" data-filter="booked">Approved</button>
+        <button class="filter-btn" data-filter="rejected">Rejected</button>
+        <button class="filter-btn" data-filter="cancelled">Cancelled</button>
+        <button class="filter-btn" data-filter="all">All</button>
+        <div class="status-count" id="statusCount">Loading…</div>
+      </div>
+    </div>
+
+    <div class="table-card">
+      <div class="table-wrapper">
+        <table id="statusTable" aria-label="Booking Status Table">
+          <thead>
+            <tr>
+              <th style="width:80px">Booking ID</th>
+              <th style="width:140px">Room</th>
+              <th style="width:160px">Reservation Date</th>
+              <th style="width:160px">Reservation Time</th>
+              <th style="width:140px">Status</th>
+              <th style="width:110px">Action</th>
+              <th>Comments</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr><td colspan="7" class="loading-cell">Loading bookings...</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+
+<script>
+/* booking_status.html - client */
+
+function escapeHtml(s){ 
+  if(s === 0) return '0'; 
+  if(!s) return ''; 
+  return String(s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); 
+}
+
+const filterButtons = document.querySelectorAll('.filter-btn');
+const tbody = document.querySelector('#statusTable tbody');
+const statusCountEl = document.getElementById('statusCount');
+
+filterButtons.forEach(btn=>{
+  btn.addEventListener('click', () => {
+    filterButtons.forEach(b => b.classList.remove('active'));
+    btn.classList.add('active');
+    loadStatusBookings(btn.dataset.filter);
+  });
+});
+
+document.addEventListener('DOMContentLoaded', () => {
+  const defaultFilter = 'pending';
+  const defaultBtn = document.querySelector(`.filter-btn[data-filter="${defaultFilter}"]`);
+  if (defaultBtn) { 
+    filterButtons.forEach(b=>b.classList.remove('active')); 
+    defaultBtn.classList.add('active'); 
+  }
+  loadStatusBookings(defaultFilter);
+});
+
+function loadStatusBookings(filter) {
+  tbody.innerHTML = '<tr><td colspan="7" class="loading-cell">Loading bookings...</td></tr>';
+  statusCountEl.textContent = 'Loading…';
+  let url = 'booking_status.php?view=status';
+  if (filter && filter !== 'all') url += '&filter=' + encodeURIComponent(filter);
+
+  fetch(url, {cache:'no-store'})
+    .then(r => {
+      const ct = r.headers.get('content-type') || '';
+      if (ct.indexOf('application/json') === -1) {
+        return r.text().then(txt => { 
+          throw new Error('Non-JSON response from server: ' + txt); 
+        });
+      }
+      return r.json();
+    })
+    .then(data => {
+      if (!Array.isArray(data) || data.length === 0) {
+        tbody.innerHTML = '<tr><td colspan="7" class="loading-cell">No bookings found</td></tr>';
+        statusCountEl.textContent = '0 bookings';
+        return;
+      }
+
+      tbody.innerHTML = '';
+      let visibleCount = 0;
+      data.forEach(b => {
+        visibleCount++;
+        const tr = document.createElement('tr');
+        tr.dataset.room = b.room || '';
+        tr.dataset.slotDate = b.slot_date || '';
+        tr.dataset.timeStart = b.time_start || '';
+
+        const idCell = `<td data-label="Booking ID">${escapeHtml(b.id)}</td>`;
+        const roomCell = `<td data-label="Room">${escapeHtml(b.room||'')}</td>`;
+        const dateCell = `<td data-label="Reservation Date">${escapeHtml(b.slot_date||'')}</td>`;
+        const timeCell = `<td data-label="Reservation Time">${escapeHtml((b.time_start||'').slice(0,5))} - ${escapeHtml((b.time_end||'').slice(0,5))}</td>`;
+
+        let statusLabel = escapeHtml(b.status||'');
+        let statusClass = '';
+        const statusLower = (b.status||'').toLowerCase();
+        if (statusLower === 'pending') statusClass = 'status-pending';
+        else if (statusLower === 'booked') statusClass = 'status-booked';
+        else if (statusLower === 'rejected') statusClass = 'status-rejected';
+        else statusClass = 'status-cancelled';
+        
+        const statusCell = `<td data-label="Status"><span class="${statusClass}">${statusLabel}</span></td>`;
+
+        const isOwner = (b.is_owner === 1 || b.is_owner === '1');
+        const isAdmin = (b.is_admin === 1 || b.is_admin === '1');
+        let actionHtml = `<td data-label="Action">-</td>`;
+        if ((isOwner && (statusLower === 'pending' || statusLower === 'booked')) || isAdmin) {
+          actionHtml = `<td data-label="Action"><button class="btn-cancel" data-id="${escapeHtml(b.id)}">Cancel</button></td>`;
+        }
+
+        const commentsCell = `<td data-label="Comments">${escapeHtml(b.purpose || b.description || '')}</td>`;
+
+        tr.innerHTML = idCell + roomCell + dateCell + timeCell + statusCell + actionHtml + commentsCell;
+        tbody.appendChild(tr);
+      });
+
+      statusCountEl.textContent = `${visibleCount} booking${visibleCount !== 1 ? 's' : ''}`;
+
+      tbody.querySelectorAll('.btn-cancel').forEach(btn=>{
+        btn.addEventListener('click', () => {
+          handleCancelButton(btn);
+        });
+      });
+
+    })
+    .catch(err => {
+      console.error('Load error', err);
+      tbody.innerHTML = `<tr><td colspan="7" class="error-cell"><strong>Error loading bookings:</strong><br>${escapeHtml(String(err.message))}</td></tr>`;
+      statusCountEl.textContent = 'Error';
+      alert('Error loading bookings: ' + err.message);
+    });
+}
+
+function postJson(payload) {
+  return fetch('booking_status.php', {
+    method: 'POST',
+    headers: {'Content-Type':'application/json'},
+    body: JSON.stringify(payload)
+  }).then(r => {
+    const ct = r.headers.get('content-type') || '';
+    if (ct.indexOf('application/json') === -1) {
+      return r.text().then(txt => { 
+        throw new Error('Non-JSON response from server: ' + txt); 
+      });
+    }
+    return r.json();
+  });
+}
+
+function handleCancelButton(btn) {
+  const bookingId = Number(btn.dataset.id || 0);
+  const tr = btn.closest('tr');
+  const room = tr.dataset.room || '';
+  const slot_date = tr.dataset.slotDate || '';
+  const time_start = tr.dataset.timeStart || '';
+
+  if (!confirm('Are you sure you want to cancel this booking?')) return;
+  btn.disabled = true;
+  const original = btn.textContent;
+  btn.textContent = 'Cancelling...';
+
+  if (bookingId && bookingId > 0) {
+    postJson({ action: 'cancel', booking_id: bookingId, reason: 'Cancelled by user' })
+      .then(resp => {
+        if (resp && resp.success) {
+          loadStatusBookings(document.querySelector('.filter-btn.active').dataset.filter);
+        } else {
+          console.warn('Cancel by id failed:', resp && resp.msg);
+          attemptCancelSlotFallback({room, slot_date, time_start}, btn, original, resp && resp.msg);
+        }
+      })
+      .catch(err => {
+        console.warn('Cancel by id error:', err);
+        attemptCancelSlotFallback({room, slot_date, time_start}, btn, original, err.message);
+      });
+  } else {
+    attemptCancelSlotFallback({room, slot_date, time_start}, btn, original);
+  }
+}
+
+function attemptCancelSlotFallback(slotInfo, btn, originalText, previousMsg) {
+  if (!slotInfo.room || !slotInfo.slot_date || !slotInfo.time_start) {
+    alert('Missing slot info for cancellation. Refreshing list.');
+    loadStatusBookings(document.querySelector('.filter-btn.active').dataset.filter);
+    return;
+  }
+  postJson({ 
+    action: 'cancel_slot', 
+    room: slotInfo.room, 
+    slot_date: slotInfo.slot_date, 
+    time_start: slotInfo.time_start, 
+    reason: 'Cancelled by user' 
+  })
+    .then(resp => {
+      if (resp && resp.success) {
+        loadStatusBookings(document.querySelector('.filter-btn.active').dataset.filter);
+      } else {
+        alert('Cancel failed: ' + (resp && resp.msg ? resp.msg : 'Unknown error') + (previousMsg ? '\nServer said: ' + previousMsg : ''));
+        loadStatusBookings(document.querySelector('.filter-btn.active').dataset.filter);
+      }
+    })
+    .catch(err => {
+      console.error('Cancel_slot error', err);
+      alert('Cancel failed: ' + err.message);
+      loadStatusBookings(document.querySelector('.filter-btn.active').dataset.filter);
+    });
+}
+</script>
+</body>
+</html>
