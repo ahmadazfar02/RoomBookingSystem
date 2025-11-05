@@ -27,7 +27,7 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
     }
     
     // Verify token is still valid
-    $sql = "SELECT id FROM users WHERE reset_token = ? AND reset_token_expiry > ?";
+    $sql = "SELECT id, User_Type FROM users WHERE reset_token = ? AND reset_token_expiry > ?";
     
     if ($stmt = $conn->prepare($sql)) {
         $current_time = date('Y-m-d H:i:s');
@@ -37,7 +37,7 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
             $stmt->store_result();
             
             if ($stmt->num_rows == 1) {
-                $stmt->bind_result($user_id);
+                $stmt->bind_result($user_id, $user_type);
                 $stmt->fetch();
                 $stmt->close();
                 
@@ -53,7 +53,11 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
                     if ($update_stmt->execute()) {
                         $_SESSION['password_reset_success'] = true;
                         $conn->close();
-                        header("location: password_reset_success.php");
+                        if ($user_type === 'admin') {
+                            header("location: password_reset_success_admin.php");
+                        } else {
+                            header("location: password_reset_success.php");
+                        }
                         exit;
                     } else {
                         $_SESSION['message'] = "Failed to update password. Please try again.";

@@ -1,9 +1,9 @@
 <?php
 session_start(); 
 
-if (!isset($_SESSION['loggedin']) || $_SESSION['User_Type'] !== 'Admin') {
-    // Redirect if not logged in or not an admin
-    header("location: login.php"); 
+if(!isset($_SESSION["loggedin"]) || $_SESSION["loggedin"] !== true || 
+   strcasecmp(trim($_SESSION["User_Type"]), 'Admin') != 0) {
+    header("location: loginterface.html");
     exit;
 }
 

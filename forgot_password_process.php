@@ -1,6 +1,15 @@
 <?php
+// Start output buffering to prevent header issues
+ob_start();
 session_start();
 require_once 'db_connect.php';
+require 'vendor/PHPMailer/src/Exception.php';
+require 'vendor/PHPMailer/src/PHPMailer.php';
+require 'vendor/PHPMailer/src/SMTP.php';
+
+use PHPMailer\PHPMailer\PHPMailer;
+use PHPMailer\PHPMailer\Exception;
+use PHPMailer\PHPMailer\SMTP;
 
 if ($_SERVER["REQUEST_METHOD"] == "POST") {
     // Set timezone to GMT+8
@@ -27,7 +36,7 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
                 // Set token expiry (1 hour from now)
                 $expiry_time = date('Y-m-d H:i:s', strtotime('+1 hour'));
                 
-                // Store token in database
+                // Store token in the users table
                 $update_sql = "UPDATE users SET reset_token = ?, reset_token_expiry = ? WHERE id = ?";
                 
                 if ($update_stmt = $conn->prepare($update_sql)) {
@@ -35,34 +44,58 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
                     
                     if ($update_stmt->execute()) {
                         // Create reset link
-                        $reset_link = "http://" . $_SERVER['HTTP_HOST'] . dirname($_SERVER['PHP_SELF']) . "/reset_password.php?token=" . $reset_token;
+                        $reset_link = "http://" . $_SERVER['HTTP_HOST'] . str_replace(' ', '%20', dirname($_SERVER['PHP_SELF'])) . "/reset_password.php?token=" . $reset_token;
                         
-                        // In a production environment, you would send this via email
-                        // For now, we'll display it on the page (for development/testing)
-                        $_SESSION['message'] = "Password reset instructions have been generated. Use the link below to reset your password:<br><br><a href='" . $reset_link . "' style='color: #155724; text-decoration: underline;'>" . $reset_link . "</a><br><br><small>(This link expires in 1 hour)</small>";
-                        $_SESSION['message_type'] = "success";
-                        
-                        // NOTE: In production, uncomment this code and configure email settings
-                        /*
-                        $to = $user_email;
-                        $subject = "Password Reset Request - Room Reservation System";
-                        $message = "Hello " . $username . ",\n\n";
-                        $message .= "You requested to reset your password. Click the link below to reset it:\n\n";
-                        $message .= $reset_link . "\n\n";
-                        $message .= "This link will expire in 1 hour.\n\n";
-                        $message .= "If you didn't request this, please ignore this email.\n\n";
-                        $message .= "Best regards,\nRoom Reservation System";
-                        
-                        $headers = "From: noreply@roomreservation.utm.my";
-                        
-                        if (mail($to, $subject, $message, $headers)) {
-                            $_SESSION['message'] = "Password reset instructions have been sent to your email address.";
+                        try {
+                            // Create a new PHPMailer instance
+                            $mail = new PHPMailer(true);
+                            
+                            // Server settings
+                            $mail->isSMTP();
+                            $mail->Host = 'smtp.gmail.com';
+                            $mail->SMTPAuth = true;
+                            $mail->Username = 'reserveroom446@gmail.com';
+                            $mail->Password = 'kaudwtzzuytnfjwi';
+                            $mail->SMTPSecure = PHPMailer::ENCRYPTION_STARTTLS;
+                            $mail->Port = 587;
+                            
+                            // Recipients
+                            $mail->setFrom('reserveroom446@gmail.com', 'Room Reservation System');
+                            $mail->addAddress($user_email, $username);
+                            
+                            // Content
+                            $mail->isHTML(true);
+                            $mail->Subject = 'Password Reset Request - Room Reservation System';
+                            $mail->Body = "
+                                <html>
+                                <body>
+                                    <p>Hello {$username},</p>
+                                    <p>You requested to reset your password. Click the link below to reset it:</p>
+                                    <p><a href='{$reset_link}'>{$reset_link}</a></p>
+                                    <p>This link will expire in 1 hour.</p>
+                                    <p>If you didn't request this, please ignore this email.</p>
+                                    <br>
+                                    <p>Best regards,<br>Room Reservation System</p>
+                                </body>
+                                </html>
+                            ";
+                            $mail->AltBody = "Hello {$username},\n\n"
+                                . "You requested to reset your password. Click the link below to reset it:\n\n"
+                                . "{$reset_link}\n\n"
+                                . "This link will expire in 1 hour.\n\n"
+                                . "If you didn't request this, please ignore this email.\n\n"
+                                . "Best regards,\nRoom Reservation System";
+                            
+                            // Send the email
+                            $mail->send();
+                            $_SESSION['message'] = "If the email exists in our system, a password reset link has been sent.";
                             $_SESSION['message_type'] = "success";
-                        } else {
-                            $_SESSION['message'] = "Failed to send email. Please try again later.";
-                            $_SESSION['message_type'] = "error";
+                        } catch (Exception $e) {
+                            // Log the error but don't show it to the user
+                            error_log("Failed to send password reset email: " . $mail->ErrorInfo);
+                            $_SESSION['message'] = "If the email exists in our system, a password reset link has been sent.";
+                            $_SESSION['message_type'] = "success";
                         }
-                        */
                     } else {
                         $_SESSION['message'] = "Something went wrong. Please try again later.";
                         $_SESSION['message_type'] = "error";
@@ -84,7 +117,10 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
     }
     
     $conn->close();
+    
+    // Clean output buffer and redirect
+    ob_end_clean();
     header("location: forgot_password.php");
-    exit;
+    exit();
 }
 ?>
