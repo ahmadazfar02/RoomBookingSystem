@@ -1,0 +1,12 @@
+[2025-11-05 14:00:40] POST RAW: {"action":"cancel","booking_id":27,"reason":"Cancelled by user"}
+[2025-11-05 14:00:40] POST action: cancel, user_id: 2
+[2025-11-05 14:00:40] cancel success (deleted) id=27 by user=2
+[2025-11-05 14:00:42] POST RAW: {"action":"cancel","booking_id":26,"reason":"Cancelled by user"}
+[2025-11-05 14:00:42] POST action: cancel, user_id: 2
+[2025-11-05 14:00:42] cancel success (deleted) id=26 by user=2
+[2025-11-05 16:06:23] POST RAW: {"action":"cancel","booking_id":29,"reason":"Cancelled by user"}
+[2025-11-05 16:06:23] POST action: cancel, user_id: 2
+[2025-11-05 16:06:23] cancel success (updated to cancelled) id=29 by user=2
+[2025-11-05 16:06:24] POST RAW: {"action":"cancel","booking_id":28,"reason":"Cancelled by user"}
+[2025-11-05 16:06:24] POST action: cancel, user_id: 2
+[2025-11-05 16:06:24] cancel success (updated to cancelled) id=28 by user=2

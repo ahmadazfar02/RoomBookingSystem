@@ -164,20 +164,47 @@ try {
                 throw new Exception('Cannot cancel booking with status: '.$booking['status']);
             }
 
-            // DELETE the booking (you used delete previously)
-            $del = $conn->prepare("DELETE FROM timetable WHERE id = ?");
-            if ($del === false) throw new Exception('DB prepare error: '.$conn->error);
-            $del->bind_param('i', $booking_id);
-            $ok = $del->execute();
-            $del->close();
+            // UPDATE the booking to cancelled (keeps history)
+            // If you have audit columns cancelled_by/cancelled_at/cancel_reason they will be set; if not, the query still works for status only.
+            // Use the extended query if audit columns exist, otherwise fallback to status-only update.
+            $update_sql = "UPDATE timetable SET status = 'cancelled'";
+            $update_params = [];
+            $update_types = '';
+
+            // try to detect if audit columns exist: (cheaper to attempt and ignore)
+            // We'll attempt to prepare an update with audit columns; if it fails, we'll fallback to status-only update.
+            $try_update_with_audit = $conn->prepare("UPDATE timetable SET status = 'cancelled', cancelled_by = ?, cancelled_at = ?, cancel_reason = ? WHERE id = ?");
+
+            if ($try_update_with_audit !== false) {
+                $now = date('Y-m-d H:i:s');
+                $try_update_with_audit->bind_param('issi', $me_id, $now, $reason, $booking_id);
+                $ok = $try_update_with_audit->execute();
+                $try_update_with_audit->close();
+                if (!$ok) {
+                    // fallback to status-only update below
+                    dbg("Attempt to update with audit columns failed: " . $conn->error);
+                    $fallback = $conn->prepare("UPDATE timetable SET status = 'cancelled' WHERE id = ?");
+                    if ($fallback === false) throw new Exception('DB prepare error (fallback): '.$conn->error);
+                    $fallback->bind_param('i', $booking_id);
+                    $ok = $fallback->execute();
+                    $fallback->close();
+                }
+            } else {
+                // fallback to simple update
+                $fallback = $conn->prepare("UPDATE timetable SET status = 'cancelled' WHERE id = ?");
+                if ($fallback === false) throw new Exception('DB prepare error: '.$conn->error);
+                $fallback->bind_param('i', $booking_id);
+                $ok = $fallback->execute();
+                $fallback->close();
+            }
 
             if ($ok) {
-                dbg("cancel success (deleted) id={$booking_id} by user={$me_id}");
+                dbg("cancel success (updated to cancelled) id={$booking_id} by user={$me_id}");
                 ob_end_clean();
                 echo json_encode(['success'=>true,'booking_id'=>$booking_id,'status'=>'cancelled']);
                 exit;
             } else {
-                throw new Exception('DB delete failed: '.$conn->error);
+                throw new Exception('DB update failed: '.$conn->error);
             }
         }
 
@@ -211,25 +238,43 @@ try {
             $stmt->close();
             $target_id = (int)$candidate['id'];
 
-            $del = $conn->prepare("DELETE FROM timetable WHERE id = ?");
-            if ($del === false) throw new Exception('DB prepare error: '.$conn->error);
-            $del->bind_param('i', $target_id);
-            $ok = $del->execute();
-            $del->close();
+            // Update to cancelled (with audit if available)
+            $try_update_with_audit = $conn->prepare("UPDATE timetable SET status = 'cancelled', cancelled_by = ?, cancelled_at = ?, cancel_reason = ? WHERE id = ?");
+            if ($try_update_with_audit !== false) {
+                $now = date('Y-m-d H:i:s');
+                $try_update_with_audit->bind_param('issi', $me_id, $now, $reason, $target_id);
+                $ok = $try_update_with_audit->execute();
+                $try_update_with_audit->close();
+                if (!$ok) {
+                    dbg("Attempt to update with audit columns failed (cancel_slot): " . $conn->error);
+                    $fallback = $conn->prepare("UPDATE timetable SET status = 'cancelled' WHERE id = ?");
+                    if ($fallback === false) throw new Exception('DB prepare error (fallback): '.$conn->error);
+                    $fallback->bind_param('i', $target_id);
+                    $ok = $fallback->execute();
+                    $fallback->close();
+                }
+            } else {
+                $fallback = $conn->prepare("UPDATE timetable SET status = 'cancelled' WHERE id = ?");
+                if ($fallback === false) throw new Exception('DB prepare error: '.$conn->error);
+                $fallback->bind_param('i', $target_id);
+                $ok = $fallback->execute();
+                $fallback->close();
+            }
 
             if ($ok) {
-                dbg("cancel_slot success (deleted) id={$target_id} by user={$me_id}");
+                dbg("cancel_slot success (updated to cancelled) id={$target_id} by user={$me_id}");
                 ob_end_clean();
                 echo json_encode(['success'=>true,'booking_id'=>$target_id,'status'=>'cancelled']);
                 exit;
             } else {
-                throw new Exception('DB delete failed: '.$conn->error);
+                throw new Exception('DB update failed: '.$conn->error);
             }
         }
 
         // unknown action
         throw new Exception('Unknown action: '.$action);
     }
+
 
     // fallback for other methods
     ob_end_clean();
