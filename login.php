@@ -24,6 +24,10 @@ if ($_SERVER["REQUEST_METHOD"] == "POST"){
                     $_SESSION["Fullname"] = $fullname;
                     $_SESSION["User_Type"] = $User_Type;
 
+                    if($User_Type == 'Admin'){
+                        header("location: index-admin.php");
+                    } else{
+                        header("location: timetable.html");
                     if (isset($_POST['remember'])) {
                         $token = bin2hex(random_bytes(16));
                         $token_hash = hash('sha256', $token);

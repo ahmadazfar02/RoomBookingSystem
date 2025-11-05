@@ -1,9 +1,9 @@
 <?php
 session_start(); 
 
-if (!isset($_SESSION['loggedin']) || $_SESSION['User_Type'] !== 'admin') {
+if (!isset($_SESSION['loggedin']) || $_SESSION['User_Type'] !== 'Admin') {
     // Redirect if not logged in or not an admin
-    header("location: loginterface"); 
+    header("location: login.php"); 
     exit;
 }
 
@@ -16,7 +16,7 @@ $admin_name = $_SESSION['Fullname'] ?? 'Admin';
     top: 25px; 
     right: 150px; 
     text-align: right;
-    color: #333; /
+    color: #333; 
     font-family: Arial, sans-serif;
     z-index: 100;
 }
