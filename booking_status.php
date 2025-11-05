@@ -156,8 +156,12 @@ try {
             }
 
             if (strtolower($booking['status']) === 'cancelled') {
-                throw new Exception('Already cancelled');
+                // do not throw; just return success
+                ob_end_clean();
+                echo json_encode(['success'=>true,'booking_id'=>$booking_id,'status'=>'cancelled','note'=>'already cancelled']);
+                exit;
             }
+
 
             $current_status = strtolower($booking['status']);
             if ($current_status !== 'pending' && $current_status !== 'booked') {

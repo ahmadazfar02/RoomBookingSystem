@@ -8,3 +8,13 @@
 [2025-11-05 16:06:17] Inserted pending booking id=28: user=2, room=bk1, date=2025-06-02, slot=08:00-08:50
 [2025-11-05 16:06:17] Inserted pending booking id=29: user=2, room=bk1, date=2025-06-02, slot=09:00-09:50
 [2025-11-05 16:06:17] Returning results: [{"id":28,"date":"2025-06-02","slot":"08:00-08:50","success":true,"status":"pending"},{"id":29,"date":"2025-06-02","slot":"09:00-09:50","success":true,"status":"pending"}]
+[2025-11-05 16:20:08] Raw POST: {"room":"bk1","purpose":"test","description":"testing","tel":"0172345678","slots":[{"date":"2025-06-02","slot":"08:00-08:50"},{"date":"2025-06-02","slot":"09:00-09:50"}]}
+[2025-11-05 16:20:08] Book payload: room=bk1, purpose=test, tel=0172345678, slots_count=2
+[2025-11-05 16:20:08] Inserted pending booking id=30: user=2, room=bk1, date=2025-06-02, slot=08:00-08:50
+[2025-11-05 16:20:08] Inserted pending booking id=31: user=2, room=bk1, date=2025-06-02, slot=09:00-09:50
+[2025-11-05 16:20:08] Returning results: [{"id":30,"date":"2025-06-02","slot":"08:00-08:50","success":true,"status":"pending"},{"id":31,"date":"2025-06-02","slot":"09:00-09:50","success":true,"status":"pending"}]
+[2025-11-05 16:20:50] Raw POST: {"room":"bk1","purpose":"test","description":"testing","tel":"0172345678","slots":[{"date":"2025-06-04","slot":"08:00-08:50"},{"date":"2025-06-04","slot":"09:00-09:50"}]}
+[2025-11-05 16:20:50] Book payload: room=bk1, purpose=test, tel=0172345678, slots_count=2
+[2025-11-05 16:20:50] Inserted pending booking id=32: user=2, room=bk1, date=2025-06-04, slot=08:00-08:50
+[2025-11-05 16:20:50] Inserted pending booking id=33: user=2, room=bk1, date=2025-06-04, slot=09:00-09:50
+[2025-11-05 16:20:50] Returning results: [{"id":32,"date":"2025-06-04","slot":"08:00-08:50","success":true,"status":"pending"},{"id":33,"date":"2025-06-04","slot":"09:00-09:50","success":true,"status":"pending"}]
