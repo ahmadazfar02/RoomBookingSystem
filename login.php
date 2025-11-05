@@ -24,10 +24,6 @@ if ($_SERVER["REQUEST_METHOD"] == "POST"){
                     $_SESSION["Fullname"] = $fullname;
                     $_SESSION["User_Type"] = $User_Type;
 
-                    if($User_Type == 'Admin'){
-                        header("location: index-admin.php");
-                    } else{
-                        header("location: timetable.html");
                     if (isset($_POST['remember'])) {
                         $token = bin2hex(random_bytes(16));
                         $token_hash = hash('sha256', $token);
@@ -46,14 +42,10 @@ if ($_SERVER["REQUEST_METHOD"] == "POST"){
                     if($User_Type == 'admin'){
                         header("location: index-admin.php");
                     } else{
-                        header("location: index.php");
+                        header("location: timetable.html");
                     }
                     exit;
                 } 
-                else{
-                    $login_err = "Invalid username or password.";
-                    echo "<script>alert('Invalid password'); window.location.href='loginterface.html';</script>";
-                    } 
             }
             else{
                     $login_err = "Invalid username or password.";
@@ -63,5 +55,6 @@ if ($_SERVER["REQUEST_METHOD"] == "POST"){
         $stmt->close();
     }
 }
+
 $conn->close();
 ?>
