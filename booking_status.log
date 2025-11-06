@@ -58,3 +58,24 @@
 [2025-11-05 16:47:58] POST RAW: {"action":"cancel","booking_id":30,"reason":"Cancelled by user"}
 [2025-11-05 16:47:58] POST action: cancel, user_id: 2
 [2025-11-05 16:47:58] cancel success (updated to cancelled) id=30 by user=2
+[2025-11-06 04:09:16] POST RAW: {"action":"cancel","booking_id":35,"reason":"Cancelled by user"}
+[2025-11-06 04:09:16] POST action: cancel, user_id: 2
+[2025-11-06 04:09:16] cancel success (updated to cancelled) id=35 by user=2
+[2025-11-06 04:19:40] POST RAW: {"action":"cancel","booking_id":36,"reason":"Cancelled by user"}
+[2025-11-06 04:19:40] POST action: cancel, user_id: 2
+[2025-11-06 04:19:40] cancel success (updated to cancelled) id=36 by user=2
+[2025-11-06 04:19:43] POST RAW: {"action":"cancel","booking_id":34,"reason":"Cancelled by user"}
+[2025-11-06 04:19:43] POST action: cancel, user_id: 2
+[2025-11-06 04:19:43] cancel success (updated to cancelled) id=34 by user=2
+[2025-11-06 04:28:49] POST RAW: {"action":"cancel","booking_id":38,"reason":"Cancelled by user"}
+[2025-11-06 04:28:49] POST action: cancel, user_id: 2
+[2025-11-06 04:28:49] cancel success (updated to cancelled) id=38 by user=2
+[2025-11-06 04:30:02] POST RAW: {"action":"cancel","booking_id":37,"reason":"Cancelled by user"}
+[2025-11-06 04:30:02] POST action: cancel, user_id: 2
+[2025-11-06 04:30:02] cancel success (updated to cancelled) id=37 by user=2
+[2025-11-06 04:33:12] POST RAW: {"action":"cancel","booking_id":39,"reason":"Cancelled by user"}
+[2025-11-06 04:33:12] POST action: cancel, user_id: 2
+[2025-11-06 04:33:12] cancel success (updated to cancelled) id=39 by user=2
+[2025-11-06 15:57:03] POST RAW: {"action":"cancel","booking_id":40,"reason":"Cancelled by user"}
+[2025-11-06 15:57:03] POST action: cancel, user_id: 2
+[2025-11-06 15:57:03] cancel success (updated to cancelled) id=40 by user=2
