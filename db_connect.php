@@ -10,7 +10,7 @@ if ($conn->connect_error) {
     die("Connection failed: " . $conn->connect_error);
 }
 
-session_start();
+
 
 if (empty($_SESSION["loggedin"]) && isset($_COOKIE['remember_me'])) {
     $token = $_COOKIE['remember_me'];
