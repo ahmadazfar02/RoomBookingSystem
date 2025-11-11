@@ -1,47 +1,53 @@
 <?php
-// book_slot.php - combined: GET bookings, POST booking(s), POST cancel
+// book_slot.php - GET bookings by room_id, GET status, POST bookings, POST cancel (bookings table; session_id added)
 ini_set('display_errors', 0);
 ini_set('log_errors', 1);
 error_reporting(E_ALL);
 session_start();
 
 $logfile = __DIR__ . '/booking_debug.log';
-function dbg($msg) {
+function dbg($m) {
     global $logfile;
     $time = date('Y-m-d H:i:s');
-    @file_put_contents($logfile, "[$time] $msg\n", FILE_APPEND);
+    if (is_array($m) || is_object($m)) $m = print_r($m, true);
+    @file_put_contents($logfile, "[$time] $m\n", FILE_APPEND);
 }
 
-// include DB connect - must provide $conn (mysqli)
-require 'db_connect.php';
-if (!isset($conn)) {
-    dbg("No \$conn found");
-    header('Content-Type: application/json');
-    echo json_encode(['success'=>false,'msg'=>'DB connection not initialized']);
+header('Content-Type: application/json; charset=utf-8');
+
+// include DB connect - must set $conn (mysqli)
+require_once __DIR__ . '/db_connect.php';
+if (!isset($conn) || !($conn instanceof mysqli)) {
+    dbg("db_connect missing or \$conn not mysqli");
+    echo json_encode(['success'=>false, 'msg'=>'Database connection not available']);
     exit;
 }
 
-// identify logged user (expect session)
-$me = $_SESSION['id'] ?? null;
-$me_type = $_SESSION['user_type'] ?? null;
+// identify logged user
+$me = isset($_SESSION['id']) ? intval($_SESSION['id']) : 0;
+$me_type = '';
+if (isset($_SESSION['user_type'])) $me_type = strtolower(trim($_SESSION['user_type']));
+elseif (isset($_SESSION['User_Type'])) $me_type = strtolower(trim($_SESSION['User_Type']));
 
-// ------------------ GET handlers ------------------ //
+/* ---------- GET handlers ---------- */
 if ($_SERVER['REQUEST_METHOD'] === 'GET') {
-    // endpoint: GET ?room=...  -> returns array of bookings for that room
+    // GET bookings for timetable view: ?room=ROOM_ID
     if (isset($_GET['room'])) {
-        $room = $_GET['room'];
+        $room_id = $_GET['room'];
+
         $sql = "SELECT id, user_id, slot_date, time_start, time_end, purpose, description, tel, status
-                FROM timetable
-                WHERE room = ?
-                AND status IN ('pending','booked')
+                FROM bookings
+                WHERE room_id = ?
+                  AND status IN ('pending','booked')
                 ORDER BY slot_date, time_start";
+
         $stmt = $conn->prepare($sql);
         if (!$stmt) {
-            dbg("GET prepare failed: ".$conn->error);
+            dbg("GET prepare failed: " . $conn->error);
             echo json_encode([]);
             exit;
         }
-        $stmt->bind_param('s', $room);
+        $stmt->bind_param('s', $room_id);
         $stmt->execute();
         $res = $stmt->get_result();
         $out = [];
@@ -59,21 +65,19 @@ if ($_SERVER['REQUEST_METHOD'] === 'GET') {
             ];
         }
         $stmt->close();
-        header('Content-Type: application/json');
         echo json_encode($out);
         exit;
     }
 
-    // optional: GET status listing for booking_status page
+    // GET status list for booking_status page: ?view=status
     if (isset($_GET['view']) && $_GET['view'] === 'status') {
         $filter = $_GET['filter'] ?? 'all';
         $allowedFilters = ['pending','booked','cancelled','all','rejected'];
         if (!in_array($filter, $allowedFilters)) $filter = 'all';
-        $isAdmin = (strtolower($me_type) === 'admin');
+        $isAdmin = ($me_type === 'admin');
 
-        $sql = "SELECT id, user_id, room, slot_date, time_start, time_end, purpose, description, tel, status
-                FROM timetable
-                WHERE 1=1";
+        $sql = "SELECT id, user_id, room_id, slot_date, time_start, time_end, purpose, description, tel, status
+                FROM bookings WHERE 1=1";
         $params = [];
         $types = '';
         if (!$isAdmin) {
@@ -90,7 +94,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'GET') {
 
         $stmt = $conn->prepare($sql);
         if ($stmt === false) {
-            dbg("status prepare failed: ".$conn->error);
+            dbg("status prepare failed: " . $conn->error);
             echo json_encode([]);
             exit;
         }
@@ -102,7 +106,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'GET') {
             $out[] = [
                 'id' => (int)$row['id'],
                 'user_id' => (int)$row['user_id'],
-                'room' => $row['room'],
+                'room' => $row['room_id'],
                 'slot_date' => $row['slot_date'],
                 'time_start' => $row['time_start'],
                 'time_end' => $row['time_end'],
@@ -115,28 +119,29 @@ if ($_SERVER['REQUEST_METHOD'] === 'GET') {
             ];
         }
         $stmt->close();
-        header('Content-Type: application/json');
         echo json_encode($out);
         exit;
     }
 
-    // default GET fallback
-    header('Content-Type: application/json');
+    // fallback
     echo json_encode([]);
     exit;
 }
 
-// ------------------ POST handler ------------------ //
+/* ---------- POST handlers ---------- */
+
+// read JSON payload
 $raw = file_get_contents('php://input');
-dbg("Raw POST: " . substr($raw,0,2000));
+dbg("Raw POST (book_slot): " . substr($raw,0,2000));
 $data = json_decode($raw, true);
 if (!is_array($data)) {
-    header('Content-Type: application/json');
-    echo json_encode(['success'=>false,'msg'=>'Invalid JSON: '.json_last_error_msg()]);
+    $err = json_last_error_msg();
+    dbg("JSON decode error: " . $err . " raw: " . substr($raw,0,2000));
+    echo json_encode(['success'=>false,'msg'=>'Invalid JSON payload: '.$err]);
     exit;
 }
 
-// CANCEL action (if action == 'cancel')
+// CANCEL by booking id
 $action = $data['action'] ?? null;
 if ($action === 'cancel') {
     $booking_id = isset($data['booking_id']) ? intval($data['booking_id']) : 0;
@@ -152,9 +157,9 @@ if ($action === 'cancel') {
     }
 
     // fetch booking
-    $stmt = $conn->prepare("SELECT id, user_id, status FROM timetable WHERE id = ? LIMIT 1");
+    $stmt = $conn->prepare("SELECT id, user_id, room_id, slot_date, time_start, status FROM bookings WHERE id = ? LIMIT 1");
     if (!$stmt) {
-        dbg("Cancel fetch prepare failed: ".$conn->error);
+        dbg("Cancel fetch prepare failed: " . $conn->error);
         echo json_encode(['success'=>false,'msg'=>'DB error']);
         exit;
     }
@@ -168,70 +173,120 @@ if ($action === 'cancel') {
     $row = $res->fetch_assoc();
     $stmt->close();
 
-    // policy: owner can cancel their pending booking; admin can cancel anything
-    $isAdmin = (strtolower($me_type) === 'admin');
+    $isAdmin = ($me_type === 'admin');
     $isOwner = ($row['user_id'] == $me);
-    if (!($isAdmin || ($isOwner && $row['status'] === 'pending'))) {
+
+    // permission: admin can cancel anything; owner can cancel their pending or booked (you may tighten to pending-only)
+    if (!($isAdmin || ($isOwner && in_array(strtolower($row['status']), ['pending','booked'])))) {
         echo json_encode(['success'=>false,'msg'=>'Not allowed to cancel this booking']);
         exit;
     }
 
-    // update status to cancelled (soft cancel)
+    $update_ok = false;
     $now = date('Y-m-d H:i:s');
-    // try to update with audit columns if exist, else update status only
-    $upd = $conn->prepare("UPDATE timetable SET status='cancelled' WHERE id = ?");
-    if (!$upd) {
-        dbg("Cancel update prepare failed: ".$conn->error);
-        echo json_encode(['success'=>false,'msg'=>'DB error']);
+
+    // try to update with audit columns if they exist
+    $try = $conn->prepare("UPDATE bookings SET status = 'cancelled', cancelled_by = ?, cancelled_at = ?, cancel_reason = ? WHERE id = ?");
+    if ($try !== false) {
+        $try->bind_param('issi', $me, $now, $reason, $booking_id);
+        $update_ok = $try->execute();
+        $try->close();
+    } else {
+        $fallback = $conn->prepare("UPDATE bookings SET status = 'cancelled' WHERE id = ?");
+        if ($fallback !== false) {
+            $fallback->bind_param('i', $booking_id);
+            $update_ok = $fallback->execute();
+            $fallback->close();
+        } else {
+            dbg("Cancel update prepare failed: " . $conn->error);
+            echo json_encode(['success'=>false,'msg'=>'DB update error']);
+            exit;
+        }
+    }
+
+    if ($update_ok) {
+        dbg("Booking {$booking_id} set to cancelled by user {$me}");
+        echo json_encode(['success'=>true,'booking_id'=>$booking_id,'status'=>'cancelled']);
+        exit;
+    } else {
+        $errno = $conn->errno;
+        $err = $conn->error;
+        dbg("Cancel update failed id={$booking_id} errno={$errno} err={$err}");
+        echo json_encode(['success'=>false,'msg'=>'DB update failed: '.$err]);
         exit;
     }
-    $upd->bind_param('i', $booking_id);
-    $ok = $upd->execute();
-    $upd->close();
-
-    if ($ok) {
-        dbg("Booking {$booking_id} cancelled by user {$me}");
-        echo json_encode(['success'=>true,'booking_id'=>$booking_id,'status'=>'cancelled']);
-    } else {
-        dbg("Cancel failed: " . $conn->error);
-        echo json_encode(['success'=>false,'msg'=>'DB update failed']);
-    }
-    exit;
 }
 
-// ---------- Otherwise: assume booking POST (payload with room/purpose/tel/slots) ---------- //
-$room = $data['room'] ?? '';
+// Otherwise treat as booking creation
+$room_id = trim($data['room'] ?? '');
 $purpose = trim($data['purpose'] ?? '');
 $description = trim($data['description'] ?? '');
 $tel = trim($data['tel'] ?? '');
 $slots = $data['slots'] ?? [];
 
-dbg("Book payload: room={$room}, purpose=" . substr($purpose,0,80) . ", tel={$tel}, slots_count=" . (is_array($slots)?count($slots):0));
+dbg("Book request: user={$me} room_id={$room_id} slots_count=" . (is_array($slots)?count($slots):0));
 
-if (!$room || !$purpose || !$tel || !is_array($slots) || count($slots)===0) {
+if (!$me) {
+    echo json_encode(['success'=>false,'msg'=>'Not logged in']);
+    exit;
+}
+if (!$room_id || !$purpose || !$tel || !is_array($slots) || count($slots) === 0) {
     echo json_encode(['success'=>false,'msg'=>'Missing required fields (room/purpose/tel/slots)']);
     exit;
 }
 
-// prepare statements
-$insertSql = "INSERT INTO timetable (user_id, room, purpose, description, tel, slot_date, time_start, time_end, status) VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'pending')";
-$insertStmt = $conn->prepare($insertSql);
-if (!$insertStmt) {
-    dbg("Insert prepare failed: " . $conn->error);
-    echo json_encode(['success'=>false,'msg'=>'Prepare failed: '.$conn->error]);
-    exit;
+// detect whether bookings table has session_id column
+$hasSessionCol = false;
+$checkColRes = $conn->query("SHOW COLUMNS FROM bookings LIKE 'session_id'");
+if ($checkColRes && $checkColRes->num_rows > 0) $hasSessionCol = true;
+dbg("session_id column present: " . ($hasSessionCol ? 'yes' : 'no'));
+
+// start transaction
+$conn->begin_transaction(MYSQLI_TRANS_START_READ_WRITE);
+
+// generate session id (one per booking request)
+$session_id = bin2hex(random_bytes(16)); // 32 hex chars
+
+// prepare insert statement (include session_id if available)
+if ($hasSessionCol) {
+    $insertSql = "INSERT INTO bookings (user_id, room_id, purpose, description, tel, slot_date, time_start, time_end, status, session_id)
+                  VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'pending', ?)";
+    $insertStmt = $conn->prepare($insertSql);
+    if (!$insertStmt) {
+        dbg("Insert prepare failed: " . $conn->error);
+        $conn->rollback();
+        echo json_encode(['success'=>false,'msg'=>'Prepare failed: '.$conn->error]);
+        exit;
+    }
+} else {
+    // fallback to older schema (no session_id)
+    $insertSql = "INSERT INTO bookings (user_id, room_id, purpose, description, tel, slot_date, time_start, time_end, status)
+                  VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'pending')";
+    $insertStmt = $conn->prepare($insertSql);
+    if (!$insertStmt) {
+        dbg("Insert prepare failed: " . $conn->error);
+        $conn->rollback();
+        echo json_encode(['success'=>false,'msg'=>'Prepare failed: '.$conn->error]);
+        exit;
+    }
 }
 
-$checkSql = "SELECT id, status FROM timetable WHERE room = ? AND slot_date = ? AND time_start = ? AND status IN ('booked','pending') LIMIT 1";
+// prepare conflict-check (only consider pending/booked)
+$checkSql = "SELECT id, status FROM bookings WHERE room_id = ? AND slot_date = ? AND time_start = ? AND status IN ('booked','pending') LIMIT 1";
 $checkStmt = $conn->prepare($checkSql);
 if (!$checkStmt) {
     dbg("Check prepare failed: " . $conn->error);
+    $insertStmt->close();
+    $conn->rollback();
     echo json_encode(['success'=>false,'msg'=>'Prepare failed: '.$conn->error]);
     exit;
 }
 
 $results = [];
+$fatalError = false;
 foreach ($slots as $s) {
+    if ($fatalError) break;
+
     $date = $s['date'] ?? '';
     $slotVal = $s['slot'] ?? '';
     if (!$date || !$slotVal) {
@@ -246,12 +301,13 @@ foreach ($slots as $s) {
     $start = date('H:i:s', strtotime($parts[0]));
     $end   = date('H:i:s', strtotime($parts[1]));
 
-    // check conflict (only against pending/booked)
-    $checkStmt->bind_param('sss', $room, $date, $start);
+    // conflict check
+    $checkStmt->bind_param('sss', $room_id, $date, $start);
     if (!$checkStmt->execute()) {
-        dbg("Check execute failed for {$room},{$date},{$start}: " . $checkStmt->error);
+        dbg("Check execute failed for {$room_id},{$date},{$start}: " . $checkStmt->error);
         $results[] = ['date'=>$date,'slot'=>$slotVal,'success'=>false,'msg'=>'DB check failed'];
-        continue;
+        $fatalError = true;
+        break;
     }
     $checkRes = $checkStmt->get_result();
     if ($checkRes && $checkRes->num_rows > 0) {
@@ -260,32 +316,70 @@ foreach ($slots as $s) {
         continue;
     }
 
-    // insert pending booking
-    $insertStmt->bind_param('isssssss', $me, $room, $purpose, $description, $tel, $date, $start, $end);
+    // attempt insert (bind appropriate params)
+    if ($hasSessionCol) {
+        $insertStmt->bind_param('issssssss', $me, $room_id, $purpose, $description, $tel, $date, $start, $end, $session_id);
+    } else {
+        $insertStmt->bind_param('isssssss', $me, $room_id, $purpose, $description, $tel, $date, $start, $end);
+    }
+
     if ($insertStmt->execute()) {
-        // capture the inserted ID and return it to client
         $newId = $insertStmt->insert_id;
-        $results[] = ['id' => (int)$newId, 'date'=>$date,'slot'=>$slotVal,'success'=>true,'status'=>'pending'];
-        dbg("Inserted pending booking id={$newId}: user={$me}, room={$room}, date={$date}, slot={$slotVal}");
+
+        // build active key (BK + 8-digit zero-padded id)
+        $activeKey = 'BK' . str_pad($newId, 8, '0', STR_PAD_LEFT);
+
+        // update the row to set active_key (use prepared statement)
+        $upd = $conn->prepare("UPDATE bookings SET active_key = ? WHERE id = ?");
+        if ($upd) {
+            $upd->bind_param('si', $activeKey, $newId);
+            $upd->execute();
+            $upd->close();
+        } else {
+            dbg("active_key update prepare failed: " . $conn->error);
+        }
+
+        // success for this slot
+        $slotResult = ['id' => (int)$newId, 'date'=>$date,'slot'=>$slotVal,'success'=>true,'status'=>'pending','active_key'=>$activeKey];
+        if ($hasSessionCol) $slotResult['session_id'] = $session_id;
+        $results[] = $slotResult;
+
+        dbg("Inserted pending booking id={$newId}: user={$me}, room={$room_id}, date={$date}, slot={$slotVal}, session={$session_id}");
     } else {
         $errno = $insertStmt->errno;
         $errstr = $insertStmt->error;
         dbg("Insert failed for {$date},{$slotVal}: errno={$errno} err={$errstr}");
         if ($errno == 1062) {
             $results[] = ['date'=>$date,'slot'=>$slotVal,'success'=>false,'msg'=>'SQL duplicate (unique index)'];
+            // not fatal: other slots may still insert - depending on your desired behavior you might rollback all
         } else {
+            // fatal error: rollback and stop processing further slots
             $results[] = ['date'=>$date,'slot'=>$slotVal,'success'=>false,'msg'=>"SQL Error {$errno}: {$errstr}"];
+            $fatalError = true;
+            break;
         }
     }
-
 }
 
-$insertStmt->close();
-$checkStmt->close();
-$conn->close();
+// commit or rollback depending on fatalError
+if ($fatalError) {
+    $conn->rollback();
+    dbg("Transaction rolled back due to fatal error. Results: " . json_encode($results));
+    $insertStmt->close();
+    $checkStmt->close();
+    $conn->close();
+    echo json_encode(['success'=>false,'msg'=>'Transaction failed, rolled back','results'=>$results]);
+    exit;
+} else {
+    $conn->commit();
+    $insertStmt->close();
+    $checkStmt->close();
+    $conn->close();
 
-dbg("Returning results: " . json_encode($results));
-header('Content-Type: application/json');
-echo json_encode(['success'=>true,'results'=>$results]);
-exit;
+    dbg("Returning results: " . json_encode($results));
+    $response = ['success'=>true, 'results'=>$results];
+    if ($hasSessionCol) $response['session_id'] = $session_id; // useful for front-end grouping
+    echo json_encode($response);
+    exit;
+}
 ?>

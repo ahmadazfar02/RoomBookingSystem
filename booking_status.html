@@ -14,10 +14,9 @@
         --text-secondary: #6b7280;
         --border: #e5e7eb;
         --pending: #f59e0b;
-        --approved: #5DBB63;
+        --approved: #10b981;
         --rejected: #ef4444;
         --cancelled: #6b7280;
-        --table-header: #5c6bc0;
     }
     
     * { box-sizing: border-box; margin: 0; padding: 0; }
@@ -59,7 +58,7 @@
     .header-title h1 {
         font-size: 28px;
         color: var(--accent);
-        margin: 0;
+        margin-bottom: 8px;
     }
     
     .header-subtitle {
@@ -181,7 +180,7 @@
     }
     
     thead th {
-        background: var(--table-header);
+        background: var(--accent);
         color: white;
         font-weight: 600;
         position: sticky;
@@ -189,7 +188,6 @@
         z-index: 10;
         border-bottom: 2px solid rgba(255, 255, 255, 0.2);
         text-shadow: 0 1px 2px rgba(0, 0, 0, 0.1);
-        border: 1px solid white;
     }
     
     tbody tr {
@@ -211,7 +209,7 @@
     .status-pending {
         color: #92400e;
         background: linear-gradient(135deg, #fde68a 0%, #fbbf24 100%);
-        padding: 4px 12px;
+        padding: 6px 12px;
         border-radius: 6px;
         font-weight: 600;
         font-size: 13px;
@@ -221,7 +219,7 @@
     .status-booked {
         color: #065f46;
         background: linear-gradient(135deg, #d1fae5 0%, #6ee7b7 100%);
-        padding: 4px 12px;
+        padding: 6px 12px;
         border-radius: 6px;
         font-weight: 600;
         font-size: 13px;
@@ -231,7 +229,7 @@
     .status-cancelled {
         color: #374151;
         background: linear-gradient(135deg, #e5e7eb 0%, #d1d5db 100%);
-        padding: 4px 12px;
+        padding: 6px 12px;
         border-radius: 6px;
         font-weight: 600;
         font-size: 13px;
@@ -241,16 +239,42 @@
     .status-rejected {
         color: #7f1d1d;
         background: linear-gradient(135deg, #fecaca 0%, #f87171 100%);
-        padding: 4px 12px;
+        padding: 6px 12px;
         border-radius: 6px;
         font-weight: 600;
         font-size: 13px;
         display: inline-block;
     }
     
-    /* Action Button */
+    /* Slot Pills */
+    .slot-list {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 6px;
+        max-height: 120px;
+        overflow-y: auto;
+    }
+    
+    .slot-pill {
+        background: linear-gradient(135deg, #f1f5f9 0%, #e2e8f0 100%);
+        padding: 6px 10px;
+        border-radius: 6px;
+        font-size: 12px;
+        font-weight: 500;
+        color: var(--text-primary);
+        border: 1px solid var(--border);
+        transition: all 0.2s ease;
+    }
+    
+    .slot-pill:hover {
+        background: linear-gradient(135deg, #dbeafe 0%, #bfdbfe 100%);
+        border-color: var(--accent);
+        transform: translateY(-1px);
+    }
+    
+    /* Action Buttons */
     .btn-cancel {
-        padding: 6px 16px;
+        padding: 8px 16px;
         background: linear-gradient(135deg, #ef4444 0%, #dc2626 100%);
         color: white;
         border: none;
@@ -260,82 +284,40 @@
         cursor: pointer;
         transition: all 0.3s ease;
         box-shadow: 0 2px 4px rgba(239, 68, 68, 0.3);
+        margin-right: 8px;
+        margin-bottom: 6px;
     }
+    .btn-edit {
+        padding: 8px 14px;
+        background: linear-gradient(135deg, #f97316 0%, #fb923c 100%);
+        color: white;
+        border: none;
+        border-radius: 6px;
+        font-size: 13px;
+        font-weight: 600;
+        cursor: pointer;
+        transition: all 0.3s ease;
+        box-shadow: 0 2px 4px rgba(251, 146, 60, 0.2);
+    }
+    .btn-edit:hover { transform: translateY(-2px); box-shadow: 0 4px 8px rgba(251,146,60,0.3); }
+    .btn-cancel:hover:not(:disabled) { transform: translateY(-2px); box-shadow: 0 4px 8px rgba(239,68,68,0.4); }
+    .btn-cancel:disabled, .btn-edit:disabled { opacity:0.6; cursor:not-allowed; }
     
-    .btn-cancel:hover:not(:disabled) {
-        transform: translateY(-2px);
-        box-shadow: 0 4px 8px rgba(239, 68, 68, 0.4);
-    }
-    
-    .btn-cancel:disabled {
-        opacity: 0.5;
-        cursor: not-allowed;
-    }
-    
-    /* Loading State */
-    .loading-cell {
-        text-align: center;
-        padding: 40px !important;
-        color: var(--text-secondary);
-        font-size: 15px;
-    }
-    
-    .error-cell {
-        text-align: left;
-        padding: 20px !important;
-        color: #dc2626;
-        background: #fef2f2;
-        border-radius: 8px;
-    }
+    /* Loading & error */
+    .loading-cell { text-align:center; padding:40px !important; color:var(--text-secondary); font-size:15px; }
+    .error-cell { text-align:left; padding:20px !important; color:#dc2626; background:#fef2f2; border-radius:8px; }
+    .small { font-size:12px; color:var(--text-secondary); font-weight:400; }
     
     /* Responsive */
     @media (max-width: 800px) {
-        .header-content {
-            flex-direction: column;
-            gap: 16px;
-            align-items: flex-start;
-        }
-        
-        .filters {
-            justify-content: center;
-        }
-        
-        .status-count {
-            margin-left: 0;
-            width: 100%;
-            text-align: center;
-        }
-        
-        table, thead, tbody, th, td, tr {
-            display: block;
-        }
-        
-        thead {
-            display: none;
-        }
-        
-        tbody tr {
-            margin-bottom: 16px;
-            border: 2px solid var(--border);
-            border-radius: 12px;
-            padding: 16px;
-            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.05);
-        }
-        
-        td {
-            border: 0;
-            padding: 8px 0;
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-        }
-        
-        td::before {
-            content: attr(data-label);
-            font-weight: 600;
-            color: var(--text-secondary);
-            margin-right: 12px;
-        }
+        .header-content { flex-direction: column; gap: 16px; align-items: flex-start; }
+        .filters { justify-content: center; }
+        .status-count { margin-left: 0; width: 100%; text-align: center; }
+        table, thead, tbody, th, td, tr { display: block; }
+        thead { display: none; }
+        tbody tr { margin-bottom: 16px; border: 2px solid var(--border); border-radius: 12px; padding: 16px; box-shadow: 0 2px 8px rgba(0,0,0,0.05); }
+        td { border: 0; padding: 8px 0; display: flex; justify-content: space-between; align-items: center; }
+        td::before { content: attr(data-label); font-weight: 600; color: var(--text-secondary); margin-right: 12px; }
     }
   </style>
 </head>
@@ -343,20 +325,21 @@
   <header class="main-header">
     <div class="header-content">
       <img src="img/utmlogo.png" alt="UTM Logo" class="logo">
-      <div class="header-title">
-        <h1>Booking Status</h1>
-      </div>
+      
       <a href="timetable.html" class="btn btn-secondary">← Back to Timetable</a>
     </div>
   </header>
 
   <div class="container">
     <div class="filters-card">
+      <div class="header-title">
+        <h1>Booking Status</h1>
+      </div>
       <div class="filters" aria-label="Booking filters">
-        <button class="filter-btn active" data-filter="pending">Booking Request</button>
-        <button class="filter-btn" data-filter="booked">Approved</button>
-        <button class="filter-btn" data-filter="rejected">Rejected</button>
+        <button class="filter-btn active" data-filter="pending">Booking Requests</button>
+        <button class="filter-btn" data-filter="booked">My Bookings</button>
         <button class="filter-btn" data-filter="cancelled">Cancelled</button>
+        <button class="filter-btn" data-filter="rejected">Rejected</button>
         <button class="filter-btn" data-filter="all">All</button>
         <div class="status-count" id="statusCount">Loading…</div>
       </div>
@@ -364,20 +347,20 @@
 
     <div class="table-card">
       <div class="table-wrapper">
-        <table id="statusTable" aria-label="Booking Status Table">
+        <table id="sessionsTable" aria-label="Booking sessions">
           <thead>
             <tr>
-              <th style="width:80px">Booking ID</th>
-              <th style="width:140px">Room</th>
-              <th style="width:160px">Reservation Date</th>
-              <th style="width:160px">Reservation Time</th>
-              <th style="width:140px">Status</th>
-              <th style="width:110px">Action</th>
+              <th style="width:140px">Session ID</th>
+              <th style="width:150px">Room</th>
+              <th style="width:150px">Dates</th>
+              <th style="min-width:200px">Time Slots</th>
+              <th style="width:120px">Status</th>
+              <th style="width:140px">Action</th>
               <th>Comments</th>
             </tr>
           </thead>
           <tbody>
-            <tr><td colspan="7" class="loading-cell">Loading bookings...</td></tr>
+            <tr><td colspan="7" class="loading-cell">Loading sessions...</td></tr>
           </tbody>
         </table>
       </div>
@@ -385,187 +368,300 @@
   </div>
 
 <script>
-/* booking_status.html - client */
-
 function escapeHtml(s){ 
-  if(s === 0) return '0'; 
+  if(s===0) return '0'; 
   if(!s) return ''; 
-  return String(s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); 
+  return String(s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); 
 }
 
-const filterButtons = document.querySelectorAll('.filter-btn');
-const tbody = document.querySelector('#statusTable tbody');
+const tbody = document.querySelector('#sessionsTable tbody');
 const statusCountEl = document.getElementById('statusCount');
+const filterButtons = document.querySelectorAll('.filter-btn');
 
-filterButtons.forEach(btn=>{
+let currentFilter = 'pending';
+
+// Filter button handlers
+filterButtons.forEach(btn => {
   btn.addEventListener('click', () => {
     filterButtons.forEach(b => b.classList.remove('active'));
     btn.classList.add('active');
-    loadStatusBookings(btn.dataset.filter);
+    currentFilter = btn.dataset.filter;
+    fetchSessions(currentFilter);
   });
 });
 
-document.addEventListener('DOMContentLoaded', () => {
-  const defaultFilter = 'pending';
-  const defaultBtn = document.querySelector(`.filter-btn[data-filter="${defaultFilter}"]`);
-  if (defaultBtn) { 
-    filterButtons.forEach(b=>b.classList.remove('active')); 
-    defaultBtn.classList.add('active'); 
-  }
-  loadStatusBookings(defaultFilter);
-});
-
-function loadStatusBookings(filter) {
-  tbody.innerHTML = '<tr><td colspan="7" class="loading-cell">Loading bookings...</td></tr>';
+function fetchSessions(filter='pending'){
+  tbody.innerHTML = '<tr><td colspan="7" class="loading-cell">Loading sessions...</td></tr>';
   statusCountEl.textContent = 'Loading…';
-  let url = 'booking_status.php?view=status';
-  if (filter && filter !== 'all') url += '&filter=' + encodeURIComponent(filter);
-
+  
+  const url = 'booking_status.php?view=status' + (filter && filter!=='all' ? '&filter=' + encodeURIComponent(filter) : '');
+  
   fetch(url, {cache:'no-store'})
     .then(r => {
-      const ct = r.headers.get('content-type') || '';
-      if (ct.indexOf('application/json') === -1) {
-        return r.text().then(txt => { 
-          throw new Error('Non-JSON response from server: ' + txt); 
-        });
-      }
+      if (!r.ok) throw new Error('Network response not ok');
       return r.json();
     })
-    .then(data => {
-      if (!Array.isArray(data) || data.length === 0) {
-        tbody.innerHTML = '<tr><td colspan="7" class="loading-cell">No bookings found</td></tr>';
-        statusCountEl.textContent = '0 bookings';
+    .then(json => {
+      let sessions = [];
+      if (Array.isArray(json)) sessions = json;
+      else if (json && Array.isArray(json.sessions)) sessions = json.sessions;
+      else if (json && json.success && Array.isArray(json.sessions)) sessions = json.sessions;
+      else sessions = [];
+
+      if (!sessions || sessions.length === 0) {
+        const filterName = getFilterDisplayName(filter);
+        tbody.innerHTML = `<tr><td colspan="7" class="loading-cell">No ${filterName.toLowerCase()} found.</td></tr>`;
+        statusCountEl.textContent = '0 sessions';
         return;
       }
-
-      tbody.innerHTML = '';
-      let visibleCount = 0;
-      data.forEach(b => {
-        visibleCount++;
-        const tr = document.createElement('tr');
-        tr.dataset.room = b.room || '';
-        tr.dataset.slotDate = b.slot_date || '';
-        tr.dataset.timeStart = b.time_start || '';
-
-        const idCell = `<td data-label="Booking ID">${escapeHtml(b.id)}</td>`;
-        const roomCell = `<td data-label="Room">${escapeHtml(b.room||'')}</td>`;
-        const dateCell = `<td data-label="Reservation Date">${escapeHtml(b.slot_date||'')}</td>`;
-        const timeCell = `<td data-label="Reservation Time">${escapeHtml((b.time_start||'').slice(0,5))} - ${escapeHtml((b.time_end||'').slice(0,5))}</td>`;
-
-        let statusLabel = escapeHtml(b.status||'');
-        let statusClass = '';
-        const statusLower = (b.status||'').toLowerCase();
-        if (statusLower === 'pending') statusClass = 'status-pending';
-        else if (statusLower === 'booked') statusClass = 'status-booked';
-        else if (statusLower === 'rejected') statusClass = 'status-rejected';
-        else statusClass = 'status-cancelled';
-        
-        const statusCell = `<td data-label="Status"><span class="${statusClass}">${statusLabel}</span></td>`;
-
-        const isOwner = (b.is_owner === 1 || b.is_owner === '1');
-        const isAdmin = (b.is_admin === 1 || b.is_admin === '1');
-        let actionHtml = `<td data-label="Action">-</td>`;
-        if ((isOwner && (statusLower === 'pending' || statusLower === 'booked')) || isAdmin) {
-          actionHtml = `<td data-label="Action"><button class="btn-cancel" data-id="${escapeHtml(b.id)}">Cancel</button></td>`;
-        }
-
-        const commentsCell = `<td data-label="Comments">${escapeHtml(b.purpose || b.description || '')}</td>`;
-
-        tr.innerHTML = idCell + roomCell + dateCell + timeCell + statusCell + actionHtml + commentsCell;
-        tbody.appendChild(tr);
-      });
-
-      statusCountEl.textContent = `${visibleCount} booking${visibleCount !== 1 ? 's' : ''}`;
-
-      tbody.querySelectorAll('.btn-cancel').forEach(btn=>{
-        btn.addEventListener('click', () => {
-          handleCancelButton(btn);
-        });
-      });
-
+      renderSessions(sessions);
+      const filterName = getFilterDisplayName(filter);
+      statusCountEl.textContent = `${sessions.length} ${filterName.toLowerCase()}`;
     })
     .catch(err => {
-      console.error('Load error', err);
-      tbody.innerHTML = `<tr><td colspan="7" class="error-cell"><strong>Error loading bookings:</strong><br>${escapeHtml(String(err.message))}</td></tr>`;
+      console.error(err);
+      tbody.innerHTML = `<tr><td colspan="7" class="error-cell"><strong>Error loading sessions:</strong><br>${escapeHtml(err.message)}</td></tr>`;
       statusCountEl.textContent = 'Error';
-      alert('Error loading bookings: ' + err.message);
     });
 }
 
-function postJson(payload) {
-  return fetch('booking_status.php', {
-    method: 'POST',
-    headers: {'Content-Type':'application/json'},
-    body: JSON.stringify(payload)
-  }).then(r => {
-    const ct = r.headers.get('content-type') || '';
-    if (ct.indexOf('application/json') === -1) {
-      return r.text().then(txt => { 
-        throw new Error('Non-JSON response from server: ' + txt); 
-      });
+function getFilterDisplayName(filter) {
+  const names = {
+    'pending': 'Booking Requests',
+    'booked': 'Approved Bookings',
+    'cancelled': 'Cancelled Sessions',
+    'rejected': 'Rejected Requests',
+    'all': 'Sessions'
+  };
+  return names[filter] || 'Sessions';
+}
+
+function renderSessions(sessions){
+  if (!sessions || sessions.length === 0) {
+    tbody.innerHTML = '<tr><td colspan="7" class="loading-cell">No sessions found.</td></tr>';
+    return;
+  }
+  
+  tbody.innerHTML = '';
+  sessions.forEach(s => {
+    const tr = document.createElement('tr');
+
+    // Session ID
+    const sid = escapeHtml(String(s.session_id || s.id || s.active_key || s.session || ''));
+    const sidLabel = sid.length > 24 ? sid.slice(0,12) + '...' : sid;
+
+    // Room
+    const room = escapeHtml(s.room_name || s.room || s.room_id || '');
+
+    // Dates
+    let datesDisplay = '';
+    if (Array.isArray(s.dates) && s.dates.length > 0) {
+      if (s.dates.length === 1) {
+        datesDisplay = escapeHtml(s.dates[0]);
+      } else {
+        const sorted = s.dates.slice().sort();
+        datesDisplay = `${escapeHtml(sorted[0])} → ${escapeHtml(sorted[sorted.length-1])}<br><span class="small">(${s.dates.length} days)</span>`;
+      }
+    } else if (s.slot_date) {
+      datesDisplay = escapeHtml(s.slot_date);
     }
+
+    // Slots
+    let slotsHtml = '';
+    if (Array.isArray(s.slots) && s.slots.length > 0) {
+      const pills = s.slots.map(slot => 
+        `<span class="slot-pill">Date: ${escapeHtml(slot.date)}<br>Time: ${escapeHtml(slot.time)}</span>`
+      );
+      slotsHtml = `<div class="slot-list">${pills.join('')}</div>`;
+    } else if (s.time_start && s.time_end && s.slot_date) {
+      slotsHtml = `<div class="slot-list"><span class="slot-pill">${escapeHtml(s.slot_date)}<br>${escapeHtml((s.time_start||'').slice(0,5))} - ${escapeHtml((s.time_end||'').slice(0,5))}</span></div>`;
+    }
+
+    // Status badge
+    const st = (s.status || '').toLowerCase();
+    let statusClass = 'status-cancelled', statusLabel = s.status || '';
+    if (st === 'pending') { 
+      statusClass = 'status-pending'; 
+      statusLabel = 'Pending'; 
+    } else if (st === 'booked') { 
+      statusClass = 'status-booked'; 
+      statusLabel = 'Approved'; 
+    } else if (st === 'cancelled') { 
+      statusClass = 'status-cancelled'; 
+      statusLabel = 'Cancelled'; 
+    } else if (st === 'rejected') {
+      statusClass = 'status-rejected';
+      statusLabel = 'Rejected';
+    }
+
+    // ===== FIXED BUTTON LOGIC =====
+    const statusLower = (s.status || '').toLowerCase();
+    const isOwner = (s.is_owner === 1 || s.is_owner === '1' || s.is_owner === true);
+    const isAdmin = (s.is_admin === 1 || s.is_admin === '1' || s.is_admin === true);
+
+    let showEdit = false;
+    let showCancel = false;
+
+    // Only owner or admin can see buttons
+    if (isOwner || isAdmin) {
+      if (statusLower === 'pending') {
+        // PENDING: Show both Edit AND Cancel
+        showEdit = true;
+        showCancel = true;
+      } else if (statusLower === 'booked') {
+        // BOOKED (approved): Show only Cancel
+        showEdit = false;
+        showCancel = true;
+      } else if (statusLower === 'rejected') {
+        // REJECTED: Show only Cancel
+        showEdit = false;
+        showCancel = true;
+      } else if (statusLower === 'cancelled') {
+        // CANCELLED: No buttons
+        showEdit = false;
+        showCancel = false;
+      }
+    }
+
+    console.log(`Session ${sid}: status=${statusLower}, isOwner=${isOwner}, isAdmin=${isAdmin}, showEdit=${showEdit}, showCancel=${showCancel}`);
+
+    // Build action buttons
+    let actionParts = [];
+    if (showCancel) {
+      actionParts.push(`<button class="btn-cancel" data-session="${escapeHtml(String(s.session_id || s.id || ''))}" data-id="${escapeHtml(String(s.id || s.session_id || ''))}">Cancel</button>`);
+    }
+    if (showEdit) {
+      actionParts.push(`<button class="btn-edit" data-session="${escapeHtml(String(s.session_id || s.id || ''))}" data-room="${escapeHtml(String(s.room_id || s.room || ''))}">Edit</button>`);
+    }
+    const actionHtml = actionParts.length ? actionParts.join('') : '<span class="small">—</span>';
+
+    // Comments
+    let comment = '';
+    if (s.slot_count) comment = `${s.slot_count} slot${s.slot_count !== 1 ? 's' : ''}`;
+    if (!comment && (s.purpose || s.description)) comment = (s.purpose || s.description);
+
+    tr.innerHTML = `
+      <td data-label="Session ID">
+        <strong>${sidLabel}</strong><br>
+        <span class="small">${escapeHtml(s.created_at || '')}</span>
+      </td>
+      <td data-label="Room">${room}</td>
+      <td data-label="Dates">${datesDisplay}</td>
+      <td data-label="Time Slots">${slotsHtml}</td>
+      <td data-label="Status"><span class="${statusClass}">${escapeHtml(statusLabel)}</span></td>
+      <td data-label="Action">${actionHtml}</td>
+      <td data-label="Comments" class="small">${escapeHtml(comment)}</td>
+    `;
+
+    tbody.appendChild(tr);
+  });
+
+  // Wire cancel buttons
+  tbody.querySelectorAll('.btn-cancel').forEach(btn => {
+    btn.addEventListener('click', () => {
+      handleCancelButton(btn);
+    });
+  });
+
+  // Wire edit buttons (improved: call server to free slots, save payload, then redirect)
+tbody.querySelectorAll('.btn-edit').forEach(btn => {
+  btn.addEventListener('click', async () => {
+    const sessionId = btn.dataset.session || btn.dataset.id;
+    const room = btn.dataset.room || '';
+    if (!sessionId) {
+      alert('Missing session id for edit.');
+      return;
+    }
+
+    if (!confirm('Are you sure you want to edit this booking? This will free your current slots so you can pick new ones.')) return;
+
+    try {
+      btn.disabled = true;
+      btn.textContent = 'Preparing...';
+
+      // Ask backend to free this session and return the freed slots
+      const resp = await postJson({ action: 'start_edit', session_id: sessionId });
+
+      if (!resp || !resp.success) {
+        alert('Could not start edit: ' + (resp && resp.msg ? resp.msg : 'Unknown error'));
+        btn.disabled = false;
+        btn.textContent = 'Edit';
+        return;
+      }
+
+      // Save payload for timetable to read
+      const payload = {
+        session_id: sessionId,
+        room_id: resp.room_id || resp.room || room || '',
+        slots: resp.slots || [], // expected [{date, time_start, time_end}, ...]
+        created_at: resp.created_at || ''
+      };
+      localStorage.setItem('edit_booking_payload', JSON.stringify(payload));
+
+      // Redirect to timetable with a query param so timetable shows edit banner
+      const params = new URLSearchParams();
+      params.set('edit_session', sessionId);
+      if (payload.room_id) params.set('room', payload.room_id);
+      window.location.href = 'timetable.html?' + params.toString();
+
+    } catch (err) {
+      console.error('Edit start error', err);
+      alert('Failed to start edit: ' + (err.message || err));
+      btn.disabled = false;
+      btn.textContent = 'Edit';
+    }
+  });
+});
+
+}
+
+function postJson(payload){
+  return fetch('booking_status.php', {
+    method:'POST',
+    headers:{'Content-Type':'application/json'},
+    body: JSON.stringify(payload),
+    cache:'no-store'
+  }).then(r => {
+    if (!r.ok) throw new Error('Network response not ok');
     return r.json();
   });
 }
 
 function handleCancelButton(btn) {
-  const bookingId = Number(btn.dataset.id || 0);
-  const tr = btn.closest('tr');
-  const room = tr.dataset.room || '';
-  const slot_date = tr.dataset.slotDate || '';
-  const time_start = tr.dataset.timeStart || '';
-
-  if (!confirm('Are you sure you want to cancel this booking?')) return;
-  btn.disabled = true;
-  const original = btn.textContent;
-  btn.textContent = 'Cancelling...';
-
-  if (bookingId && bookingId > 0) {
-    postJson({ action: 'cancel', booking_id: bookingId, reason: 'Cancelled by user' })
-      .then(resp => {
-        if (resp && resp.success) {
-          loadStatusBookings(document.querySelector('.filter-btn.active').dataset.filter);
-        } else {
-          console.warn('Cancel by id failed:', resp && resp.msg);
-          attemptCancelSlotFallback({room, slot_date, time_start}, btn, original, resp && resp.msg);
-        }
-      })
-      .catch(err => {
-        console.warn('Cancel by id error:', err);
-        attemptCancelSlotFallback({room, slot_date, time_start}, btn, original, err.message);
-      });
-  } else {
-    attemptCancelSlotFallback({room, slot_date, time_start}, btn, original);
-  }
-}
-
-function attemptCancelSlotFallback(slotInfo, btn, originalText, previousMsg) {
-  if (!slotInfo.room || !slotInfo.slot_date || !slotInfo.time_start) {
-    alert('Missing slot info for cancellation. Refreshing list.');
-    loadStatusBookings(document.querySelector('.filter-btn.active').dataset.filter);
+  const bookingId = btn.dataset.id || btn.dataset.session;
+  if (!bookingId) {
+    alert('Missing booking id.');
     return;
   }
-  postJson({ 
-    action: 'cancel_slot', 
-    room: slotInfo.room, 
-    slot_date: slotInfo.slot_date, 
-    time_start: slotInfo.time_start, 
-    reason: 'Cancelled by user' 
-  })
+
+  if (!confirm('Are you sure you want to cancel this booking?')) return;
+
+  btn.disabled = true;
+  const originalText = btn.textContent;
+  btn.textContent = 'Cancelling...';
+
+  postJson({ action: 'cancel', booking_id: bookingId, reason: 'Cancelled by user' })
     .then(resp => {
       if (resp && resp.success) {
-        loadStatusBookings(document.querySelector('.filter-btn.active').dataset.filter);
+        alert('Booking cancelled successfully');
+        fetchSessions(currentFilter);
       } else {
-        alert('Cancel failed: ' + (resp && resp.msg ? resp.msg : 'Unknown error') + (previousMsg ? '\nServer said: ' + previousMsg : ''));
-        loadStatusBookings(document.querySelector('.filter-btn.active').dataset.filter);
+        alert('Cancel failed: ' + (resp && resp.msg ? resp.msg : 'Unknown error'));
+        btn.disabled = false;
+        btn.textContent = originalText;
       }
     })
     .catch(err => {
-      console.error('Cancel_slot error', err);
-      alert('Cancel failed: ' + err.message);
-      loadStatusBookings(document.querySelector('.filter-btn.active').dataset.filter);
+      alert('Network error: ' + err.message);
+      btn.disabled = false;
+      btn.textContent = originalText;
     });
 }
+
+// Initial load
+document.addEventListener('DOMContentLoaded', () => {
+  fetchSessions('pending');
+});
 </script>
 </body>
 </html>
