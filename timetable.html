@@ -255,6 +255,9 @@
     .legend-selected { background: linear-gradient(135deg, #fde68a 0%, #fbbf24 100%); }
     .legend-pending { background: linear-gradient(135deg, #fef3c7 0%, #fde047 100%); }
     .legend-booked { background: linear-gradient(135deg, #fecaca 0%, #f87171 100%); }
+        .legend-recurring { 
+        background: linear-gradient(135deg, #e0e7ff 0%, #c7d2fe 100%); 
+    }
     .slot.maintenance {
         background: linear-gradient(135deg, #fed7aa 0%, #fb923c 100%);
         cursor: not-allowed;
@@ -341,7 +344,14 @@
         cursor: not-allowed;
         opacity: 0.6;
     }
-    
+
+    .slot.recurring {
+        background: linear-gradient(135deg, #e0e7ff 0%, #c7d2fe 100%);
+        cursor: not-allowed;
+        color: #5b21b6;
+        font-weight: 600;
+    }
+      
     .cell-title {
         font-weight: 600;
         font-size: 12px;
@@ -685,6 +695,7 @@
         <div class="legend-item"><span class="legend-color legend-pending"></span> Pending</div>
         <div class="legend-item"><span class="legend-color legend-booked"></span> Booked</div>
         <div class="legend-item"><span class="legend-color legend-maintenance"></span> Maintenance</div>
+        <div class="legend-item"><span class="legend-color legend-recurring"></span> Fixed Schedule</div>
       </div>
 
       <div class="card">
@@ -920,7 +931,7 @@ function loadBookings(){
       document.querySelectorAll('td.slot').forEach(td=>{
         const slotDate = td.dataset.date;
         if (isPastDate(slotDate)) {
-          td.classList.remove('booked','selected','pending','available','maintenance');
+          td.classList.remove('booked','selected','pending','available','maintenance','recurring');
           td.classList.add('past');
           td.removeAttribute('data-booking-id');
           td.removeAttribute('data-booking-user-id');
@@ -934,12 +945,13 @@ function loadBookings(){
           return;
         }
         
-        // IMPORTANT: Add 'maintenance' to classList.remove()
-        td.classList.remove('booked','selected','pending','past','maintenance');
+        // Remove all status classes
+        td.classList.remove('booked','selected','pending','past','maintenance','recurring');
         td.classList.add('available');
         td.removeAttribute('data-booking-id');
         td.removeAttribute('data-booking-user-id');
         td.removeAttribute('data-booking-count');
+        td.style.cursor = ''; // Reset cursor
         const titleEl = td.querySelector('.cell-title');
         const metaEl = td.querySelector('.cell-meta');
         const capacityEl = td.querySelector('.cell-capacity');
@@ -950,10 +962,13 @@ function loadBookings(){
 
       if (!Array.isArray(data)) return;
       
+      // Count bookings per slot (excluding recurring for capacity count)
       const slotCounts = {};
       data.forEach(item => {
-        const key = `${item.date}|${item.time_slot}`;
-        slotCounts[key] = (slotCounts[key] || 0) + 1;
+        if (!item.recurring) {
+          const key = `${item.date}|${item.time_slot}`;
+          slotCounts[key] = (slotCounts[key] || 0) + 1;
+        }
       });
 
       // Process each booking
@@ -968,13 +983,16 @@ function loadBookings(){
           
           if (item.id) td.setAttribute('data-booking-id', item.id);
           if (item.user_id) td.setAttribute('data-booking-user-id', item.user_id);
-          td.setAttribute('data-booking-count', currentCount);
+          if (!item.recurring) td.setAttribute('data-booking-count', currentCount);
           
-          // IMPORTANT: Add 'maintenance' to classList.remove()
-          td.classList.remove('available','selected','pending','booked','maintenance');
+          // Remove all status classes
+          td.classList.remove('available','selected','pending','booked','maintenance','recurring');
           
-          // IMPORTANT: Handle maintenance status
-          if (item.status === 'maintenance') {
+          // Handle different statuses including recurring
+          if (item.status === 'recurring' || item.recurring) {
+            td.classList.add('recurring');
+            td.style.cursor = 'not-allowed';
+          } else if (item.status === 'maintenance') {
             td.classList.add('maintenance');
           } else if (item.status === 'pending') {
             td.classList.add('pending');
@@ -986,9 +1004,11 @@ function loadBookings(){
           const metaEl = td.querySelector('.cell-meta');
           const capacityEl = td.querySelector('.cell-capacity');
           
-          // IMPORTANT: Show appropriate text for maintenance
+          // Show appropriate text
           if (titleEl) {
-            if (item.status === 'maintenance') {
+            if (item.status === 'recurring' || item.recurring) {
+              titleEl.textContent = '' + (item.purpose || 'Reserved');
+            } else if (item.status === 'maintenance') {
               titleEl.textContent = 'Maintenance';
             } else {
               titleEl.textContent = item.purpose || item.class_name || (item.status === 'pending' ? 'Pending' : 'Booked');
@@ -998,7 +1018,8 @@ function loadBookings(){
           const meta = [item.tel || '', item.description || item.section || '', item.instructor || ''].filter(Boolean).join(' • ');
           if (metaEl) metaEl.textContent = meta;
           
-          if (capacityEl && capacity > 0) {
+          // Only show capacity info for non-recurring bookings
+          if (capacityEl && capacity > 0 && !item.recurring) {
             capacityEl.textContent = `${currentCount}/${capacity} booked`;
             if (currentCount >= capacity) {
               capacityEl.style.color = '#ef4444';
@@ -1023,7 +1044,8 @@ function onCellClick(e){
   if (td.classList.contains('booked') || 
       td.classList.contains('pending') || 
       td.classList.contains('maintenance') || 
-      td.classList.contains('past')) {
+      td.classList.contains('past') || 
+      td.classList.contains('recurring')) {
     return;
   }
   

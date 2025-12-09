@@ -5,20 +5,15 @@ ini_set('log_errors', 1);
 error_reporting(E_ALL);
 session_start();
 
-$logfile = __DIR__ . '/booking_debug.log';
-function dbg($m) {
-    global $logfile;
-    $time = date('Y-m-d H:i:s');
-    if (is_array($m) || is_object($m)) $m = print_r($m, true);
-    @file_put_contents($logfile, "[$time] $m\n", FILE_APPEND);
-}
+// REMOVED: Debug logging function and calls
+// You can remove all dbg() function calls throughout the file
 
 header('Content-Type: application/json; charset=utf-8');
 
-// include DB connect - must set $conn (mysqli)
+// UPDATED: Changed path to go up one directory from api folder
 require_once __DIR__ . '/../includes/db_connect.php';
+
 if (!isset($conn) || !($conn instanceof mysqli)) {
-    dbg("db_connect missing or \$conn not mysqli");
     echo json_encode(['success'=>false, 'msg'=>'Database connection not available']);
     exit;
 }
@@ -35,7 +30,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'GET') {
     if (isset($_GET['room'])) {
         $room_id = $_GET['room'];
 
-        // NEW CODE - Add 'maintenance' to the status list:
+        // Fetch regular bookings
         $sql = "SELECT id, user_id, slot_date, time_start, time_end, purpose, description, tel, status
                 FROM bookings
                 WHERE room_id = ?
@@ -44,7 +39,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'GET') {
 
         $stmt = $conn->prepare($sql);
         if (!$stmt) {
-            dbg("GET prepare failed: " . $conn->error);
             echo json_encode([]);
             exit;
         }
@@ -52,8 +46,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'GET') {
         $stmt->execute();
         $res = $stmt->get_result();
         $out = [];
+        $existingKeys = []; // Track existing bookings to prevent recurring duplicates
+        
         while ($row = $res->fetch_assoc()) {
             $time_slot = substr($row['time_start'],0,5) . '-' . substr($row['time_end'],0,5);
+            $key = $row['slot_date'] . '|' . $time_slot;
+            $existingKeys[$key] = true;
+            
             $out[] = [
                 'id' => (int)$row['id'],
                 'user_id' => (int)$row['user_id'],
@@ -62,10 +61,84 @@ if ($_SERVER['REQUEST_METHOD'] === 'GET') {
                 'purpose' => $row['purpose'],
                 'description' => $row['description'],
                 'tel' => $row['tel'],
-                'status' => $row['status']  // This will now include 'maintenance'
+                'status' => $row['status']
             ];
         }
         $stmt->close();
+
+        // NEW CODE: Fetch recurring bookings
+        $candidate_tables = ['recurring_bookings','admin_recurring','admin_recurring_bookings'];
+        $recurring_table = null;
+        foreach ($candidate_tables as $tname) {
+            $check = $conn->query("SHOW TABLES LIKE '" . $conn->real_escape_string($tname) . "'");
+            if ($check && $check->num_rows > 0) { 
+                $recurring_table = $tname; 
+                break; 
+            }
+        }
+
+        if ($recurring_table) {
+            // Get the date range (current week + next 4 weeks for user view)
+            $today = date('Y-m-d');
+            $futureDate = date('Y-m-d', strtotime('+35 days')); // ~5 weeks
+            
+            // Fetch active recurring bookings for this room
+            $rsql = "SELECT id, room_id, day_of_week, time_start, time_end, purpose, description, tel 
+                    FROM `{$recurring_table}` 
+                    WHERE room_id = ? AND (status IS NULL OR status = 'active')";
+            $rstmt = $conn->prepare($rsql);
+            if ($rstmt) {
+                $rstmt->bind_param('s', $room_id);
+                if ($rstmt->execute()) {
+                    $rres = $rstmt->get_result();
+                    
+                    // Generate dates for the next 5 weeks
+                    $periodStart = new DateTime($today);
+                    $periodEnd = new DateTime($futureDate);
+                    $periodEndPlus = clone $periodEnd;
+                    $periodEndPlus->modify('+1 day');
+                    $period = new DatePeriod($periodStart, new DateInterval('P1D'), $periodEndPlus);
+                    
+                    while ($rr = $rres->fetch_assoc()) {
+                        $recDay = $rr['day_of_week'];
+                        
+                        foreach ($period as $dt) {
+                            if ($dt->format('l') !== $recDay) continue;
+                            
+                            $dateStr = $dt->format('Y-m-d');
+                            $slotTime = substr($rr['time_start'],0,5) . '-' . substr($rr['time_end'],0,5);
+                            $key = $dateStr . '|' . $slotTime;
+                            
+                            // Skip if one-time booking exists for this slot
+                            if (isset($existingKeys[$key])) continue;
+                            
+                            $out[] = [
+                                'id' => 0, // recurring bookings don't have regular booking IDs
+                                'user_id' => 0,
+                                'date' => $dateStr,
+                                'time_slot' => $slotTime,
+                                'purpose' => $rr['purpose'],
+                                'description' => $rr['description'],
+                                'tel' => $rr['tel'],
+                                'status' => 'recurring', // Mark as recurring
+                                'recurring' => true,
+                                'recurring_id' => (int)$rr['id']
+                            ];
+                        }
+                    }
+                }
+                $rstmt->close();
+            }
+        }
+
+        // Sort all bookings by date and time
+        usort($out, function($a, $b) {
+            if ($a['date'] === $b['date']) {
+                return strcmp($a['time_slot'], $b['time_slot']);
+            }
+            return strcmp($a['date'], $b['date']);
+        });
+
         echo json_encode($out);
         exit;
     }
@@ -95,7 +168,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'GET') {
 
         $stmt = $conn->prepare($sql);
         if ($stmt === false) {
-            dbg("status prepare failed: " . $conn->error);
             echo json_encode([]);
             exit;
         }
@@ -133,11 +205,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'GET') {
 
 // read JSON payload
 $raw = file_get_contents('php://input');
-dbg("Raw POST (book_slot): " . substr($raw,0,2000));
 $data = json_decode($raw, true);
 if (!is_array($data)) {
     $err = json_last_error_msg();
-    dbg("JSON decode error: " . $err . " raw: " . substr($raw,0,2000));
     echo json_encode(['success'=>false,'msg'=>'Invalid JSON payload: '.$err]);
     exit;
 }
@@ -160,7 +230,6 @@ if ($action === 'cancel') {
     // fetch booking
     $stmt = $conn->prepare("SELECT id, user_id, room_id, slot_date, time_start, status FROM bookings WHERE id = ? LIMIT 1");
     if (!$stmt) {
-        dbg("Cancel fetch prepare failed: " . $conn->error);
         echo json_encode(['success'=>false,'msg'=>'DB error']);
         exit;
     }
@@ -199,20 +268,16 @@ if ($action === 'cancel') {
             $update_ok = $fallback->execute();
             $fallback->close();
         } else {
-            dbg("Cancel update prepare failed: " . $conn->error);
             echo json_encode(['success'=>false,'msg'=>'DB update error']);
             exit;
         }
     }
 
     if ($update_ok) {
-        dbg("Booking {$booking_id} set to cancelled by user {$me}");
         echo json_encode(['success'=>true,'booking_id'=>$booking_id,'status'=>'cancelled']);
         exit;
     } else {
-        $errno = $conn->errno;
         $err = $conn->error;
-        dbg("Cancel update failed id={$booking_id} errno={$errno} err={$err}");
         echo json_encode(['success'=>false,'msg'=>'DB update failed: '.$err]);
         exit;
     }
@@ -224,8 +289,6 @@ $purpose = trim($data['purpose'] ?? '');
 $description = trim($data['description'] ?? '');
 $tel = trim($data['tel'] ?? '');
 $slots = $data['slots'] ?? [];
-
-dbg("Book request: user={$me} room_id={$room_id} slots_count=" . (is_array($slots)?count($slots):0));
 
 if (!$me) {
     echo json_encode(['success'=>false,'msg'=>'Not logged in']);
@@ -240,9 +303,10 @@ if (!$room_id || !$purpose || !$tel || !is_array($slots) || count($slots) === 0)
 $hasSessionCol = false;
 $checkColRes = $conn->query("SHOW COLUMNS FROM bookings LIKE 'session_id'");
 if ($checkColRes && $checkColRes->num_rows > 0) $hasSessionCol = true;
-dbg("session_id column present: " . ($hasSessionCol ? 'yes' : 'no'));
 
 // start transaction
+$conn->begin_transaction();
+
 // get the current max id in bookings table
 $res = $conn->query("SELECT MAX(id) AS max_id FROM bookings");
 $row = $res->fetch_assoc();
@@ -250,20 +314,6 @@ $nextNum = intval($row['max_id'] ?? 0) + 1;
 
 // friendly session ID for display
 $session_id = 'B' . str_pad($nextNum, 3, '0', STR_PAD_LEFT);
-$slotResult = [
-    'id' => (int)$newId,
-    'date' => $date,
-    'slot' => $slotVal,
-    'success' => true,
-    'status' => 'pending',
-    'active_key' => $activeKey,
-    'ticket' => $ticket,
-    'session_id' => $session_id  // <- here!
-];
-
-$response['session_id'] = $session_id; // useful for front-end grouping
-
-
 
 // prepare insert statement (include session_id if available)
 if ($hasSessionCol) {
@@ -271,7 +321,6 @@ if ($hasSessionCol) {
                   VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'pending', ?)";
     $insertStmt = $conn->prepare($insertSql);
     if (!$insertStmt) {
-        dbg("Insert prepare failed: " . $conn->error);
         $conn->rollback();
         echo json_encode(['success'=>false,'msg'=>'Prepare failed: '.$conn->error]);
         exit;
@@ -282,7 +331,6 @@ if ($hasSessionCol) {
                   VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'pending')";
     $insertStmt = $conn->prepare($insertSql);
     if (!$insertStmt) {
-        dbg("Insert prepare failed: " . $conn->error);
         $conn->rollback();
         echo json_encode(['success'=>false,'msg'=>'Prepare failed: '.$conn->error]);
         exit;
@@ -296,7 +344,6 @@ $checkSql = "SELECT id, status FROM bookings
              LIMIT 1";
 $checkStmt = $conn->prepare($checkSql);
 if (!$checkStmt) {
-    dbg("Check prepare failed: " . $conn->error);
     $insertStmt->close();
     $conn->rollback();
     echo json_encode(['success'=>false,'msg'=>'Prepare failed: '.$conn->error]);
@@ -325,7 +372,6 @@ foreach ($slots as $s) {
     // conflict check
     $checkStmt->bind_param('sss', $room_id, $date, $start);
     if (!$checkStmt->execute()) {
-        dbg("Check execute failed for {$room_id},{$date},{$start}: " . $checkStmt->error);
         $results[] = ['date'=>$date,'slot'=>$slotVal,'success'=>false,'msg'=>'DB check failed'];
         $fatalError = true;
         break;
@@ -356,13 +402,7 @@ foreach ($slots as $s) {
             $upd_ticket->bind_param('si', $ticket, $newId);
             $upd_ticket->execute();
             $upd_ticket->close();
-        } else {
-            dbg("Ticket update prepare failed: " . $conn->error);
         }
-
-        // optionally return it in response
-        $slotResult['ticket'] = $ticket;
-
 
         // build active key (BK + 8-digit zero-padded id)
         $activeKey = 'BK' . str_pad($newId, 8, '0', STR_PAD_LEFT);
@@ -373,25 +413,18 @@ foreach ($slots as $s) {
             $upd->bind_param('si', $activeKey, $newId);
             $upd->execute();
             $upd->close();
-        } else {
-            dbg("active_key update prepare failed: " . $conn->error);
         }
 
         // success for this slot
         $slotResult = ['id' => (int)$newId, 'date'=>$date,'slot'=>$slotVal,'success'=>true,'status'=>'pending','active_key'=>$activeKey,'ticket'=>$ticket];
         if ($hasSessionCol) $slotResult['session_id'] = $session_id;
         $results[] = $slotResult;
-
-        dbg("Inserted pending booking id={$newId}: user={$me}, room={$room_id}, date={$date}, slot={$slotVal}, session={$session_id}, ticket={$ticket}");
     } else {
         $errno = $insertStmt->errno;
         $errstr = $insertStmt->error;
-        dbg("Insert failed for {$date},{$slotVal}: errno={$errno} err={$errstr}");
         if ($errno == 1062) {
             $results[] = ['date'=>$date,'slot'=>$slotVal,'success'=>false,'msg'=>'SQL duplicate (unique index)'];
-            // not fatal: other slots may still insert - depending on your desired behavior you might rollback all
         } else {
-            // fatal error: rollback and stop processing further slots
             $results[] = ['date'=>$date,'slot'=>$slotVal,'success'=>false,'msg'=>"SQL Error {$errno}: {$errstr}"];
             $fatalError = true;
             break;
@@ -402,7 +435,6 @@ foreach ($slots as $s) {
 // commit or rollback depending on fatalError
 if ($fatalError) {
     $conn->rollback();
-    dbg("Transaction rolled back due to fatal error. Results: " . json_encode($results));
     $insertStmt->close();
     $checkStmt->close();
     $conn->close();
@@ -414,9 +446,8 @@ if ($fatalError) {
     $checkStmt->close();
     $conn->close();
 
-    dbg("Returning results: " . json_encode($results));
     $response = ['success'=>true, 'results'=>$results];
-    if ($hasSessionCol) $response['session_id'] = $session_id; // useful for front-end grouping
+    if ($hasSessionCol) $response['session_id'] = $session_id;
     echo json_encode($response);
     exit;
 }

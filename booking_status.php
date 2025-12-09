@@ -7,13 +7,7 @@ ini_set('display_errors', 0);
 ini_set('log_errors', 1);
 error_reporting(E_ALL);
 
-$__booking_status_log = __DIR__ . '/booking_status.log';
-function dbg($m) {
-    global $__booking_status_log;
-    $time = date('Y-m-d H:i:s');
-    if (is_array($m) || is_object($m)) $m = print_r($m, true);
-    @file_put_contents($__booking_status_log, "[$time] $m\n", FILE_APPEND);
-}
+
 
 ob_start();
 try {
