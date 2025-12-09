@@ -7,8 +7,6 @@ ini_set('display_errors', 0);
 ini_set('log_errors', 1);
 error_reporting(E_ALL);
 
-
-
 ob_start();
 try {
     header('Content-Type: application/json; charset=utf-8');
@@ -70,7 +68,6 @@ try {
 
         $stmt = $conn->prepare($sql);
         if ($stmt === false) {
-            dbg("GET prepare failed: " . $conn->error);
             ob_end_clean();
             echo json_encode(['success'=>false,'msg'=>'DB prepare failed']);
             exit;
@@ -154,11 +151,9 @@ try {
     /* ---------- POST: actions (start_edit, cancel, cancel_slot, cancel_session) ---------- */
     if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $raw = file_get_contents('php://input');
-        dbg("POST RAW: " . substr($raw,0,2000));
         $data = json_decode($raw, true);
         if (!is_array($data)) throw new Exception('Invalid JSON input');
         $action = $data['action'] ?? '';
-        dbg("action={$action} user={$me_id}");
 
         // ---- START_EDIT: free entire session and return its slots ----
         if ($action === 'start_edit') {
@@ -418,16 +413,12 @@ try {
 } catch (Exception $e) {
     $buf = '';
     if (ob_get_length() !== false) $buf = ob_get_clean();
-    if ($buf !== '') dbg("STRAY_OUTPUT: " . preg_replace("/\s+/", ' ', trim($buf)));
-    dbg("Exception: " . $e->getMessage());
     http_response_code(200);
     echo json_encode(['success'=>false,'msg'=>$e->getMessage()]);
     exit;
 } catch (Error $e) {
     $buf = '';
     if (ob_get_length() !== false) $buf = ob_get_clean();
-    if ($buf !== '') dbg("STRAY_OUTPUT: " . preg_replace("/\s+/", ' ', trim($buf)));
-    dbg("Fatal: " . $e->getMessage());
     http_response_code(200);
     echo json_encode(['success'=>false,'msg'=>'Server error: '.$e->getMessage()]);
     exit;
