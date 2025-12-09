@@ -1,11 +1,10 @@
 <?php
 session_start();
 require_once __DIR__ . '/../includes/db_connect.php';
-
 // Access control
 if(!isset($_SESSION["loggedin"]) || $_SESSION["loggedin"] !== true ||
    strcasecmp(trim($_SESSION["User_Type"]), 'Admin') != 0) {
-    header("location: ../loginterface.html");
+    header("location: loginterface.html");
     exit;
 }
 
@@ -390,9 +389,6 @@ table.grid thead th:first-child {
       <?php if ($username === 'superadmin'): ?>
           <li><a href="manage_users.php">Manage Users</a></li>
       <?php endif; ?>
-      <li><a href="admin_logbook.php">Logbook</a></li>
-      <li><a href="generate_reports.php">Generate Reports</a></li>
-      <li><a href="admin_problems.php">Room Problems</a></li>
     </ul>
 
     <div class="sidebar-profile">
@@ -597,14 +593,22 @@ document.addEventListener('DOMContentLoaded', () => {
       return { success: true, message: 'demo' };
     }
     try {
-      const res = await fetch('../api/process_request.php', { method:'POST', body: fd });
-      if (!res.ok) throw new Error('Network response not OK: ' + res.status);
-      return await res.json();
+      const res = await fetch('process_request.php', { method:'POST', body: fd, credentials: 'same-origin' });
+      const text = await res.text();
+      // Try parse JSON
+      try {
+        const json = JSON.parse(text);
+        return json;
+      } catch(parseErr) {
+        console.error('process_request.php returned non-JSON:', text);
+        return { success:false, message: 'Invalid server response (not JSON). See console for raw response.' };
+      }
     } catch (err) {
-      console.error('postAction error', err);
+      console.error('postAction network error', err);
       return { success:false, message: err.message || 'Network error' };
     }
   }
+
 
   // approve confirm
   const approveBtn = document.getElementById('approveConfirm');
