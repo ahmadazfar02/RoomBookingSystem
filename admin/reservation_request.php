@@ -1,10 +1,11 @@
 <?php
 session_start();
 require_once __DIR__ . '/../includes/db_connect.php';
+
 // Access control
 if(!isset($_SESSION["loggedin"]) || $_SESSION["loggedin"] !== true ||
    strcasecmp(trim($_SESSION["User_Type"]), 'Admin') != 0) {
-    header("location: loginterface.html");
+    header("location: ../loginterface.html");
     exit;
 }
 
@@ -389,6 +390,9 @@ table.grid thead th:first-child {
       <?php if ($username === 'superadmin'): ?>
           <li><a href="manage_users.php">Manage Users</a></li>
       <?php endif; ?>
+      <li><a href="admin_logbook.php">Logbook</a></li>
+      <li><a href="generate_reports.php">Generate Reports</a></li>
+      <li><a href="admin_problems.php">Room Problems</a></li>
     </ul>
 
     <div class="sidebar-profile">
@@ -518,146 +522,153 @@ table.grid thead th:first-child {
 
 <script>
 /* Client behaviour:
-   - Delegated click handling for approve/reject
-   - Safe extraction of session id from data attributes
-   - Sends POST to process_request.php and expects JSON { success: true, message: '' }
-   - Updates row UI in-place on success (no full reload)
-   - If you prefer full-page reload after action, change the success branch to `location.reload()`
+    - Delegated click handling for approve/reject
+    - Safe extraction of session id from data attributes
+    - Sends POST to process_request.php and expects JSON { success: true, message: '' }
+    - Updates row UI in-place on success (no full reload)
+    - If you prefer full-page reload after action, change the success branch to `location.reload()`
 */
 
 document.addEventListener('DOMContentLoaded', () => {
-  let currentSession = null;
-  const demoMode = false; // set true only for testing without backend
+   let currentSession = null;
+   const demoMode = false; // set true only for testing without backend
 
-  // normalize event target to element (handle text nodes)
-  function toElement(node){ let el = node; while(el && el.nodeType !== 1) el = el.parentNode; return el; }
+   // normalize event target to element (handle text nodes)
+   function toElement(node){ let el = node; while(el && el.nodeType !== 1) el = el.parentNode; return el; }
 
-  // delegate clicks for approve/reject
-  document.body.addEventListener('click', (e) => {
-    const el = toElement(e.target);
-    if (!el) return;
-    const btn = el.closest('button[data-action], button.approve, button.reject');
-    if (!btn) return;
+   // delegate clicks for approve/reject
+   document.body.addEventListener('click', (e) => {
+     const el = toElement(e.target);
+     if (!el) return;
+     const btn = el.closest('button[data-action], button.approve, button.reject');
+     if (!btn) return;
 
-    const action = btn.getAttribute('data-action') || (btn.classList.contains('approve') ? 'approve' : (btn.classList.contains('reject') ? 'reject' : null));
-    const session = btn.getAttribute('data-session') || btn.closest('tr')?.dataset?.session;
-    if (!action || !session) return;
+     const action = btn.getAttribute('data-action') || (btn.classList.contains('approve') ? 'approve' : (btn.classList.contains('reject') ? 'reject' : null));
+     
+    // FIX 2: Replaced optional chaining (?.) with standard null/undefined check for wider compatibility
+    const row = btn.closest('tr');
+     const session = btn.getAttribute('data-session') || (row ? row.getAttribute('data-session') : null);
 
-    if (action === 'approve') openApprove(session);
-    if (action === 'reject') openReject(session);
-  });
+     if (!action || !session) return;
 
-  // attach direct handlers to existing buttons (fallback)
-  function attachButtons(){
-    document.querySelectorAll('button.approve').forEach(b=>{
-      if (b._bound) return;
-      b.addEventListener('click', (ev)=> { ev.stopPropagation(); openApprove(b.dataset.session || b.getAttribute('data-session')); });
-      b._bound = true;
+     if (action === 'approve') openApprove(session);
+     if (action === 'reject') openReject(session);
+   });
+
+   // attach direct handlers to existing buttons (fallback)
+   function attachButtons(){
+     document.querySelectorAll('button.approve').forEach(b=>{
+        if (b._bound) return;
+        b.addEventListener('click', (ev)=> { 
+        ev.stopPropagation(); 
+        const row = b.closest('tr');
+        const session = b.dataset.session || (row ? row.dataset.session : null);
+        openApprove(session); 
     });
-    document.querySelectorAll('button.reject').forEach(b=>{
-      if (b._bound) return;
-      b.addEventListener('click', (ev)=> { ev.stopPropagation(); openReject(b.dataset.session || b.getAttribute('data-session')); });
-      b._bound = true;
+        b._bound = true;
+     });
+     document.querySelectorAll('button.reject').forEach(b=>{
+        if (b._bound) return;
+        b.addEventListener('click', (ev)=> { 
+        ev.stopPropagation(); 
+        const row = b.closest('tr');
+        const session = b.dataset.session || (row ? row.dataset.session : null);
+        openReject(session); 
     });
-  }
-  attachButtons();
+        b._bound = true;
+     });
+   }
+   attachButtons();
 
-  // show/hide modal
-  function openApprove(sessionId){
-    currentSession = String(sessionId);
-    const m = document.getElementById('approveModal');
-    if (!m) return;
-    m.classList.add('show');
-    m.setAttribute('aria-hidden','false');
-  }
-  function openReject(sessionId){
-    currentSession = String(sessionId);
-    document.getElementById('rejectReason').value = '';
-    const m = document.getElementById('rejectModal');
-    if (!m) return;
-    m.classList.add('show');
-    m.setAttribute('aria-hidden','false');
-  }
-  window.closeModal = function(id){
-    const el = document.getElementById(id);
-    if (!el) return;
-    el.classList.remove('show');
-    el.setAttribute('aria-hidden','true');
-    currentSession = null;
-  };
+   // show/hide modal
+   function openApprove(sessionId){
+     currentSession = String(sessionId);
+     const m = document.getElementById('approveModal');
+     if (!m) return;
+     m.classList.add('show');
+     m.setAttribute('aria-hidden','false');
+   }
+   function openReject(sessionId){
+     currentSession = String(sessionId);
+     document.getElementById('rejectReason').value = '';
+     const m = document.getElementById('rejectModal');
+     if (!m) return;
+     m.classList.add('show');
+     m.setAttribute('aria-hidden','false');
+   }
+   window.closeModal = function(id){
+     const el = document.getElementById(id);
+     if (!el) return;
+     el.classList.remove('show');
+     el.setAttribute('aria-hidden','true');
+     currentSession = null;
+   };
 
-  // backend posting
-  async function postAction(fd){
-    if (demoMode) {
-      await new Promise(r=>setTimeout(r,600));
-      return { success: true, message: 'demo' };
-    }
-    try {
-      const res = await fetch('process_request.php', { method:'POST', body: fd, credentials: 'same-origin' });
-      const text = await res.text();
-      // Try parse JSON
-      try {
-        const json = JSON.parse(text);
-        return json;
-      } catch(parseErr) {
-        console.error('process_request.php returned non-JSON:', text);
-        return { success:false, message: 'Invalid server response (not JSON). See console for raw response.' };
-      }
-    } catch (err) {
-      console.error('postAction network error', err);
-      return { success:false, message: err.message || 'Network error' };
-    }
-  }
+   // backend posting
+   async function postAction(fd){
+     if (demoMode) {
+        await new Promise(r=>setTimeout(r,600));
+        return { success: true, message: 'demo' };
+     }
+     try {
+        const res = await fetch('../api/process_request.php', { method:'POST', body: fd });
+        if (!res.ok) throw new Error('Network response not OK: ' + res.status);
+        return await res.json();
+     } catch (err) {
+        console.error('postAction error', err);
+        return { success:false, message: err.message || 'Network error' };
+     }
+   }
 
-
-  // approve confirm
-  const approveBtn = document.getElementById('approveConfirm');
-  if (approveBtn) {
-    approveBtn.addEventListener('click', async function(){
-      if (!currentSession) return alert('No session selected');
-      this.disabled = true; this.textContent = 'Approving...';
-      const fd = new FormData(); fd.append('action','approve'); fd.append('session_id', currentSession);
-      const r = await postAction(fd);
-      this.disabled = false; this.textContent = 'Yes, Approve';
-      if (r.success) {
-        // update row: set status to Booked and remove actions
-        const row = document.querySelector('tr[data-session="' + CSS.escape(currentSession) + '"]');
-        if (row) {
-          const statusEl = row.querySelector('.status');
-          if (statusEl) { statusEl.className = 'status booked'; statusEl.textContent = 'Booked'; }
-          const actions = row.querySelector('.actions'); if (actions) actions.innerHTML = '<span class="meta">N/A</span>';
+   // approve confirm
+   const approveBtn = document.getElementById('approveConfirm');
+   if (approveBtn) {
+     approveBtn.addEventListener('click', async function(){
+        if (!currentSession) return alert('No session selected');
+        this.disabled = true; this.textContent = 'Approving...';
+        const fd = new FormData(); fd.append('action','approve'); fd.append('session_id', currentSession);
+        const r = await postAction(fd);
+        this.disabled = false; this.textContent = 'Yes, Approve';
+        if (r.success) {
+          // FIX 1: Using direct string lookup
+          const row = document.querySelector('tr[data-session="' + currentSession + '"]');
+          if (row) {
+             const statusEl = row.querySelector('.status');
+             if (statusEl) { statusEl.className = 'status booked'; statusEl.textContent = 'Booked'; }
+             const actions = row.querySelector('.actions'); if (actions) actions.innerHTML = '<span class="meta">N/A</span>';
+          }
+          closeModal('approveModal');
+        } else {
+          alert('Error: ' + (r.message || 'Unable to approve'));
         }
-        closeModal('approveModal');
-      } else {
-        alert('Error: ' + (r.message || 'Unable to approve'));
-      }
-    });
-  }
+     });
+   }
 
-  // reject confirm
-  const rejectBtn = document.getElementById('rejectConfirm');
-  if (rejectBtn) {
-    rejectBtn.addEventListener('click', async function(){
-      if (!currentSession) return alert('No session selected');
-      const reason = document.getElementById('rejectReason').value.trim();
-      if (reason.length < 3) { alert('Please enter a short reason'); return; }
-      this.disabled = true; this.textContent = 'Submitting...';
-      const fd = new FormData(); fd.append('action','reject'); fd.append('session_id', currentSession); fd.append('reason', reason);
-      const r = await postAction(fd);
-      this.disabled = false; this.textContent = 'Submit Rejection';
-      if (r.success) {
-        const row = document.querySelector('tr[data-session="' + CSS.escape(currentSession) + '"]');
-        if (row) {
-          const statusEl = row.querySelector('.status');
-          if (statusEl) { statusEl.className = 'status rejected'; statusEl.textContent = 'Rejected'; }
-          const actions = row.querySelector('.actions'); if (actions) actions.innerHTML = '<span class="meta">N/A</span>';
+   // reject confirm
+   const rejectBtn = document.getElementById('rejectConfirm');
+   if (rejectBtn) {
+     rejectBtn.addEventListener('click', async function(){
+        if (!currentSession) return alert('No session selected');
+        const reason = document.getElementById('rejectReason').value.trim();
+        if (reason.length < 3) { alert('Please enter a short reason'); return; }
+        this.disabled = true; this.textContent = 'Submitting...';
+        const fd = new FormData(); fd.append('action','reject'); fd.append('session_id', currentSession); fd.append('reason', reason);
+        const r = await postAction(fd);
+        this.disabled = false; this.textContent = 'Submit Rejection';
+        if (r.success) {
+          // FIX 1: Using direct string lookup
+          const row = document.querySelector('tr[data-session="' + currentSession + '"]');
+          if (row) {
+             const statusEl = row.querySelector('.status');
+             if (statusEl) { statusEl.className = 'status rejected'; statusEl.textContent = 'Rejected'; }
+             const actions = row.querySelector('.actions'); if (actions) actions.innerHTML = '<span class="meta">N/A</span>';
+          }
+          closeModal('rejectModal');
+        } else {
+          alert('Error: ' + (r.message || 'Unable to reject'));
         }
-        closeModal('rejectModal');
-      } else {
-        alert('Error: ' + (r.message || 'Unable to reject'));
-      }
-    });
-  }
+     });
+   }
 
 }); // DOMContentLoaded
 </script>
