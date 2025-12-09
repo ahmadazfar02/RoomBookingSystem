@@ -1,0 +1,2 @@
+[2025-11-26 16:06:03] POST action error: Cannot add or update a child row: a foreign key constraint fails (`room_reservation_db`.`bookings`, CONSTRAINT `fk_bookings_user` FOREIGN KEY (`user_id`) REFERENCES `users` (`id`) ON UPDATE CASCADE)
+Payload: {"action":"save","room_id":"02.31.01","purpose":"Maintanance","description":"maintenance","tel":"","status":"maintenance","overwrite":0,"slots":[{"date":"2025-11-27","slot":"11:00-11:50","bookingId":null},{"date":"2025-11-27","slot":"12:00-12:50","bookingId":null},{"date":"2025-11-27","slot":"13:00-13:50","bookingId":null}]}

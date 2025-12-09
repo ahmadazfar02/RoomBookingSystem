@@ -1,0 +1,147 @@
+    body, html {
+        margin: 0;
+        padding: 0;
+        height: 100vh;
+        font-family: Arial, sans-serif;
+        justify-content: center;;
+    }
+
+    .main-header {
+        background: linear-gradient(to right, rgba(0, 0, 0, 0.1), rgba(255, 255, 255, 0.1)); 
+        box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+        position: relative;
+        z-index: 10;
+    }
+    
+    .header-content{
+        max-width: 1200px;
+        margin: 0 auto;
+        padding: 10px 20px;
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+    }
+
+    .logo {
+        height: 60px; 
+        margin-bottom: 0.9;
+    }
+
+    .booking-status-btn{
+        background-color: white;
+        color: #5a0813;
+        border: none;
+        padding: 8px 15px;
+        border-radius: 5px;
+        font-weight: bold;
+        cursor: pointer;
+        position: relative;
+        box-shadow: 0 1px 3px rgba(0, 0, 0, 0.2);
+    }
+
+    /*.notification-badge{
+        position: absolute;
+        top: -5px;
+        right: -5px;
+        background-color: red;
+        color: white;
+        border-radius: 50%;
+        padding: 2px 6px;
+        font-size: 10px;
+        line-height: 1;
+        font-weight: normal;
+    }*/
+    
+    .main-content {
+        background: linear-gradient(
+            135deg, #7986cb 10%, #B3E5FC 50%, #FF8A80 100%
+        );
+        position: absolute;
+        top: 0;
+        left: 0;
+        width: 100%;
+        height: 100%;
+        z-index: 1;
+        display: flex;
+        justify-content: center;
+        align-items: center;
+        flex-direction: column;
+    }
+
+    .main-header, .bottom-controls{
+        position: fixed;
+        width: 100%;
+        z-index: 10;
+    }
+
+    .main-header{ top: 0;}
+
+    .search-container{
+        display: flex;
+        gap: 10px;
+        width: 450px;
+        z-index: 5px;
+        margin-top:-15vh;
+    }
+
+    .search-container select{
+        flex-grow: 1;
+        padding: 10px 15px;
+        border: none; 
+        border-radius: 5px;
+        background-color: rgba(255, 255, 255, 0.9);
+        font-size: 16px;
+        box-shadow: 0 2px 5px rgba(0, 0, 0, 0.15);
+        /*remove default dropdown arrow*/
+        -webkit-appearance: none;
+        -moz-appearance: none;
+        appearance: none;
+        background-image: url(picture/arrow-down-svgrepo-com.svg);
+        background-repeat: no-repeat;
+        background-size: 16px;
+        background-position: right 10px center;
+        padding-right: 35px;
+    }
+
+    .show-btn{
+        background-color: white;
+        color: #333;
+        border: none;
+        padding: 10px 20px;
+        border-radius: 5px;
+        font-weight: bold;
+        cursor: pointer;
+        box-shadow: 0 2px 5px rgba(0, 0, 0, 0.15);
+
+    }
+
+.header-controls {
+    /* Ensure the controls container uses flex to align items horizontally */
+    display: flex;
+    align-items: center; 
+     /* Adds space between the user area and the button */
+}
+
+.user-control-area {
+    /* Style for the text area */
+    text-align: right;
+    /* You can add more styling here if needed */
+    margin-left: auto;
+    margin-right: 125px;
+}
+
+.user-control-area .greeting {
+    font-weight: bold;
+    font-size: 1.1rem;
+    color: #5a0813; /* UTM Red color from your button style */
+}
+
+.user-control-area a {
+    color: #1b2ea6; /* UTM Blue link color */
+    text-decoration: none;
+    font-size: 0.9rem;
+}
+
+.user-control-area a:hover {
+    text-decoration: underline;
+}

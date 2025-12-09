@@ -1,0 +1,165 @@
+[2025-11-05 14:00:40] POST RAW: {"action":"cancel","booking_id":27,"reason":"Cancelled by user"}
+[2025-11-05 14:00:40] POST action: cancel, user_id: 2
+[2025-11-05 14:00:40] cancel success (deleted) id=27 by user=2
+[2025-11-05 14:00:42] POST RAW: {"action":"cancel","booking_id":26,"reason":"Cancelled by user"}
+[2025-11-05 14:00:42] POST action: cancel, user_id: 2
+[2025-11-05 14:00:42] cancel success (deleted) id=26 by user=2
+[2025-11-05 16:06:23] POST RAW: {"action":"cancel","booking_id":29,"reason":"Cancelled by user"}
+[2025-11-05 16:06:23] POST action: cancel, user_id: 2
+[2025-11-05 16:06:23] cancel success (updated to cancelled) id=29 by user=2
+[2025-11-05 16:06:24] POST RAW: {"action":"cancel","booking_id":28,"reason":"Cancelled by user"}
+[2025-11-05 16:06:24] POST action: cancel, user_id: 2
+[2025-11-05 16:06:24] cancel success (updated to cancelled) id=28 by user=2
+[2025-11-05 16:20:33] POST RAW: {"action":"cancel","booking_id":31,"reason":"Cancelled by user"}
+[2025-11-05 16:20:33] POST action: cancel, user_id: 2
+[2025-11-05 16:20:33] Exception: Duplicate entry 'bk1-2025-06-02-09:00:00-cancelled' for key 'ux_room_date_start_status'
+[2025-11-05 16:20:33] POST RAW: {"action":"cancel_slot","room":"bk1","slot_date":"2025-06-02","time_start":"09:00:00","reason":"Cancelled by user"}
+[2025-11-05 16:20:33] POST action: cancel_slot, user_id: 2
+[2025-11-05 16:20:33] Exception: Duplicate entry 'bk1-2025-06-02-09:00:00-cancelled' for key 'ux_room_date_start_status'
+[2025-11-05 16:20:38] POST RAW: {"action":"cancel","booking_id":30,"reason":"Cancelled by user"}
+[2025-11-05 16:20:38] POST action: cancel, user_id: 2
+[2025-11-05 16:20:38] Exception: Duplicate entry 'bk1-2025-06-02-08:00:00-cancelled' for key 'ux_room_date_start_status'
+[2025-11-05 16:20:38] POST RAW: {"action":"cancel_slot","room":"bk1","slot_date":"2025-06-02","time_start":"08:00:00","reason":"Cancelled by user"}
+[2025-11-05 16:20:38] POST action: cancel_slot, user_id: 2
+[2025-11-05 16:20:38] Exception: Duplicate entry 'bk1-2025-06-02-08:00:00-cancelled' for key 'ux_room_date_start_status'
+[2025-11-05 16:20:55] POST RAW: {"action":"cancel","booking_id":33,"reason":"Cancelled by user"}
+[2025-11-05 16:20:55] POST action: cancel, user_id: 2
+[2025-11-05 16:20:55] cancel success (updated to cancelled) id=33 by user=2
+[2025-11-05 16:21:48] POST RAW: {"action":"cancel","booking_id":32,"reason":"Cancelled by user"}
+[2025-11-05 16:21:48] POST action: cancel, user_id: 2
+[2025-11-05 16:21:48] cancel success (updated to cancelled) id=32 by user=2
+[2025-11-05 16:22:26] POST RAW: {"action":"cancel","booking_id":31,"reason":"Cancelled by user"}
+[2025-11-05 16:22:26] POST action: cancel, user_id: 2
+[2025-11-05 16:22:26] Exception: Duplicate entry 'bk1-2025-06-02-09:00:00-cancelled' for key 'ux_room_date_start_status'
+[2025-11-05 16:22:26] POST RAW: {"action":"cancel_slot","room":"bk1","slot_date":"2025-06-02","time_start":"09:00:00","reason":"Cancelled by user"}
+[2025-11-05 16:22:26] POST action: cancel_slot, user_id: 2
+[2025-11-05 16:22:26] Exception: Duplicate entry 'bk1-2025-06-02-09:00:00-cancelled' for key 'ux_room_date_start_status'
+[2025-11-05 16:28:21] POST RAW: {"action":"cancel","booking_id":31,"reason":"Cancelled by user"}
+[2025-11-05 16:28:21] POST action: cancel, user_id: 2
+[2025-11-05 16:28:21] Exception: Duplicate entry 'bk1-2025-06-02-09:00:00-cancelled' for key 'ux_room_date_start_status'
+[2025-11-05 16:28:22] POST RAW: {"action":"cancel_slot","room":"bk1","slot_date":"2025-06-02","time_start":"09:00:00","reason":"Cancelled by user"}
+[2025-11-05 16:28:22] POST action: cancel_slot, user_id: 2
+[2025-11-05 16:28:22] Exception: Duplicate entry 'bk1-2025-06-02-09:00:00-cancelled' for key 'ux_room_date_start_status'
+[2025-11-05 16:28:25] POST RAW: {"action":"cancel","booking_id":31,"reason":"Cancelled by user"}
+[2025-11-05 16:28:25] POST action: cancel, user_id: 2
+[2025-11-05 16:28:25] Exception: Duplicate entry 'bk1-2025-06-02-09:00:00-cancelled' for key 'ux_room_date_start_status'
+[2025-11-05 16:28:25] POST RAW: {"action":"cancel_slot","room":"bk1","slot_date":"2025-06-02","time_start":"09:00:00","reason":"Cancelled by user"}
+[2025-11-05 16:28:25] POST action: cancel_slot, user_id: 2
+[2025-11-05 16:28:25] Exception: Duplicate entry 'bk1-2025-06-02-09:00:00-cancelled' for key 'ux_room_date_start_status'
+[2025-11-05 16:28:28] POST RAW: {"action":"cancel","booking_id":30,"reason":"Cancelled by user"}
+[2025-11-05 16:28:28] POST action: cancel, user_id: 2
+[2025-11-05 16:28:28] Exception: Duplicate entry 'bk1-2025-06-02-08:00:00-cancelled' for key 'ux_room_date_start_status'
+[2025-11-05 16:28:28] POST RAW: {"action":"cancel_slot","room":"bk1","slot_date":"2025-06-02","time_start":"08:00:00","reason":"Cancelled by user"}
+[2025-11-05 16:28:28] POST action: cancel_slot, user_id: 2
+[2025-11-05 16:28:28] Exception: Duplicate entry 'bk1-2025-06-02-08:00:00-cancelled' for key 'ux_room_date_start_status'
+[2025-11-05 16:47:56] POST RAW: {"action":"cancel","booking_id":31,"reason":"Cancelled by user"}
+[2025-11-05 16:47:56] POST action: cancel, user_id: 2
+[2025-11-05 16:47:56] cancel success (updated to cancelled) id=31 by user=2
+[2025-11-05 16:47:58] POST RAW: {"action":"cancel","booking_id":30,"reason":"Cancelled by user"}
+[2025-11-05 16:47:58] POST action: cancel, user_id: 2
+[2025-11-05 16:47:58] cancel success (updated to cancelled) id=30 by user=2
+[2025-11-06 04:09:16] POST RAW: {"action":"cancel","booking_id":35,"reason":"Cancelled by user"}
+[2025-11-06 04:09:16] POST action: cancel, user_id: 2
+[2025-11-06 04:09:16] cancel success (updated to cancelled) id=35 by user=2
+[2025-11-06 04:19:40] POST RAW: {"action":"cancel","booking_id":36,"reason":"Cancelled by user"}
+[2025-11-06 04:19:40] POST action: cancel, user_id: 2
+[2025-11-06 04:19:40] cancel success (updated to cancelled) id=36 by user=2
+[2025-11-06 04:19:43] POST RAW: {"action":"cancel","booking_id":34,"reason":"Cancelled by user"}
+[2025-11-06 04:19:43] POST action: cancel, user_id: 2
+[2025-11-06 04:19:43] cancel success (updated to cancelled) id=34 by user=2
+[2025-11-06 04:28:49] POST RAW: {"action":"cancel","booking_id":38,"reason":"Cancelled by user"}
+[2025-11-06 04:28:49] POST action: cancel, user_id: 2
+[2025-11-06 04:28:49] cancel success (updated to cancelled) id=38 by user=2
+[2025-11-06 04:30:02] POST RAW: {"action":"cancel","booking_id":37,"reason":"Cancelled by user"}
+[2025-11-06 04:30:02] POST action: cancel, user_id: 2
+[2025-11-06 04:30:02] cancel success (updated to cancelled) id=37 by user=2
+[2025-11-06 04:33:12] POST RAW: {"action":"cancel","booking_id":39,"reason":"Cancelled by user"}
+[2025-11-06 04:33:12] POST action: cancel, user_id: 2
+[2025-11-06 04:33:12] cancel success (updated to cancelled) id=39 by user=2
+[2025-11-06 15:57:03] POST RAW: {"action":"cancel","booking_id":40,"reason":"Cancelled by user"}
+[2025-11-06 15:57:03] POST action: cancel, user_id: 2
+[2025-11-06 15:57:03] cancel success (updated to cancelled) id=40 by user=2
+[2025-11-08 11:32:14] Exception: Unknown column 'room' in 'field list'
+[2025-11-08 11:32:16] Exception: Unknown column 'room' in 'field list'
+[2025-11-08 11:32:17] Exception: Unknown column 'room' in 'field list'
+[2025-11-08 11:32:17] Exception: Unknown column 'room' in 'field list'
+[2025-11-08 11:32:18] Exception: Unknown column 'room' in 'field list'
+[2025-11-08 11:32:18] Exception: Unknown column 'room' in 'field list'
+[2025-11-08 11:32:19] Exception: Unknown column 'room' in 'field list'
+[2025-11-08 11:32:19] Exception: Unknown column 'room' in 'field list'
+[2025-11-08 11:32:19] Exception: Unknown column 'room' in 'field list'
+[2025-11-08 11:32:20] Exception: Unknown column 'room' in 'field list'
+[2025-11-08 13:49:38] POST RAW: {"action":"cancel_session","session_id":"single_5","reason":"Cancelled by user"}
+[2025-11-08 13:49:38] action=cancel_session user=2
+[2025-11-08 13:49:42] POST RAW: {"action":"cancel_session","session_id":"single_6","reason":"Cancelled by user"}
+[2025-11-08 13:49:42] action=cancel_session user=2
+[2025-11-08 13:49:43] POST RAW: {"action":"cancel_session","session_id":"single_6","reason":"Cancelled by user"}
+[2025-11-08 13:49:43] action=cancel_session user=2
+[2025-11-08 13:49:45] POST RAW: {"action":"cancel_session","session_id":"single_3","reason":"Cancelled by user"}
+[2025-11-08 13:49:45] action=cancel_session user=2
+[2025-11-08 13:49:47] POST RAW: {"action":"cancel_session","session_id":"single_4","reason":"Cancelled by user"}
+[2025-11-08 13:49:47] action=cancel_session user=2
+[2025-11-08 13:49:48] POST RAW: {"action":"cancel_session","session_id":"single_1","reason":"Cancelled by user"}
+[2025-11-08 13:49:48] action=cancel_session user=2
+[2025-11-08 13:49:50] POST RAW: {"action":"cancel_session","session_id":"single_2","reason":"Cancelled by user"}
+[2025-11-08 13:49:50] action=cancel_session user=2
+[2025-11-08 13:59:39] POST RAW: {"action":"cancel_session","session_id":"single_5","reason":"Cancelled by user"}
+[2025-11-08 13:59:39] action=cancel_session user=2
+[2025-11-08 13:59:41] POST RAW: {"action":"cancel_session","session_id":"single_5","reason":"Cancelled by user"}
+[2025-11-08 13:59:41] action=cancel_session user=2
+[2025-11-08 13:59:43] POST RAW: {"action":"cancel_session","session_id":"single_5","reason":"Cancelled by user"}
+[2025-11-08 13:59:43] action=cancel_session user=2
+[2025-11-10 09:11:57] POST RAW: {"action":"cancel_session","session_id":"0d6113b35e431424df85605a0a61a800","reason":"Cancelled by user"}
+[2025-11-10 09:11:57] action=cancel_session user=2
+[2025-11-10 10:00:44] POST RAW: {"action":"start_edit","session_id":"ccbf4013494e9ae99a47d5fe36dd103c"}
+[2025-11-10 10:00:44] action=start_edit user=2
+[2025-11-10 10:00:44] Exception: Unknown action: start_edit
+[2025-11-10 10:00:48] POST RAW: {"action":"start_edit","session_id":"ccbf4013494e9ae99a47d5fe36dd103c"}
+[2025-11-10 10:00:48] action=start_edit user=2
+[2025-11-10 10:00:48] Exception: Unknown action: start_edit
+[2025-11-10 10:22:39] POST RAW: {"action":"start_edit","session_id":"ccbf4013494e9ae99a47d5fe36dd103c"}
+[2025-11-10 10:22:39] action=start_edit user=2
+[2025-11-10 10:22:39] Exception: Unknown action: start_edit
+[2025-11-10 10:26:39] POST RAW: {"action":"start_edit","session_id":"f57e97d12bb1c8039d063297273d8e32"}
+[2025-11-10 10:26:39] action=start_edit user=2
+[2025-11-10 10:26:39] Exception: Unknown action: start_edit
+[2025-11-10 11:10:04] POST RAW: {"action":"start_edit","session_id":"f57e97d12bb1c8039d063297273d8e32"}
+[2025-11-10 11:10:04] action=start_edit user=2
+[2025-11-10 11:10:04] Exception: Unknown action: start_edit
+[2025-11-10 11:17:44] POST RAW: {"action":"start_edit","session_id":"f7f724668de68b5a20b4ed534ca24414"}
+[2025-11-10 11:17:44] action=start_edit user=2
+[2025-11-11 07:34:58] Exception: Table 'room_reservation_db.bookings' doesn't exist
+[2025-11-11 07:34:59] Exception: Table 'room_reservation_db.bookings' doesn't exist
+[2025-11-11 07:35:00] Exception: Table 'room_reservation_db.bookings' doesn't exist
+[2025-11-11 07:35:00] Exception: Table 'room_reservation_db.bookings' doesn't exist
+[2025-11-11 07:35:00] Exception: Table 'room_reservation_db.bookings' doesn't exist
+[2025-11-11 07:35:01] Exception: Table 'room_reservation_db.bookings' doesn't exist
+[2025-11-11 07:35:01] Exception: Table 'room_reservation_db.bookings' doesn't exist
+[2025-11-11 07:35:01] Exception: Table 'room_reservation_db.bookings' doesn't exist
+[2025-11-11 07:35:02] Exception: Table 'room_reservation_db.bookings' doesn't exist
+[2025-11-11 07:35:02] Exception: Table 'room_reservation_db.bookings' doesn't exist
+[2025-11-11 07:35:03] Exception: Table 'room_reservation_db.bookings' doesn't exist
+[2025-11-11 09:01:22] POST RAW: {"action":"start_edit","session_id":"9b3b5acc1878ddc52b272217d0d7ad34"}
+[2025-11-11 09:01:22] action=start_edit user=2
+[2025-11-11 09:01:43] POST RAW: {"action":"start_edit","session_id":"e3887d997b929cf74eb2da9fbb8ee117"}
+[2025-11-11 09:01:43] action=start_edit user=2
+[2025-11-12 02:08:53] POST RAW: {"action":"cancel","booking_id":"25","reason":"Cancelled by user"}
+[2025-11-12 02:08:53] action=cancel user=2
+[2025-11-12 02:08:56] POST RAW: {"action":"cancel","booking_id":"26","reason":"Cancelled by user"}
+[2025-11-12 02:08:56] action=cancel user=2
+[2025-11-12 02:44:20] POST RAW: {"action":"start_edit","session_id":"63c5d32dd102761cee8c1d39abea3e95"}
+[2025-11-12 02:44:20] action=start_edit user=2
+[2025-11-12 02:44:52] POST RAW: {"action":"cancel","booking_id":"29","reason":"Cancelled by user"}
+[2025-11-12 02:44:52] action=cancel user=2
+[2025-11-12 02:44:55] POST RAW: {"action":"cancel","booking_id":"30","reason":"Cancelled by user"}
+[2025-11-12 02:44:55] action=cancel user=2
+[2025-11-13 04:37:45] POST RAW: {"action":"start_edit","session_id":"b9032490eda06912b1be58ca50fe5a20"}
+[2025-11-13 04:37:45] action=start_edit user=2
+[2025-11-13 04:38:15] POST RAW: {"action":"cancel","booking_id":"33","reason":"Cancelled by user"}
+[2025-11-13 04:38:15] action=cancel user=2
+[2025-11-13 04:38:20] POST RAW: {"action":"cancel","booking_id":"34","reason":"Cancelled by user"}
+[2025-11-13 04:38:20] action=cancel user=2
+[2025-11-13 04:38:24] POST RAW: {"action":"cancel","booking_id":"35","reason":"Cancelled by user"}
+[2025-11-13 04:38:24] action=cancel user=2
+[2025-11-13 04:38:27] POST RAW: {"action":"cancel","booking_id":"36","reason":"Cancelled by user"}
+[2025-11-13 04:38:27] action=cancel user=2
