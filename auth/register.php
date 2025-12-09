@@ -1,6 +1,6 @@
 <?php
 
-include 'db_connect.php';
+include __DIR__ . '/../includes/db_connect.php';
 
 if ($_SERVER["REQUEST_METHOD"] === "POST") {
     $username = trim($_POST["username"]);
@@ -72,7 +72,7 @@ if ($_SERVER["REQUEST_METHOD"] === "POST") {
     $stmt->bind_param("ssssss", $username, $fullname, $email, $password_hash, $role, $phone_number);
 
     if ($stmt->execute()) {
-        echo "<script>alert('Registration successful! You can now log in.'); window.location.href='loginterface.html';</script>";
+        echo "<script>alert('Registration successful! You can now log in.'); window.location.href='../loginterface.html';</script>";
     } else {
         echo "<script>alert('Error: " . addslashes($stmt->error) . "');</script>";
     }
@@ -224,7 +224,7 @@ if ($_SERVER["REQUEST_METHOD"] === "POST") {
     <body>
 
         <div class="utm-header">
-            <img src="img/utmlogo.png" alt="UTM Logo">
+            <img src="../assets/images/utmlogo.png" alt="UTM Logo">
         </div>
 
         <form method="POST" onsubmit="return validatePassword()">
@@ -281,7 +281,7 @@ if ($_SERVER["REQUEST_METHOD"] === "POST") {
                 <button type="submit" class="register-btn">Register</button>
 
                 <div class="login-link">
-                    Already have an account? <a href="loginterface.html">Login here</a>
+                    Already have an account? <a href="../loginterface.html">Login here</a>
                 </div>
             </div>
         </form>

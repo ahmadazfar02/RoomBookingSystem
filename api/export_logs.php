@@ -1,7 +1,7 @@
 <?php
 // export_logs.php - Export admin logs to CSV
 session_start();
-require_once 'db_connect.php';
+require_once __DIR__ . '/../includes/db_connect.php';
 
 // Access Control
 if (!isset($_SESSION['loggedin']) || strcasecmp(trim($_SESSION['User_Type']), 'Admin') != 0) {

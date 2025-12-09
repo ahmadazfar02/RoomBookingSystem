@@ -132,12 +132,12 @@
 </head>
 <body>
     <div class="utm-header">
-        <img src="utm_logo.png" alt="UTM Logo"><br>
+        <img src="../assets/images/utm_logo.png" alt="UTM Logo"><br>
     </div>
 
     <?php
     session_start();
-    require_once 'db_connect.php';
+    require_once __DIR__ . '/../includes/db_connect.php';
 
     // Set timezone to ensure consistent time comparison
     date_default_timezone_set('Asia/Kuala_Lumpur');
@@ -195,7 +195,7 @@
 
         if (!empty($error_message)) {
             echo '<div class="message error">' . $error_message . '</div>';
-            echo '<div class="back-link"><a href="loginterface.html">Back to Login</a></div>';
+            echo '<div class="back-link"><a href="../loginterface.html">Back to Login</a></div>';
         } elseif ($valid_token) {
         ?>
             <p>Enter your new password below.</p>
@@ -217,7 +217,7 @@
             </form>
 
             <div class="back-link">
-                <a href="loginterface.html">Back to Login</a>
+                <a href="../loginterface.html">Back to Login</a>
             </div>
 
             <script>

@@ -1,6 +1,6 @@
 <?php
 session_start(); 
-require_once 'db_connect.php';
+require_once __DIR__ . '/includes/db_connect.php';
 
 if (!isset($_SESSION['loggedin'])) {
     header("location: loginterface.html"); 
@@ -25,18 +25,18 @@ if ($result) {
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Room Reservation - Booking</title>
-<link href="style.css" rel="stylesheet">
+<link href="assets/css/style.css" rel="stylesheet">
 </head>
 <body>
     <header class="main-header">
         <div class="header-content">
-            <img src="img/utmlogo.png" alt="UTM Logo" class="logo">
+            <img src="assets/images/utmlogo.png" alt="UTM Logo" class="logo">
             <div class="header-controls">
                 <div class="user-control-area">
                     <div class="greeting">
                         Hi, <?php echo htmlspecialchars($user_name); ?>
                     </div>
-                    <a href="logout.php">Logout</a>
+                    <a href="auth/logout.php">Logout</a>
                 </div>
 
                 <button class="booking-status-btn"> 

@@ -1,5 +1,5 @@
 <?php
-require_once 'db_connect.php';
+require_once __DIR__ . '/../includes/db_connect.php';
 
 // Check for remember me cookie
 if (isset($_COOKIE['remember_me'])) {
@@ -26,9 +26,9 @@ if (isset($_COOKIE['remember_me'])) {
             
 
             if (strcasecmp(trim($User_Type), 'Admin') == 0) {
-                header("location: index-admin.php");
+                header("location: ../admin/index-admin.php");
             } else {
-                header("location: timetable.html");
+                header("location: ../timetable.html");
             }
             exit;
         }
@@ -73,20 +73,20 @@ if ($_SERVER["REQUEST_METHOD"] == "POST"){
                     }
 
                     if(strcasecmp(trim($User_Type), 'Admin') == 0){
-                        header("location: index-admin.php");
+                        header("location: ../admin/index-admin.php");
                     } else{
-                        header("location: timetable.html");
+                        header("location: ../timetable.html");
                     }
                     exit;
                 } 
                 else{
                     $login_err = "Invalid username or password.";
-                    echo "<script>alert('Invalid password'); window.location.href='loginterface.html';</script>";
+                    echo "<script>alert('Invalid password'); window.location.href='../loginterface.html';</script>";
                     } 
             }
             else{
                     $login_err = "Invalid username or password.";
-                    echo "<script>alert('User not found'); window.location.href='loginterface.html';</script>";
+                    echo "<script>alert('User not found'); window.location.href='../loginterface.html';</script>";
                 }
         }
         $stmt->close();

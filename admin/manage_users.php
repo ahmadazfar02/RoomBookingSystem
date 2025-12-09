@@ -1,12 +1,12 @@
 <?php
 session_start();
-require_once 'db_connect.php';
+require_once __DIR__ . '/../includes/db_connect.php';
 
 // 1. SECURITY CHECK: Only allow 'Admin' to access this page
 if (!isset($_SESSION['loggedin']) || 
     !isset($_SESSION['User_Type']) || 
     strcasecmp($_SESSION['User_Type'], 'Admin') !== 0) {
-    header("location: loginterface.html");
+    header("location: ../loginterface.html");
     exit;
 }
 
@@ -572,7 +572,7 @@ if ($stmt = $conn->prepare($sql)) {
 <body>
 
 <nav class="nav-bar">
-  <img class="nav-logo" src="img/utmlogo.png" alt="UTM Logo">
+  <img class="nav-logo" src="../assets/images/utmlogo.png" alt="UTM Logo">
 </nav>
 
 <div class="layout">

@@ -1,7 +1,7 @@
 <?php
 // admin_recurring_timetable.php - FIXED VERSION for time_start/time_end columns
 session_start();
-require_once 'db_connect.php';
+require_once __DIR__ . '/../includes/db_connect.php';
 
 function json_ok($data = []) { header('Content-Type: application/json; charset=utf-8'); echo json_encode(array_merge(['success'=>true], $data)); exit; }
 function json_err($msg = 'Error', $extra = []) { header('Content-Type: application/json; charset=utf-8'); echo json_encode(array_merge(['success'=>false, 'msg'=>$msg], $extra)); exit; }
@@ -17,7 +17,7 @@ $username = $_SESSION['username'] ?? 'superadmin';
 
 if (!$admin_id || strcasecmp(trim($user_type ?? ''), 'Admin') !== 0) {
     if ($is_json_request) json_err('Not authorized (admin only)');
-    header('Location: loginterface.html');
+    header('Location: ../loginterface.html');
     exit;
 }
 
@@ -804,7 +804,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
 <!-- Navigation Bar -->
 <nav class="nav-bar">
-  <img src="img/utmlogo.png" alt="UTM Logo" />
+  <img src="../assets/images/utmlogo.png" alt="UTM Logo" />
 </nav>
 
 <!-- Layout Container (Flexbox Wrapper) -->

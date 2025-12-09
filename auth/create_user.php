@@ -1,5 +1,5 @@
 <?php
-require 'db_connect.php';
+require __DIR__ . '/../includes/db_connect.php';
 
 $username = 'user';
 $password = 'user1234';

@@ -1,12 +1,12 @@
 <?php
 session_start();
-require_once 'db_connect.php';
+require_once __DIR__ . '/../includes/db_connect.php';
 
 // SECURITY: Only Admin can access
 if (!isset($_SESSION['loggedin']) || 
     !isset($_SESSION['User_Type']) ||
     strcasecmp($_SESSION['User_Type'], 'Admin') !== 0) {
-    header("location: loginterface.html");
+    header("location: ../loginterface.html");
     exit;
 }
 
@@ -233,7 +233,7 @@ body{
 
 <!-- TOP NAV -->
 <nav class="nav-bar">
-  <img src="img/utmlogo.png" class="nav-logo">
+  <img src="../assets/images/utmlogo.png" class="nav-logo">
 </nav>
 
 <!-- LAYOUT -->
@@ -395,7 +395,7 @@ document.getElementById("downloadBtn").onclick = () => {
             downloads.push({
                 report: reportType,
                 format: format,
-                url: `generate_reports_action.php?report=${reportType}&format=${format}`
+                url: `../api/generate_reports_action.php?report=${reportType}&format=${format}`
             });
         });
     });

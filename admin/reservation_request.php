@@ -1,11 +1,11 @@
 <?php
 session_start();
-require_once "db_connect.php";
+require_once __DIR__ . '/../includes/db_connect.php';
 
 // Access control
 if(!isset($_SESSION["loggedin"]) || $_SESSION["loggedin"] !== true ||
    strcasecmp(trim($_SESSION["User_Type"]), 'Admin') != 0) {
-    header("location: loginterface.html");
+    header("location: ../loginterface.html");
     exit;
 }
 
@@ -371,7 +371,7 @@ table.grid thead th:first-child {
 
 <!-- NAV -->
 <nav class="nav-bar" role="navigation" aria-label="Main navigation">
-  <img class="nav-logo" src="img/utmlogo.png" alt="UTM Logo">
+  <img class="nav-logo" src="../assets/images/utmlogo.png" alt="UTM Logo">
   <div style="flex:1"></div>
 </nav>
 
@@ -597,7 +597,7 @@ document.addEventListener('DOMContentLoaded', () => {
       return { success: true, message: 'demo' };
     }
     try {
-      const res = await fetch('process_request.php', { method:'POST', body: fd });
+      const res = await fetch('../api/process_request.php', { method:'POST', body: fd });
       if (!res.ok) throw new Error('Network response not OK: ' + res.status);
       return await res.json();
     } catch (err) {

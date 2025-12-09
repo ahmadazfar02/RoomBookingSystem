@@ -14,7 +14,7 @@
  */
 
 session_start();
-require_once 'db_connect.php';
+require_once __DIR__ . '/../includes/db_connect.php';
 
 // Security check - Admin only
 if (!isset($_SESSION['loggedin']) || strcasecmp($_SESSION['User_Type'], 'Admin') !== 0) {
@@ -37,7 +37,7 @@ if (!in_array($report, $allowedReports)) {
 }
 
 // Include FPDF for PDF generation
-require_once('fpdf/fpdf.php');
+require_once(__DIR__ . '/../libs/fpdf/fpdf.php');
 
 /* =====================================================================
    HELPER: Base PDF Class with common header/footer

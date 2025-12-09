@@ -22,7 +22,7 @@ function json_err($msg){
 }
 
 // require db_connect.php which must set $conn (mysqli) and produce NO output
-$dbfile = __DIR__ . '/db_connect.php';
+$dbfile = __DIR__ . '/../includes/db_connect.php';
 if (!file_exists($dbfile)) json_err('Server configuration missing');
 require_once $dbfile;
 

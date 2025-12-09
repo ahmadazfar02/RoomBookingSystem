@@ -20,8 +20,8 @@ try {
     header('Content-Type: application/json; charset=utf-8');
     session_start();
 
-    if (!file_exists(__DIR__ . '/db_connect.php')) throw new Exception('db_connect.php missing');
-    require_once __DIR__ . '/db_connect.php';
+    if (!file_exists(__DIR__ . '/includes/db_connect.php')) throw new Exception('db_connect.php missing');
+    require_once __DIR__ . '/includes/db_connect.php';
     if (!isset($conn) || !($conn instanceof mysqli)) throw new Exception('$conn not available');
 
     // current user (tolerant)

@@ -1,7 +1,7 @@
 <?php
 // admin_timetable.php - COMPLETE FIXED VERSION
 session_start();
-require_once 'db_connect.php';
+require_once __DIR__ . '/../includes/db_connect.php';
 
 function log_error($msg) {
     error_log($msg);
@@ -22,7 +22,7 @@ if (!$admin_id || strcasecmp(trim($user_type ?? ''), 'Admin') !== 0) {
         echo json_encode(['success'=>false, 'msg'=>'Not authorized']);
         exit;
     } else {
-        header('Location: loginterface.html');
+        header('Location: ../loginterface.html');
         exit;
     }
 }
@@ -1017,7 +1017,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
 <!-- Navigation Bar -->
 <nav class="nav-bar">
-  <img src="img/utmlogo.png" alt="UTM Logo" />
+  <img src="../assets/images/utmlogo.png" alt="UTM Logo" />
 </nav>
 
 <!-- Layout Container (Flexbox Wrapper) -->

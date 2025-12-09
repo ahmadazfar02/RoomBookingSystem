@@ -5,14 +5,14 @@
  * PLACEHOLDER - Full implementation pending
  */
 session_start();
-require_once 'db_connect.php';
+require_once __DIR__ . '/../includes/db_connect.php';
 
 // Security check - Admin only
 $admin_id = $_SESSION['User_ID'] ?? $_SESSION['id'] ?? null;
 $user_type = $_SESSION['User_Type'] ?? null;
 
 if (!$admin_id || strcasecmp(trim($user_type ?? ''), 'Admin') !== 0) {
-    header('Location: loginterface.html');
+    header('Location: ../loginterface.html');
     exit;
 }
 
@@ -188,7 +188,7 @@ body {
 <body>
 
 <nav class="nav-bar">
-    <img src="img/utmlogo.png" alt="UTM Logo">
+    <img src="../assets/images/utmlogo.png" alt="UTM Logo">
 </nav>
 
 <div class="layout">

@@ -1,13 +1,13 @@
 <?php
 session_start();
-require_once "db_connect.php";
+require_once __DIR__ . '/../includes/db_connect.php';
 
 //--------------------------------------------------
 // ACCESS CONTROL: Only Admin can use this page
 //--------------------------------------------------
 if (!isset($_SESSION["loggedin"]) || $_SESSION["loggedin"] !== true ||
     strcasecmp(trim($_SESSION["User_Type"]), 'Admin') != 0) {
-    header("location: loginterface.html");
+    header("location: ../loginterface.html");
     exit;
 }
 
@@ -15,7 +15,7 @@ if (!isset($_SESSION["loggedin"]) || $_SESSION["loggedin"] !== true ||
 // ENSURE POST REQUEST
 //--------------------------------------------------
 if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
-    header("Location: reservation_request.php");
+    header("Location: ../admin/reservation_request.php");
     exit;
 }
 
@@ -181,7 +181,7 @@ if ($action === "delete") {
 // UNKNOWN ACTION → ROLLBACK
 //--------------------------------------------------
 $conn->rollback();
-header("Location: reservation_request.php");
+header("Location: ../admin/reservation_request.php");
 exit;
 
 ?>

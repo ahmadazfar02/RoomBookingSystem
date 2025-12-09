@@ -1,12 +1,12 @@
 <?php
 // admin_logbook.php - View system activity logs
 session_start();
-require_once 'db_connect.php';
+require_once __DIR__ . '/../includes/db_connect.php';
 
 // Access Control
 if (!isset($_SESSION['loggedin']) || $_SESSION['loggedin'] !== true || 
     strcasecmp(trim($_SESSION['User_Type']), 'Admin') != 0) {
-    header("Location: loginterface.html");
+    header("Location: ../loginterface.html");
     exit;
 }
 
@@ -370,8 +370,8 @@ body{
 <body>
 
 <nav class="nav-bar">
-  <img class="nav-logo" src="img/utmlogo.png" alt="UTM Logo">
-  <div class="nav-actions"><a href="logout.php" class="btn outline">Logout</a></div>
+  <img class="nav-logo" src="../assets/images/utmlogo.png" alt="UTM Logo">
+  <div class="nav-actions"><a href="../auth/logout.php" class="btn outline">Logout</a></div>
 </nav>
 
 <div class="layout">

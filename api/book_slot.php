@@ -16,7 +16,7 @@ function dbg($m) {
 header('Content-Type: application/json; charset=utf-8');
 
 // include DB connect - must set $conn (mysqli)
-require_once __DIR__ . '/db_connect.php';
+require_once __DIR__ . '/../includes/db_connect.php';
 if (!isset($conn) || !($conn instanceof mysqli)) {
     dbg("db_connect missing or \$conn not mysqli");
     echo json_encode(['success'=>false, 'msg'=>'Database connection not available']);

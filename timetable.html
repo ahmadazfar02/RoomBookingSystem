@@ -631,7 +631,7 @@
 <body>
   <header class="main-header">
     <div class="header-content">
-      <img src="img/utmlogo.png" alt="UTM Logo" class="logo">
+      <img src="assets/images/utmlogo.png" alt="UTM Logo" class="logo">
       <div class="header-controls">
         <a href="booking_status.html" style="text-decoration: none;">
           <button class="booking-status-btn">
@@ -640,7 +640,7 @@
           </button>
         </a>
         <!-- add this where your header controls are -->
-        <a href="logout.php">
+        <a href="auth/logout.php">
           <button class="btn btn-nav">
             Logout
           </button>
@@ -806,7 +806,7 @@ function formatReadable(d){ const days=['Sunday','Monday','Tuesday','Wednesday',
 function startOfWeekMonday(d) { const dd = new Date(d); const offset = (dd.getDay() + 6) % 7; return addDays(dd, -offset); }
 
 function loadAllRooms() {
-  return fetch('get_rooms.php', { cache: 'no-store' })
+  return fetch('api/get_rooms.php', { cache: 'no-store' })
     .then(r => r.json())
     .then(data => {
       if (!data || !data.success || !Array.isArray(data.rooms)) {
@@ -832,7 +832,7 @@ function loadAllRooms() {
 }
 
 function loadNotificationCount() {
-  fetch('get_notifications.php')
+  fetch('api/get_notifications.php')
     .then(r => r.json())
     .then(data => {
       if (data && data.count > 0) {
@@ -905,7 +905,7 @@ function loadBookings(){
   const room = roomSelect.value;
   if (!room) return;
   
-  fetch(`book_slot.php?room=${encodeURIComponent(room)}`, { cache: 'no-store' })
+  fetch(`api/book_slot.php?room=${encodeURIComponent(room)}`, { cache: 'no-store' })
     .then(r => {
       if (!r.ok) {
         console.error('Fetch failed:', r.status);
@@ -1066,7 +1066,7 @@ btnExecuteSearch.addEventListener('click', () => {
   searchResultsList.innerHTML = '<p style="text-align:center;padding:20px;color:#6b7280;">Searching for available rooms...</p>'; searchResultsArea.classList.add('visible');
   const params = new URLSearchParams(); if (capacity > 0) params.append('capacity', capacity);
   params.append('date', date); params.append('start', start); params.append('end', end);
-  fetch('find_rooms.php?' + params.toString(), { cache: 'no-store' })
+  fetch('api/find_rooms.php?' + params.toString(), { cache: 'no-store' })
     .then(r => r.text())
     .then(text => {
       let json; try { json = JSON.parse(text); } catch (e) { throw new Error('Invalid JSON response from server'); }
@@ -1136,7 +1136,7 @@ modalConfirm.addEventListener('click', () => {
 
   modalConfirm.disabled = true;
 
-  fetch('book_slot.php', {
+  fetch('api/book_slot.php', {
     method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload)
   })
   .then(r => { if (!r.ok) throw new Error('HTTP error ' + r.status); return r.text(); })
