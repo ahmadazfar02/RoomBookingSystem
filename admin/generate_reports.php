@@ -2,19 +2,17 @@
 session_start();
 require_once __DIR__ . '/../includes/db_connect.php';
 
-// SECURITY: Only Admin can access
-if (!isset($_SESSION['loggedin']) || 
+// SECURITY: Admin only
+if (!isset($_SESSION['loggedin']) ||
     !isset($_SESSION['User_Type']) ||
     strcasecmp($_SESSION['User_Type'], 'Admin') !== 0) {
     header("location: ../loginterface.html");
     exit;
 }
 
-$admin_name = $_SESSION['Fullname'] ?? 'Admin';
-$admin_email = 'Admin';   // <= HERE
+$admin_name  = $_SESSION['Fullname'] ?? 'Admin';
+$admin_email = $_SESSION['Email'] ?? 'Admin';
 ?>
-
-
 <!doctype html>
 <html lang="en">
 <head>
@@ -40,10 +38,9 @@ $admin_email = 'Admin';   // <= HERE
   --gray-700: #374151;
   --gray-800: #1f2937;
   --shadow-sm: 0 4px 12px rgba(18, 38, 63, 0.08);
-  --shadow-md: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
+  --shadow-md: 0 4px 6px -1px rgba(0,0,0,0.1);
 }
-
-*{ box-sizing:border-box }
+*{ box-sizing:border-box; }
 body{
   font-family:'Inter',sans-serif;
   background:linear-gradient(135deg,#667eea,#764ba2);
@@ -53,115 +50,85 @@ body{
   padding:0;
 }
 
-/* Top Logo Bar */
-.nav-bar {
+.nav-bar{
   background:white;
   padding:16px 24px;
-  box-shadow:var(--shadow-md);
-  position:fixed;
-  top:0; left:0; right:0;
+  position:fixed; top:0; left:0; right:0;
   height:80px;
+  box-shadow:var(--shadow-md);
+  display:flex; align-items:center;
   z-index:1000;
-  display:flex;
-  align-items:center;
 }
-.nav-logo { height:50px; }
+.nav-logo{ height:50px; }
 
-/* Layout */
-.layout {
-  width:100%;
-  max-width:2000px;
+.layout{
+  width:100%; max-width:2000px;
   margin:100px auto 0;
   padding:24px;
   display:flex;
   gap:24px;
 }
 
-/* Sidebar */
-.sidebar {
-  width:260px;
-  background:white;
+.sidebar{
+  width:260px; background:white;
   border-radius:12px;
   padding:20px;
   box-shadow:var(--shadow-sm);
+  position:sticky; top:100px;
   flex-shrink:0;
-  position:sticky;
-  top:100px;
 }
+
 .sidebar-title{
-  font-size:14px;
-  font-weight:700;
+  font-size:14px; font-weight:700;
   color:var(--gray-600);
   text-transform:uppercase;
   margin-bottom:16px;
   border-bottom:2px solid var(--gray-200);
   padding-bottom:10px;
 }
+
 .sidebar-menu li{ list-style:none; margin-bottom:8px; }
-.sidebar-menu a {
-    display: flex;
-    align-items: center;
-    gap: 12px;
-    padding: 12px 16px;
-    border-radius: 8px;
-    text-decoration: none;
-    color: var(--gray-700);
-    font-size: 14px;
-    font-weight: 500;
-    transition: all 0.2s;
-  }
-  
-  .sidebar-menu a:hover {
-    background: var(--gray-100);
-    color: var(--primary);
-  }
-  
-  .sidebar-menu a.active {
-    background: var(--primary-light);
-    color: var(--primary);
-    font-weight: 600;
-  }
+.sidebar-menu a{
+  display:flex; gap:12px; align-items:center;
+  padding:12px 16px;
+  text-decoration:none;
+  border-radius:8px;
+  font-size:14px;
+  color:var(--gray-700);
+  font-weight:500;
+}
+.sidebar-menu a:hover{ background:var(--gray-100); color:var(--primary); }
+.sidebar-menu a.active{ background:var(--primary-light); color:var(--primary); font-weight:600; }
 
-/* Profile */
-.sidebar-profile {
-    margin-top: auto;
-    padding-top: 20px;
-    border-top: 1px solid var(--gray-200);
-    display: flex;
-    align-items: center;
-    gap: 12px;
-  }
+.sidebar-profile{
+  margin-top:auto;
+  padding-top:20px;
+  border-top:1px solid var(--gray-200);
+  display:flex; gap:12px; align-items:center;
+}
+.profile-icon{
+  width:36px; height:36px;
+  background:var(--primary-light);
+  border-radius:50%;
+  display:flex; justify-content:center; align-items:center;
+  color:var(--primary);
+  font-weight:700;
+}
+.profile-info{ font-size:13px; }
+.profile-name{ font-weight:600; color:var(--gray-800); }
+.profile-email{ font-size:11px; color:var(--gray-600); }
 
-  .profile-icon {
-    width: 36px; 
-    height: 36px; 
-    background: var(--primary-light); 
-    border-radius: 50%; 
-    display: flex; 
-    align-items: center; 
-    justify-content: center; 
-    color: var(--primary); 
-    font-weight: 700;
-  }
-  
-  .profile-info { font-size: 13px; }
-  .profile-name { font-weight: 600; color: var(--gray-800); margin-bottom: 2px; }
-  .profile-email { font-size: 11px; color: var(--gray-600); }
-
-/* Main area */
 .main{ flex:1; }
 
-/* Header card */
 .header-card{
   background:white;
-  padding:24px 32px;
   border-radius:12px;
-  margin-bottom:24px;
+  padding:24px 32px;
   box-shadow:var(--shadow-md);
-  display:flex;
-  justify-content:space-between;
+  margin-bottom:24px;
+  display:flex; justify-content:space-between; align-items:center;
 }
-.header-title { display:flex; gap:12px; align-items:center; }
+
 .header-title h1{ margin:0; color:var(--gray-800); font-size:24px; }
 .header-badge{
   background:var(--primary-light);
@@ -169,10 +136,8 @@ body{
   padding:4px 12px;
   border-radius:20px;
   font-size:12px;
-  font-weight:600;
 }
 
-/* Card */
 .card{
   background:white;
   border-radius:12px;
@@ -180,269 +145,220 @@ body{
   box-shadow:var(--shadow-sm);
 }
 
-/* Wizard styles */
-.wizard-step{ display:none; }
-.wizard-step.active{ display:block; }
+.card-title{ font-size:20px; font-weight:700; }
 
-.btn-primary{
-  padding:12px 15px;
-  border:0;
-  background:linear-gradient(135deg,var(--primary),var(--primary-dark));
-  color:white;
-  border-radius:8px;
-  font-weight:700;
-  width:100%;
-  cursor:pointer;
-  margin-top:20px;
+.report-block{
+  margin-bottom:18px;
+  padding-bottom:12px;
+  border-bottom:1px dashed var(--gray-200);
 }
 
-.btn-back{
-  padding:12px;
-  width:48%;
-  background:var(--gray-200);
-  border-radius:8px;
-  font-weight:700;
-  cursor:pointer;
+.file-options{
+  padding-left:22px;
+  margin-top:8px;
+  display:none;
 }
 
 .btn-download{
-  padding:12px;
-  width:48%;
-  background:linear-gradient(135deg,#10b981,#059669);
+  padding:12px 14px;
   border-radius:8px;
+  background:linear-gradient(135deg,#10b981,#059669);
   color:white;
   font-weight:700;
+  border:0;
   cursor:pointer;
 }
 
-.checkbox-list label{
-  display:block;
-  margin-bottom:10px;
-  font-size:15px;
-  font-weight:500;
+/* Popup */
+.popup-overlay{
+  position:fixed;
+  inset:0;
+  background:rgba(0,0,0,0.4);
+  display:flex;
+  align-items:center;
+  justify-content:center;
+  opacity:0;
+  visibility:hidden;
+  transition:.2s;
 }
-.card-title{
-  font-size:20px;
-  font-weight:700;
-  margin-bottom:12px;
+.popup-overlay.active{
+  opacity:1;
+  visibility:visible;
+}
+.popup-box{
+  background:white;
+  padding:24px;
+  width:360px;
+  border-radius:12px;
+  text-align:center;
 }
 </style>
-
 </head>
 <body>
 
-<!-- TOP NAV -->
 <nav class="nav-bar">
   <img src="../assets/images/utmlogo.png" class="nav-logo">
 </nav>
 
-<!-- LAYOUT -->
 <div class="layout">
 
-  <!-- SIDEBAR -->
-  <aside class="sidebar">
-    <div class="sidebar-title">Main Menu</div>
-    <ul class="sidebar-menu">
+<aside class="sidebar">
+  <div class="sidebar-title">Main Menu</div>
+  <ul class="sidebar-menu">
     <li><a href="index-admin.php">Dashboard</a></li>
     <li><a href="reservation_request.php">Reservation Request</a></li>
     <li><a href="admin_timetable.php">Regular Timetable</a></li>
     <li><a href="admin_recurring.php">Recurring Templates</a></li>
     <li><a href="manage_users.php">Manage Users</a></li>
     <li><a href="admin_logbook.php">Logbook</a></li>
-        <li><a href="generate_reports.php" class="active">Generate Reports</a></li>
-        <li><a href="admin_problems.php">Room Problems</a></li>
-    </ul>
+    <li><a href="generate_reports.php" class="active">Generate Reports</a></li>
+    <li><a href="admin_problems.php">Room Problems</a></li>
+  </ul>
 
-    <div class="sidebar-profile">
-        <div class="profile-icon"><?php echo strtoupper(substr($admin_name,0,1)); ?></div>
-        <div class="profile-info">
-            <div class="profile-name"><?php echo htmlspecialchars($admin_name); ?></div>
-            <div class="profile-email"><?php echo htmlspecialchars($_SESSION['Email'] ?? 'Admin'); ?></div>
-        </div>
+  <div class="sidebar-profile">
+    <div class="profile-icon"><?php echo strtoupper(substr($admin_name,0,1)); ?></div>
+    <div class="profile-info">
+      <div class="profile-name"><?php echo htmlspecialchars($admin_name); ?></div>
+      <div class="profile-email"><?php echo htmlspecialchars($admin_email); ?></div>
     </div>
+  </div>
 </aside>
 
+<div class="main">
 
-  <!-- MAIN AREA -->
-  <div class="main">
+  <div class="header-card">
+    <div class="header-title">
+      <h1>Generate Reports</h1>
+      <span class="header-badge">Admin</span>
+    </div>
+  </div>
 
-    <!-- HEADER -->
-    <div class="header-card">
-      <div class="header-title">
-        <h1>Generate Reports</h1>
-        <span class="header-badge">Admin</span>
+  <div class="card">
+    <div class="card-title">Generate Reports</div>
+    <p>Select report(s) and choose the file format(s).</p>
+
+    <!-- Booking -->
+    <div class="report-block">
+      <label><input type="checkbox" class="report-check" data-target="r1"> <strong>Booking Summary Report</strong></label>
+      <div id="r1" class="file-options">
+        <label><input type="checkbox" class="file-check" value="pdf"> PDF</label>
+        <label><input type="checkbox" class="file-check" value="excel"> Excel (.xlsx)</label>
+        <label><input type="checkbox" class="file-check" value="ppt"> PowerPoint (.pptx)</label>
       </div>
     </div>
 
-    <!-- CARD -->
-    <div class="card">
-
-  <div class="card-title">Generate Reports</div>
-  <p>Select report(s) and choose the file format(s) for each report:</p>
-
-  <!-- REPORT 1 -->
-  <div class="report-block">
-    <label>
-      <input type="checkbox" class="report-check" data-target="r1">
-      <strong>Booking Summary Report</strong>
-    </label>
-
-    <div id="r1" class="file-options">
-      <label><input type="checkbox" class="file-check" value="pdf"> PDF</label>
-      <label><input type="checkbox" class="file-check" value="excel"> Excel (.xlsx)</label>
-      <label><input type="checkbox" class="file-check" value="ppt"> PowerPoint (.pptx)</label>
+    <!-- Room -->
+    <div class="report-block">
+      <label><input type="checkbox" class="report-check" data-target="r2"> <strong>Room Usage Report</strong></label>
+      <div id="r2" class="file-options">
+        <label><input type="checkbox" class="file-check" value="pdf"> PDF</label>
+        <label><input type="checkbox" class="file-check" value="excel"> Excel (.xlsx)</label>
+        <label><input type="checkbox" class="file-check" value="ppt"> PowerPoint (.pptx)</label>
+      </div>
     </div>
-  </div>
 
-  <!-- REPORT 2 -->
-  <div class="report-block">
-    <label>
-      <input type="checkbox" class="report-check" data-target="r2">
-      <strong>Room Usage Report</strong>
-    </label>
-
-    <div id="r2" class="file-options">
-      <label><input type="checkbox" class="file-check" value="pdf"> PDF</label>
-      <label><input type="checkbox" class="file-check" value="excel"> Excel (.xlsx)</label>
-      <label><input type="checkbox" class="file-check" value="ppt"> PowerPoint (.pptx)</label>
+    <!-- User -->
+    <div class="report-block">
+      <label><input type="checkbox" class="report-check" data-target="r3"> <strong>User Activity Report</strong></label>
+      <div id="r3" class="file-options">
+        <label><input type="checkbox" class="file-check" value="pdf"> PDF</label>
+        <label><input type="checkbox" class="file-check" value="excel"> Excel (.xlsx)</label>
+        <label><input type="checkbox" class="file-check" value="ppt"> PowerPoint (.pptx)</label>
+      </div>
     </div>
-  </div>
 
-  <!-- REPORT 3 -->
-  <div class="report-block">
-    <label>
-      <input type="checkbox" class="report-check" data-target="r3">
-      <strong>User Activity Report</strong>
-    </label>
-
-    <div id="r3" class="file-options">
-      <label><input type="checkbox" class="file-check" value="pdf"> PDF</label>
-      <label><input type="checkbox" class="file-check" value="excel"> Excel (.xlsx)</label>
-      <label><input type="checkbox" class="file-check" value="ppt"> PowerPoint (.pptx)</label>
+    <!-- Admin Log -->
+    <div class="report-block">
+      <label><input type="checkbox" class="report-check" data-target="r4"> <strong>Admin Log Report</strong></label>
+      <div id="r4" class="file-options">
+        <label><input type="checkbox" class="file-check" value="pdf"> PDF</label>
+        <label><input type="checkbox" class="file-check" value="excel"> Excel (.xlsx)</label>
+      </div>
     </div>
+
+    <button id="downloadBtn" class="btn-download" style="margin-top:20px;">Download Report</button>
   </div>
-
-  <!-- REPORT 4 -->
-  <div class="report-block">
-    <label>
-      <input type="checkbox" class="report-check" data-target="r4">
-      <strong>Admin Log Report</strong>
-    </label>
-
-    <div id="r4" class="file-options">
-      <label><input type="checkbox" class="file-check" value="pdf"> PDF</label>
-      <label><input type="checkbox" class="file-check" value="ppt"> PowerPoint (.pptx)</label>
-    </div>
-  </div>
-
-
-  <button id="downloadBtn" class="btn-download" style="width:100%; margin-top:20px;">
-    Download Report
-  </button>
 
 </div>
+</div>
 
-<style>
-.file-options {
-  padding-left: 25px;
-  margin-top: 8px;
-  margin-bottom: 18px;
-  display: none;
-}
-.report-block input[type="checkbox"].report-check:checked ~ .file-options {
-  display: block;
-}
-</style>
-</script>
+<!-- POPUP -->
+<div id="successPopup" class="popup-overlay">
+  <div class="popup-box">
+    <h2>Download Complete</h2>
+    <p id="fileCountText"></p>
+    <button id="closePopupBtn" class="btn-download">OK</button>
+  </div>
+</div>
+
 <script>
-// When a report checkbox is clicked, show or hide file options
-document.querySelectorAll(".report-check").forEach(ch => {
-    ch.addEventListener("change", e => {
-        let target = document.getElementById(ch.dataset.target);
-        if (ch.checked) target.style.display = "block";
-        else {
-            target.style.display = "none";
-            target.querySelectorAll("input[type=checkbox]").forEach(x => x.checked = false);
-        }
-    });
+document.querySelectorAll('.report-check').forEach(ch => {
+  ch.addEventListener('change', () => {
+    const box = document.getElementById(ch.dataset.target);
+    if (!box) return;
+    box.style.display = ch.checked ? "block" : "none";
+    if (!ch.checked) {
+      box.querySelectorAll('.file-check').forEach(f => f.checked = false);
+    }
+  });
 });
 
-/* =====================================================================
-   DOWNLOAD BUTTON - Handles ALL report types
-   Implemented: Booking Summary, Room Usage, User Activity, Admin Log, Cancellation
-   Formats: PDF, Excel (CSV), PowerPoint (PPTX)
-   Uses hidden iframes to avoid pop-up blockers
-   ===================================================================== */
 document.getElementById("downloadBtn").onclick = () => {
-    
-    // Map report checkboxes to their report type names
-    const reportMap = {
-        'r1': 'booking',      // Booking Summary Report
-        'r2': 'room',         // Room Usage Report
-        'r3': 'user',         // User Activity Report
-        'r4': 'adminlog'      // Admin Log Report
-    };
-    
-    // Collect all downloads needed
-    let downloads = [];
-    document.querySelectorAll('.report-check:checked').forEach(checkbox => {
-        const targetId = checkbox.dataset.target;
-        const reportType = reportMap[targetId];
-        const formatContainer = document.getElementById(targetId);
-        const selectedFormats = [...formatContainer.querySelectorAll('.file-check:checked')].map(x => x.value);
-        
-        selectedFormats.forEach(format => {
-            downloads.push({
-                report: reportType,
-                format: format,
-                url: `../api/generate_reports_action.php?report=${reportType}&format=${format}`
-            });
-        });
+  const map = { r1:"booking", r2:"room", r3:"user", r4:"adminlog" };
+  let downloads = [];
+
+  document.querySelectorAll(".report-check:checked").forEach(r => {
+    const id = r.dataset.target;
+    const code = map[id];
+    const formats = [...document.getElementById(id).querySelectorAll(".file-check:checked")].map(x=>x.value);
+
+    if (formats.length === 0) {
+      alert("Please select at least one file format for the report.");
+      throw "validation";
+    }
+
+    formats.forEach(fmt=>{
+      downloads.push({
+        url: `../api/generate_reports_action.php?report=${code}&format=${fmt}`
+      });
     });
-    
-    // Validate selection
-    if (downloads.length === 0) {
-        alert("Please select at least one report and choose a file format.");
-        return;
+  });
+
+  if (downloads.length === 0) {
+    alert("Please select at least one report and format.");
+    return;
+  }
+
+  const btn = document.getElementById("downloadBtn");
+  const original = btn.innerHTML;
+  btn.disabled = true;
+
+  let i = 0;
+  function next() {
+    if (i >= downloads.length) {
+      btn.disabled = false;
+      btn.innerHTML = original;
+      showPopup(downloads.length);
+      return;
     }
-    
-    // Show progress
-    const btn = document.getElementById("downloadBtn");
-    const originalText = btn.innerHTML;
-    btn.disabled = true;
-    
-    // Download files sequentially using hidden iframes (avoids pop-up blockers)
-    let currentIndex = 0;
-    
-    function downloadFile(index) {
-        if (index >= downloads.length) {
-            // All downloads complete
-            btn.innerHTML = originalText;
-            btn.disabled = false;
-            alert(`✅ Downloaded ${downloads.length} file(s) successfully!`);
-            return;
-        }
-        
-        const download = downloads[index];
-        btn.innerHTML = `⏳ Downloading ${index + 1} of ${downloads.length}...`;
-        
-        // Create hidden iframe for download
-        const iframe = document.createElement('iframe');
-        iframe.style.display = 'none';
-        iframe.src = download.url;
-        document.body.appendChild(iframe);
-        
-        // Remove iframe after download starts and proceed to next
-        setTimeout(() => {
-            document.body.removeChild(iframe);
-            downloadFile(index + 1);
-        }, 1500); // 1.5 second delay between downloads
-    }
-    
-    // Start downloading
-    downloadFile(0);
+    btn.innerHTML = `Downloading ${i+1} of ${downloads.length}...`;
+    const iframe = document.createElement("iframe");
+    iframe.style.display="none";
+    iframe.src = downloads[i].url;
+    document.body.appendChild(iframe);
+    setTimeout(()=>{ document.body.removeChild(iframe); i++; next(); }, 1300);
+  }
+  next();
 };
 
+function showPopup(count){
+  document.getElementById("fileCountText").textContent = `${count} file(s) downloaded successfully.`;
+  const p = document.getElementById("successPopup");
+  p.classList.add("active");
+}
+document.getElementById("closePopupBtn").onclick = ()=>{
+  document.getElementById("successPopup").classList.remove("active");
+};
 </script>
 
 </body>
