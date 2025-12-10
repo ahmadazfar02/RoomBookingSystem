@@ -429,7 +429,7 @@ body{
         </div>
         <div class="form-group">
             <lable>End Date</lable>
-            <input type="date" name="start" class="form-control" value="<?php echo $end_date; ?>">
+            <input type="date" name="end" class="form-control" value="<?php echo $end_date; ?>">
         </div>
         <div class="form-group" style="justify-content: flex-end;">
                 <button type="submit" class="btn btn-primary">Filter</button>
