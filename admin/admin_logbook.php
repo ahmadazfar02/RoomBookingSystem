@@ -420,7 +420,6 @@ body{
                 <option value="approve"<?php if($action_filter=='approve')echo 'selected';?>>Approve</option>
                 <option value="reject"<?php if($action_filter=='reject')echo 'selected';?>>Reject</option>
                 <option value="delete"<?php if($action_filter=='delete')echo 'selected';?>>Delete</option>
-                <option value="update"<?php if($action_filter=='update')echo 'selected';?>>Update</option>
             </select>
         </div>
         <div class="form-group">
