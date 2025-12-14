@@ -1,0 +1,152 @@
+* {
+	margin: 0;
+	padding: 0;
+	box-sizing: border-box;
+}
+
+.roboto-mono {
+	font-family: "Roboto Mono", monospace;
+}
+
+.nav-bar {
+	display: flex;
+	justify-content: center;
+	align-items: center;
+	padding: 20px 0px;
+	background-color: rgb(217, 217, 217, 0.3);
+}
+
+.nav-links-container {
+	display: flex;
+	align-content: center;
+	justify-content: center;
+	padding: 10px;
+	margin: 20px auto;
+	background-color: rgb(255, 255, 255, 0.3);
+	width: fit-content;
+	height: fit-content;
+	border-radius: 5px;
+}
+
+.nav-links-separator {
+	width: 2px;
+	height: 25px;
+	background-color: black;
+	margin: 0 10px;
+}
+
+.nav-links-selected {
+	background-color: rgb(0, 0, 0, 0.5);
+}
+
+.nav-links {
+	padding: 5px 30px;
+	border-radius: 5px;
+	font-weight: 700;
+}
+
+.dashboard-grid-display {
+	display: grid;
+	grid-template-areas:
+		"a b c d"
+		"e e e d"
+		"e e e d"
+		"e e e f";
+	grid-template-columns: repeat(4, 1fr);
+	grid-template-rows: repeat(4, 1fr);
+	gap: 5px;
+	justify-content: center;
+	margin: 0 auto;
+	max-width: 1024px;
+}
+
+.dashboard-grid-display > div {
+	background-color: rgb(255, 255, 255, 0.7);
+	box-shadow: 4px 4px 4px 1px rgba(77, 77, 77, 0.2);
+}
+
+.a {
+	grid-area: a;
+	display: flex;
+	flex-direction: column;
+	width: 100%;
+	padding: 1rem;
+	font-family: "Roboto Mono", monospace;
+	border-radius: 5px;
+}
+.b {
+	grid-area: b;
+	padding: 1rem;
+	font-family: "Roboto Mono", monospace;
+	border-radius: 5px;
+}
+.c {
+	grid-area: c;
+	padding: 1rem;
+	font-family: "Roboto Mono", monospace;
+	border-radius: 5px;
+}
+.d {
+	grid-area: d;
+	font-family: "Roboto Mono", monospace;
+	border-radius: 5px;
+}
+.e {
+	grid-area: e;
+	font-family: "Roboto Mono", monospace;
+	border-radius: 5px;
+}
+.f {
+	grid-area: f;
+	padding: 1rem;
+	font-family: "Roboto Mono", monospace;
+	border-radius: 5px;
+}
+
+table {
+	border-collapse: collapse;
+	max-width: 900px;
+	background-color: rgb(255, 255, 255, 0.7);
+	overflow: hidden;
+	table-layout: auto;
+}
+
+th,
+td {
+	padding: 12px 16px;
+	text-align: left;
+}
+
+thead {
+	background-color: rgb(255, 255, 255, 0.7);
+	font-weight: bold;
+}
+
+tbody tr:nth-child(odd) {
+	background-color: rgb(195, 188, 210);
+}
+
+tbody tr:nth-child(even) {
+	background-color: rgb(255, 255, 255, 0.7);
+}
+
+.status {
+	padding: 6px 12px;
+	border-radius: 8px;
+	font-weight: bold;
+	color: white;
+}
+
+.pending {
+	background-color: #fbbf24;
+	color: #78350f;
+}
+
+.approve {
+	background-color: #22c55e;
+}
+
+.cancel {
+	background-color: #ef4444;
+}
+

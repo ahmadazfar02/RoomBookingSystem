@@ -1,0 +1,1 @@
+[2025-11-07 05:49:21] Exception: Cannot add or update a child row: a foreign key constraint fails (`room_reservation_db`.`timetable`, CONSTRAINT `fk_timetable_room` FOREIGN KEY (`room_id`) REFERENCES `rooms` (`room_id`) ON UPDATE CASCADE)

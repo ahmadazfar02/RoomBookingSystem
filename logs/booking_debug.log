@@ -1,0 +1,260 @@
+[2025-11-05 13:56:54] Raw POST: {"room":"bk1","purpose":"test","description":"testing1","tel":"0123456789","slots":[{"date":"2025-06-02","slot":"08:00-08:50"},{"date":"2025-06-02","slot":"09:00-09:50"}]}
+[2025-11-05 13:56:54] Book payload: room=bk1, purpose=test, tel=0123456789, slots_count=2
+[2025-11-05 13:56:54] Inserted pending booking id=26: user=2, room=bk1, date=2025-06-02, slot=08:00-08:50
+[2025-11-05 13:56:54] Inserted pending booking id=27: user=2, room=bk1, date=2025-06-02, slot=09:00-09:50
+[2025-11-05 13:56:54] Returning results: [{"id":26,"date":"2025-06-02","slot":"08:00-08:50","success":true,"status":"pending"},{"id":27,"date":"2025-06-02","slot":"09:00-09:50","success":true,"status":"pending"}]
+[2025-11-05 16:06:17] Raw POST: {"room":"bk1","purpose":"test1","description":"testing1","tel":"0172345678","slots":[{"date":"2025-06-02","slot":"08:00-08:50"},{"date":"2025-06-02","slot":"09:00-09:50"}]}
+[2025-11-05 16:06:17] Book payload: room=bk1, purpose=test1, tel=0172345678, slots_count=2
+[2025-11-05 16:06:17] Inserted pending booking id=28: user=2, room=bk1, date=2025-06-02, slot=08:00-08:50
+[2025-11-05 16:06:17] Inserted pending booking id=29: user=2, room=bk1, date=2025-06-02, slot=09:00-09:50
+[2025-11-05 16:06:17] Returning results: [{"id":28,"date":"2025-06-02","slot":"08:00-08:50","success":true,"status":"pending"},{"id":29,"date":"2025-06-02","slot":"09:00-09:50","success":true,"status":"pending"}]
+[2025-11-05 16:20:08] Raw POST: {"room":"bk1","purpose":"test","description":"testing","tel":"0172345678","slots":[{"date":"2025-06-02","slot":"08:00-08:50"},{"date":"2025-06-02","slot":"09:00-09:50"}]}
+[2025-11-05 16:20:08] Book payload: room=bk1, purpose=test, tel=0172345678, slots_count=2
+[2025-11-05 16:20:08] Inserted pending booking id=30: user=2, room=bk1, date=2025-06-02, slot=08:00-08:50
+[2025-11-05 16:20:08] Inserted pending booking id=31: user=2, room=bk1, date=2025-06-02, slot=09:00-09:50
+[2025-11-05 16:20:08] Returning results: [{"id":30,"date":"2025-06-02","slot":"08:00-08:50","success":true,"status":"pending"},{"id":31,"date":"2025-06-02","slot":"09:00-09:50","success":true,"status":"pending"}]
+[2025-11-05 16:20:50] Raw POST: {"room":"bk1","purpose":"test","description":"testing","tel":"0172345678","slots":[{"date":"2025-06-04","slot":"08:00-08:50"},{"date":"2025-06-04","slot":"09:00-09:50"}]}
+[2025-11-05 16:20:50] Book payload: room=bk1, purpose=test, tel=0172345678, slots_count=2
+[2025-11-05 16:20:50] Inserted pending booking id=32: user=2, room=bk1, date=2025-06-04, slot=08:00-08:50
+[2025-11-05 16:20:50] Inserted pending booking id=33: user=2, room=bk1, date=2025-06-04, slot=09:00-09:50
+[2025-11-05 16:20:50] Returning results: [{"id":32,"date":"2025-06-04","slot":"08:00-08:50","success":true,"status":"pending"},{"id":33,"date":"2025-06-04","slot":"09:00-09:50","success":true,"status":"pending"}]
+[2025-11-06 04:06:57] Raw POST: {"room":"bk1","purpose":"test","description":"Exam","tel":"0172345678","slots":[{"date":"2025-06-02","slot":"09:00-09:50"},{"date":"2025-06-02","slot":"10:00-10:50"}]}
+[2025-11-06 04:06:57] Book payload: room=bk1, purpose=test, tel=0172345678, slots_count=2
+[2025-11-06 04:06:57] Inserted pending booking id=34: user=2, room=bk1, date=2025-06-02, slot=09:00-09:50
+[2025-11-06 04:06:57] Inserted pending booking id=35: user=2, room=bk1, date=2025-06-02, slot=10:00-10:50
+[2025-11-06 04:06:57] Returning results: [{"id":34,"date":"2025-06-02","slot":"09:00-09:50","success":true,"status":"pending"},{"id":35,"date":"2025-06-02","slot":"10:00-10:50","success":true,"status":"pending"}]
+[2025-11-06 04:15:48] Raw POST: {"room":"bk1","purpose":"exam","description":"exam","tel":"0172345678","slots":[{"date":"2025-06-02","slot":"11:00-11:50"}]}
+[2025-11-06 04:15:48] Book payload: room=bk1, purpose=exam, tel=0172345678, slots_count=1
+[2025-11-06 04:15:48] Inserted pending booking id=36: user=2, room=bk1, date=2025-06-02, slot=11:00-11:50
+[2025-11-06 04:15:48] Returning results: [{"id":36,"date":"2025-06-02","slot":"11:00-11:50","success":true,"status":"pending"}]
+[2025-11-06 04:28:37] Raw POST: {"room":"bk1","purpose":"Lab session","description":"testing","tel":"0172345678","slots":[{"date":"2025-06-02","slot":"09:00-09:50"},{"date":"2025-06-02","slot":"10:00-10:50"}]}
+[2025-11-06 04:28:37] Book payload: room=bk1, purpose=Lab session, tel=0172345678, slots_count=2
+[2025-11-06 04:28:37] Inserted pending booking id=37: user=2, room=bk1, date=2025-06-02, slot=09:00-09:50
+[2025-11-06 04:28:37] Inserted pending booking id=38: user=2, room=bk1, date=2025-06-02, slot=10:00-10:50
+[2025-11-06 04:28:37] Returning results: [{"id":37,"date":"2025-06-02","slot":"09:00-09:50","success":true,"status":"pending"},{"id":38,"date":"2025-06-02","slot":"10:00-10:50","success":true,"status":"pending"}]
+[2025-11-06 04:31:00] Raw POST: {"room":"bk1","purpose":"dr zatul","description":"ad","tel":"0172345678","slots":[{"date":"2025-06-04","slot":"09:00-09:50"},{"date":"2025-06-04","slot":"10:00-10:50"}]}
+[2025-11-06 04:31:00] Book payload: room=bk1, purpose=dr zatul, tel=0172345678, slots_count=2
+[2025-11-06 04:31:00] Inserted pending booking id=39: user=2, room=bk1, date=2025-06-04, slot=09:00-09:50
+[2025-11-06 04:31:00] Inserted pending booking id=40: user=2, room=bk1, date=2025-06-04, slot=10:00-10:50
+[2025-11-06 04:31:00] Returning results: [{"id":39,"date":"2025-06-04","slot":"09:00-09:50","success":true,"status":"pending"},{"id":40,"date":"2025-06-04","slot":"10:00-10:50","success":true,"status":"pending"}]
+[2025-11-07 04:53:58] Raw POST: {"room":"06.63.02","purpose":"test","description":"testing","tel":"0172345678","slots":[{"date":"2025-11-03","slot":"08:00-08:50"},{"date":"2025-11-03","slot":"09:00-09:50"}]}
+[2025-11-07 04:53:58] Book payload: room=06.63.02, purpose=test, tel=0172345678, slots_count=2
+[2025-11-07 05:09:24] Raw POST: {"room":"bk1","purpose":"test","description":"testing","tel":"0172345678","slots":[{"date":"2025-06-02","slot":"09:00-09:50"},{"date":"2025-06-02","slot":"08:00-08:50"}]}
+[2025-11-07 05:09:24] Book payload: room=bk1, purpose=test, tel=0172345678, slots_count=2
+[2025-11-07 05:44:18] Raw POST: {"room":"DK 1","purpose":"test","description":"testing","tel":"0172345678","slots":[{"date":"2025-11-03","slot":"08:00-08:50"},{"date":"2025-11-03","slot":"09:00-09:50"}]}
+[2025-11-07 05:44:18] Book payload: room=DK 1, purpose=test, tel=0172345678, slots_count=2
+[2025-11-07 05:45:04] Raw POST: {"room":"bk1","purpose":"test","description":"testing","tel":"0172345678","slots":[{"date":"2025-06-02","slot":"08:00-08:50"},{"date":"2025-06-02","slot":"09:00-09:50"}]}
+[2025-11-07 05:45:04] Book payload: room=bk1, purpose=test, tel=0172345678, slots_count=2
+[2025-11-07 05:46:47] Raw POST: {"room":"bk1","purpose":"test","description":"testing","tel":"0172345678","slots":[{"date":"2025-06-02","slot":"08:00-08:50"},{"date":"2025-06-02","slot":"09:00-09:50"}]}
+[2025-11-07 05:46:47] Book payload: room=bk1, purpose=test, tel=0172345678, slots_count=2
+[2025-11-07 05:48:16] Raw POST: {"room":"bk1","purpose":"test","description":"testing","tel":"0172345678","slots":[{"date":"2025-06-02","slot":"08:00-08:50"},{"date":"2025-06-02","slot":"09:00-09:50"}]}
+[2025-11-07 05:48:16] Book payload: room=bk1, purpose=test, tel=0172345678, slots_count=2
+[2025-11-07 05:55:43] Raw POST: {"room":"bk1","purpose":"test","description":"testing","tel":"0172345678","slots":[{"date":"2025-06-02","slot":"08:00-08:50"},{"date":"2025-06-02","slot":"09:00-09:50"}]}
+[2025-11-07 05:55:43] Book payload: room=bk1, purpose=test, tel=0172345678, slots_count=2
+[2025-11-07 05:56:12] Raw POST: {"room":"bk1","purpose":"test","description":"testing","tel":"0172345678","slots":[{"date":"2025-06-02","slot":"08:00-08:50"},{"date":"2025-06-02","slot":"09:00-09:50"}]}
+[2025-11-07 05:56:12] Book payload: room=bk1, purpose=test, tel=0172345678, slots_count=2
+[2025-11-07 06:04:17] Raw POST: {"room":"bk1","purpose":"test","description":"testing","tel":"0172345678","slots":[{"date":"2025-06-02","slot":"08:00-08:50"},{"date":"2025-06-02","slot":"09:00-09:50"}]}
+[2025-11-07 06:04:17] Book payload: room=bk1, purpose=test, tel=0172345678, slots_count=2
+[2025-11-07 06:08:21] Raw POST (book_slot): {"room":"bk1","purpose":"test","description":"testing1","tel":"0172345678","slots":[{"date":"2025-06-02","slot":"08:00-08:50"},{"date":"2025-06-02","slot":"09:00-09:50"}]}
+[2025-11-07 06:08:21] Book request: user=2 room_id=bk1 slots_count=2
+[2025-11-08 10:59:41] Raw POST (book_slot): {"room":"02.31.01","purpose":"test","description":"testing","tel":"0172345678","slots":[{"date":"2025-06-02","slot":"08:00-08:50"},{"date":"2025-06-02","slot":"09:00-09:50"}]}
+[2025-11-08 10:59:41] Book request: user=0 room_id=02.31.01 slots_count=2
+[2025-11-08 11:00:06] Raw POST (book_slot): {"room":"02.31.01","purpose":"test","description":"testing","tel":"0172345678","slots":[{"date":"2025-06-02","slot":"08:00-08:50"},{"date":"2025-06-02","slot":"09:00-09:50"}]}
+[2025-11-08 11:00:06] Book request: user=0 room_id=02.31.01 slots_count=2
+[2025-11-08 11:25:22] Raw POST (book_slot): {"room":"02.31.01","purpose":"test","description":"testing","tel":"0172345678","slots":[{"date":"2025-06-02","slot":"08:00-08:50"},{"date":"2025-06-02","slot":"09:00-09:50"}]}
+[2025-11-08 11:25:22] Book request: user=0 room_id=02.31.01 slots_count=2
+[2025-11-08 11:31:20] Raw POST (book_slot): {"room":"02.31.01","purpose":"test","description":"testing","tel":"0172345678","slots":[{"date":"2025-06-02","slot":"08:00-08:50"},{"date":"2025-06-02","slot":"09:00-09:50"}]}
+[2025-11-08 11:31:20] Book request: user=0 room_id=02.31.01 slots_count=2
+[2025-11-08 11:31:42] Raw POST (book_slot): {"room":"02.31.01","purpose":"test","description":"testing","tel":"0172345678","slots":[{"date":"2025-06-02","slot":"08:00-08:50"},{"date":"2025-06-02","slot":"09:00-09:50"}]}
+[2025-11-08 11:31:42] Book request: user=2 room_id=02.31.01 slots_count=2
+[2025-11-08 11:31:42] Inserted pending booking id=1: user=2, room=02.31.01, date=2025-06-02, slot=08:00-08:50
+[2025-11-08 11:31:42] Inserted pending booking id=2: user=2, room=02.31.01, date=2025-06-02, slot=09:00-09:50
+[2025-11-08 11:31:42] Returning results: [{"id":1,"date":"2025-06-02","slot":"08:00-08:50","success":true,"status":"pending","active_key":"BK00000001"},{"id":2,"date":"2025-06-02","slot":"09:00-09:50","success":true,"status":"pending","active_key":"BK00000002"}]
+[2025-11-08 11:32:11] Raw POST (book_slot): {"room":"07.61.01","purpose":"test","description":"testing","tel":"0172345678","slots":[{"date":"2025-11-03","slot":"08:00-08:50"},{"date":"2025-11-03","slot":"09:00-09:50"}]}
+[2025-11-08 11:32:11] Book request: user=2 room_id=07.61.01 slots_count=2
+[2025-11-08 11:32:11] Inserted pending booking id=3: user=2, room=07.61.01, date=2025-11-03, slot=08:00-08:50
+[2025-11-08 11:32:11] Inserted pending booking id=4: user=2, room=07.61.01, date=2025-11-03, slot=09:00-09:50
+[2025-11-08 11:32:11] Returning results: [{"id":3,"date":"2025-11-03","slot":"08:00-08:50","success":true,"status":"pending","active_key":"BK00000003"},{"id":4,"date":"2025-11-03","slot":"09:00-09:50","success":true,"status":"pending","active_key":"BK00000004"}]
+[2025-11-08 13:18:30] Raw POST (book_slot): {"room":"02.31.01","purpose":"Lab session","description":"Exam","tel":"0172345678","slots":[{"date":"2025-11-10","slot":"08:00-08:50"},{"date":"2025-11-10","slot":"09:00-09:50"}]}
+[2025-11-08 13:18:30] Book request: user=2 room_id=02.31.01 slots_count=2
+[2025-11-08 13:18:30] Inserted pending booking id=5: user=2, room=02.31.01, date=2025-11-10, slot=08:00-08:50
+[2025-11-08 13:18:30] Inserted pending booking id=6: user=2, room=02.31.01, date=2025-11-10, slot=09:00-09:50
+[2025-11-08 13:18:30] Returning results: [{"id":5,"date":"2025-11-10","slot":"08:00-08:50","success":true,"status":"pending","active_key":"BK00000005"},{"id":6,"date":"2025-11-10","slot":"09:00-09:50","success":true,"status":"pending","active_key":"BK00000006"}]
+[2025-11-08 13:21:45] Raw POST (book_slot): {"room":"02.31.01","purpose":"test1","description":"testing1","tel":"0172345678","slots":[{"date":"2025-11-11","slot":"08:00-08:50"},{"date":"2025-11-11","slot":"09:00-09:50"}]}
+[2025-11-08 13:21:45] Book request: user=2 room_id=02.31.01 slots_count=2
+[2025-11-08 13:21:45] session_id column present: yes
+[2025-11-08 13:21:45] Inserted pending booking id=7: user=2, room=02.31.01, date=2025-11-11, slot=08:00-08:50, session=0d6113b35e431424df85605a0a61a800
+[2025-11-08 13:21:45] Inserted pending booking id=8: user=2, room=02.31.01, date=2025-11-11, slot=09:00-09:50, session=0d6113b35e431424df85605a0a61a800
+[2025-11-08 13:21:45] Returning results: [{"id":7,"date":"2025-11-11","slot":"08:00-08:50","success":true,"status":"pending","active_key":"BK00000007","session_id":"0d6113b35e431424df85605a0a61a800"},{"id":8,"date":"2025-11-11","slot":"09:00-09:50","success":true,"status":"pending","active_key":"BK00000008","session_id":"0d6113b35e431424df85605a0a61a800"}]
+[2025-11-10 08:41:10] Raw POST (book_slot): {"room":"02.31.01","purpose":"test","description":"testing","tel":"0172345678","slots":[{"date":"2025-11-10","slot":"08:00-08:50"},{"date":"2025-11-10","slot":"09:00-09:50"}]}
+[2025-11-10 08:41:10] Book request: user=0 room_id=02.31.01 slots_count=2
+[2025-11-10 09:12:19] Raw POST (book_slot): {"room":"02.31.01","purpose":"test","description":"testing","tel":"0172345678","slots":[{"date":"2025-11-10","slot":"08:00-08:50"},{"date":"2025-11-10","slot":"09:00-09:50"}]}
+[2025-11-10 09:12:19] Book request: user=2 room_id=02.31.01 slots_count=2
+[2025-11-10 09:12:19] session_id column present: yes
+[2025-11-10 09:12:19] Inserted pending booking id=9: user=2, room=02.31.01, date=2025-11-10, slot=08:00-08:50, session=ccbf4013494e9ae99a47d5fe36dd103c
+[2025-11-10 09:12:19] Inserted pending booking id=10: user=2, room=02.31.01, date=2025-11-10, slot=09:00-09:50, session=ccbf4013494e9ae99a47d5fe36dd103c
+[2025-11-10 09:12:19] Returning results: [{"id":9,"date":"2025-11-10","slot":"08:00-08:50","success":true,"status":"pending","active_key":"BK00000009","session_id":"ccbf4013494e9ae99a47d5fe36dd103c"},{"id":10,"date":"2025-11-10","slot":"09:00-09:50","success":true,"status":"pending","active_key":"BK00000010","session_id":"ccbf4013494e9ae99a47d5fe36dd103c"}]
+[2025-11-10 10:25:11] Raw POST (book_slot): {"room":"02.31.01","purpose":"Lab session","description":"testing","tel":"0172345678","slots":[{"date":"2025-11-11","slot":"08:00-08:50"},{"date":"2025-11-11","slot":"09:00-09:50"}]}
+[2025-11-10 10:25:11] Book request: user=2 room_id=02.31.01 slots_count=2
+[2025-11-10 10:25:11] session_id column present: yes
+[2025-11-10 10:25:11] Inserted pending booking id=11: user=2, room=02.31.01, date=2025-11-11, slot=08:00-08:50, session=f57e97d12bb1c8039d063297273d8e32
+[2025-11-10 10:25:11] Inserted pending booking id=12: user=2, room=02.31.01, date=2025-11-11, slot=09:00-09:50, session=f57e97d12bb1c8039d063297273d8e32
+[2025-11-10 10:25:11] Returning results: [{"id":11,"date":"2025-11-11","slot":"08:00-08:50","success":true,"status":"pending","active_key":"BK00000011","session_id":"f57e97d12bb1c8039d063297273d8e32"},{"id":12,"date":"2025-11-11","slot":"09:00-09:50","success":true,"status":"pending","active_key":"BK00000012","session_id":"f57e97d12bb1c8039d063297273d8e32"}]
+[2025-11-10 11:11:23] Raw POST (book_slot): {"room":"02.31.01","purpose":"test","description":"testing","tel":"0172345678","slots":[{"date":"2025-11-12","slot":"08:00-08:50"}]}
+[2025-11-10 11:11:23] Book request: user=2 room_id=02.31.01 slots_count=1
+[2025-11-10 11:11:23] session_id column present: yes
+[2025-11-10 11:11:23] Inserted pending booking id=13: user=2, room=02.31.01, date=2025-11-12, slot=08:00-08:50, session=e3887d997b929cf74eb2da9fbb8ee117
+[2025-11-10 11:11:23] Returning results: [{"id":13,"date":"2025-11-12","slot":"08:00-08:50","success":true,"status":"pending","active_key":"BK00000013","session_id":"e3887d997b929cf74eb2da9fbb8ee117"}]
+[2025-11-10 11:11:51] Raw POST (book_slot): {"room":"02.31.01","purpose":"test","description":"testing","tel":"0172345678","slots":[{"date":"2025-11-10","slot":"08:00-08:50"},{"date":"2025-11-10","slot":"09:00-09:50"}]}
+[2025-11-10 11:11:51] Book request: user=2 room_id=02.31.01 slots_count=2
+[2025-11-10 11:11:51] session_id column present: yes
+[2025-11-10 11:11:51] Inserted pending booking id=14: user=2, room=02.31.01, date=2025-11-10, slot=08:00-08:50, session=f7f724668de68b5a20b4ed534ca24414
+[2025-11-10 11:11:51] Inserted pending booking id=15: user=2, room=02.31.01, date=2025-11-10, slot=09:00-09:50, session=f7f724668de68b5a20b4ed534ca24414
+[2025-11-10 11:11:51] Returning results: [{"id":14,"date":"2025-11-10","slot":"08:00-08:50","success":true,"status":"pending","active_key":"BK00000014","session_id":"f7f724668de68b5a20b4ed534ca24414"},{"id":15,"date":"2025-11-10","slot":"09:00-09:50","success":true,"status":"pending","active_key":"BK00000015","session_id":"f7f724668de68b5a20b4ed534ca24414"}]
+[2025-11-10 11:19:09] Raw POST (book_slot): {"room":"02.31.01","purpose":"test","description":"testing","tel":"0172345678","slots":[{"date":"2025-11-10","slot":"08:00-08:50"},{"date":"2025-11-10","slot":"09:00-09:50"}]}
+[2025-11-10 11:19:09] Book request: user=2 room_id=02.31.01 slots_count=2
+[2025-11-10 11:19:09] session_id column present: yes
+[2025-11-10 11:19:09] Inserted pending booking id=16: user=2, room=02.31.01, date=2025-11-10, slot=08:00-08:50, session=9b3b5acc1878ddc52b272217d0d7ad34
+[2025-11-10 11:19:09] Inserted pending booking id=17: user=2, room=02.31.01, date=2025-11-10, slot=09:00-09:50, session=9b3b5acc1878ddc52b272217d0d7ad34
+[2025-11-10 11:19:09] Returning results: [{"id":16,"date":"2025-11-10","slot":"08:00-08:50","success":true,"status":"pending","active_key":"BK00000016","session_id":"9b3b5acc1878ddc52b272217d0d7ad34"},{"id":17,"date":"2025-11-10","slot":"09:00-09:50","success":true,"status":"pending","active_key":"BK00000017","session_id":"9b3b5acc1878ddc52b272217d0d7ad34"}]
+[2025-11-11 09:01:53] Raw POST (book_slot): {"room":"02.31.01","purpose":"test","description":"testing","tel":"0172345678","slots":[{"date":"2025-11-12","slot":"08:00-08:50"},{"date":"2025-11-12","slot":"09:00-09:50"},{"date":"2025-11-12","slot":"10:00-10:50"}]}
+[2025-11-11 09:01:53] Book request: user=2 room_id=02.31.01 slots_count=3
+[2025-11-11 09:01:53] session_id column present: yes
+[2025-11-11 09:01:53] Inserted pending booking id=22: user=2, room=02.31.01, date=2025-11-12, slot=08:00-08:50, session=924942e646264421cbd335ec7d74f2d4
+[2025-11-11 09:01:53] Inserted pending booking id=23: user=2, room=02.31.01, date=2025-11-12, slot=09:00-09:50, session=924942e646264421cbd335ec7d74f2d4
+[2025-11-11 09:01:53] Inserted pending booking id=24: user=2, room=02.31.01, date=2025-11-12, slot=10:00-10:50, session=924942e646264421cbd335ec7d74f2d4
+[2025-11-11 09:01:53] Returning results: [{"id":22,"date":"2025-11-12","slot":"08:00-08:50","success":true,"status":"pending","active_key":"BK00000022","session_id":"924942e646264421cbd335ec7d74f2d4"},{"id":23,"date":"2025-11-12","slot":"09:00-09:50","success":true,"status":"pending","active_key":"BK00000023","session_id":"924942e646264421cbd335ec7d74f2d4"},{"id":24,"date":"2025-11-12","slot":"10:00-10:50","success":true,"status":"pending","active_key":"BK00000024","session_id":"924942e646264421cbd335ec7d74f2d4"}]
+[2025-11-12 02:08:40] Raw POST (book_slot): {"room":"02.31.01","purpose":"Tutorial","description":"tutorial 1","tel":"0172345678","slots":[{"date":"2025-11-12","slot":"12:00-12:50"},{"date":"2025-11-12","slot":"13:00-13:50"}]}
+[2025-11-12 02:08:40] Book request: user=2 room_id=02.31.01 slots_count=2
+[2025-11-12 02:08:40] session_id column present: yes
+[2025-11-12 02:08:40] Inserted pending booking id=25: user=2, room=02.31.01, date=2025-11-12, slot=12:00-12:50, session=e231364d233c5cd35e51b131376585ee
+[2025-11-12 02:08:40] Inserted pending booking id=26: user=2, room=02.31.01, date=2025-11-12, slot=13:00-13:50, session=e231364d233c5cd35e51b131376585ee
+[2025-11-12 02:08:40] Returning results: [{"id":25,"date":"2025-11-12","slot":"12:00-12:50","success":true,"status":"pending","active_key":"BK00000025","session_id":"e231364d233c5cd35e51b131376585ee"},{"id":26,"date":"2025-11-12","slot":"13:00-13:50","success":true,"status":"pending","active_key":"BK00000026","session_id":"e231364d233c5cd35e51b131376585ee"}]
+[2025-11-12 02:43:04] Raw POST (book_slot): {"room":"02.36.01","purpose":"Lab session","description":"ad","tel":"0172345678","slots":[{"date":"2025-11-12","slot":"08:00-08:50"},{"date":"2025-11-12","slot":"09:00-09:50"}]}
+[2025-11-12 02:43:04] Book request: user=2 room_id=02.36.01 slots_count=2
+[2025-11-12 02:43:04] session_id column present: yes
+[2025-11-12 02:43:04] Inserted pending booking id=27: user=2, room=02.36.01, date=2025-11-12, slot=08:00-08:50, session=63c5d32dd102761cee8c1d39abea3e95
+[2025-11-12 02:43:04] Inserted pending booking id=28: user=2, room=02.36.01, date=2025-11-12, slot=09:00-09:50, session=63c5d32dd102761cee8c1d39abea3e95
+[2025-11-12 02:43:04] Returning results: [{"id":27,"date":"2025-11-12","slot":"08:00-08:50","success":true,"status":"pending","active_key":"BK00000027","session_id":"63c5d32dd102761cee8c1d39abea3e95"},{"id":28,"date":"2025-11-12","slot":"09:00-09:50","success":true,"status":"pending","active_key":"BK00000028","session_id":"63c5d32dd102761cee8c1d39abea3e95"}]
+[2025-11-12 02:44:43] Raw POST (book_slot): {"room":"02.36.01","purpose":"Lab session","description":"ad","tel":"0172345678","slots":[{"date":"2025-11-12","slot":"12:00-12:50"},{"date":"2025-11-12","slot":"13:00-13:50"}]}
+[2025-11-12 02:44:43] Book request: user=2 room_id=02.36.01 slots_count=2
+[2025-11-12 02:44:43] session_id column present: yes
+[2025-11-12 02:44:43] Inserted pending booking id=29: user=2, room=02.36.01, date=2025-11-12, slot=12:00-12:50, session=0d75a2a716002a899d1985ffe50b378c
+[2025-11-12 02:44:43] Inserted pending booking id=30: user=2, room=02.36.01, date=2025-11-12, slot=13:00-13:50, session=0d75a2a716002a899d1985ffe50b378c
+[2025-11-12 02:44:43] Returning results: [{"id":29,"date":"2025-11-12","slot":"12:00-12:50","success":true,"status":"pending","active_key":"BK00000029","session_id":"0d75a2a716002a899d1985ffe50b378c"},{"id":30,"date":"2025-11-12","slot":"13:00-13:50","success":true,"status":"pending","active_key":"BK00000030","session_id":"0d75a2a716002a899d1985ffe50b378c"}]
+[2025-11-13 04:37:20] Raw POST (book_slot): {"room":"03.63.01","purpose":"Lab session","description":"exam","tel":"0172345678","slots":[{"date":"2025-11-13","slot":"13:00-13:50"},{"date":"2025-11-13","slot":"14:00-14:50"}]}
+[2025-11-13 04:37:20] Book request: user=2 room_id=03.63.01 slots_count=2
+[2025-11-13 04:37:20] session_id column present: yes
+[2025-11-13 04:37:20] Inserted pending booking id=31: user=2, room=03.63.01, date=2025-11-13, slot=13:00-13:50, session=b9032490eda06912b1be58ca50fe5a20
+[2025-11-13 04:37:20] Inserted pending booking id=32: user=2, room=03.63.01, date=2025-11-13, slot=14:00-14:50, session=b9032490eda06912b1be58ca50fe5a20
+[2025-11-13 04:37:20] Returning results: [{"id":31,"date":"2025-11-13","slot":"13:00-13:50","success":true,"status":"pending","active_key":"BK00000031","session_id":"b9032490eda06912b1be58ca50fe5a20"},{"id":32,"date":"2025-11-13","slot":"14:00-14:50","success":true,"status":"pending","active_key":"BK00000032","session_id":"b9032490eda06912b1be58ca50fe5a20"}]
+[2025-11-13 04:38:02] Raw POST (book_slot): {"room":"03.63.01","purpose":"Lab session","description":"Exam","tel":"0172345678","slots":[{"date":"2025-11-13","slot":"13:00-13:50"},{"date":"2025-11-13","slot":"14:00-14:50"},{"date":"2025-11-13","slot":"15:00-15:50"},{"date":"2025-11-13","slot":"16:00-16:50"}]}
+[2025-11-13 04:38:02] Book request: user=2 room_id=03.63.01 slots_count=4
+[2025-11-13 04:38:02] session_id column present: yes
+[2025-11-13 04:38:02] Inserted pending booking id=33: user=2, room=03.63.01, date=2025-11-13, slot=13:00-13:50, session=04cc7861941d2f92860853bd6b20aac4
+[2025-11-13 04:38:02] Inserted pending booking id=34: user=2, room=03.63.01, date=2025-11-13, slot=14:00-14:50, session=04cc7861941d2f92860853bd6b20aac4
+[2025-11-13 04:38:02] Inserted pending booking id=35: user=2, room=03.63.01, date=2025-11-13, slot=15:00-15:50, session=04cc7861941d2f92860853bd6b20aac4
+[2025-11-13 04:38:02] Inserted pending booking id=36: user=2, room=03.63.01, date=2025-11-13, slot=16:00-16:50, session=04cc7861941d2f92860853bd6b20aac4
+[2025-11-13 04:38:02] Returning results: [{"id":33,"date":"2025-11-13","slot":"13:00-13:50","success":true,"status":"pending","active_key":"BK00000033","session_id":"04cc7861941d2f92860853bd6b20aac4"},{"id":34,"date":"2025-11-13","slot":"14:00-14:50","success":true,"status":"pending","active_key":"BK00000034","session_id":"04cc7861941d2f92860853bd6b20aac4"},{"id":35,"date":"2025-11-13","slot":"15:00-15:50","success":true,"status":"pending","active_key":"BK00000035","session_id":"04cc7861941d2f92860853bd6b20aac4"},{"id":36,"date":"2025-11-13","slot":"16:00-16:50","success":true,"status":"pending","active_key":"BK00000036","session_id":"04cc7861941d2f92860853bd6b20aac4"}]
+[2025-11-13 08:16:22] Raw POST (book_slot): {"room":"02.31.01","purpose":"Lab session","description":"Exam","tel":"0172345678","slots":[{"date":"2025-11-13","slot":"08:00-08:50"},{"date":"2025-11-13","slot":"09:00-09:50"}]}
+[2025-11-13 08:16:22] Book request: user=2 room_id=02.31.01 slots_count=2
+[2025-11-13 08:16:22] session_id column present: yes
+[2025-11-13 08:16:56] Raw POST (book_slot): {"room":"02.31.01","purpose":"Lab session","description":"Exam","tel":"0172345678","slots":[{"date":"2025-11-13","slot":"08:00-08:50"},{"date":"2025-11-13","slot":"09:00-09:50"}]}
+[2025-11-13 08:16:56] Book request: user=2 room_id=02.31.01 slots_count=2
+[2025-11-13 08:16:56] session_id column present: yes
+[2025-11-13 08:16:56] Inserted pending booking id=37: user=2, room=02.31.01, date=2025-11-13, slot=08:00-08:50, session=143c916b0296c5c30df8b3bda069f7db
+[2025-11-13 08:16:56] Inserted pending booking id=38: user=2, room=02.31.01, date=2025-11-13, slot=09:00-09:50, session=143c916b0296c5c30df8b3bda069f7db
+[2025-11-13 08:16:56] Returning results: [{"id":37,"date":"2025-11-13","slot":"08:00-08:50","success":true,"status":"pending","active_key":"BK00000037","session_id":"143c916b0296c5c30df8b3bda069f7db"},{"id":38,"date":"2025-11-13","slot":"09:00-09:50","success":true,"status":"pending","active_key":"BK00000038","session_id":"143c916b0296c5c30df8b3bda069f7db"}]
+[2025-11-25 10:50:49] Raw POST (book_slot): {"room":"02.31.01","purpose":"test","description":"testing","tel":"0172345678","slots":[{"date":"2025-11-26","slot":"08:00-08:50"},{"date":"2025-11-26","slot":"09:00-09:50"}]}
+[2025-11-25 10:50:49] Book request: user=2 room_id=02.31.01 slots_count=2
+[2025-11-25 10:50:49] session_id column present: yes
+[2025-11-25 10:50:49] Inserted pending booking id=39: user=2, room=02.31.01, date=2025-11-26, slot=08:00-08:50, session=4b41b8ed63a21480353a014db7f76068
+[2025-11-25 10:50:49] Inserted pending booking id=40: user=2, room=02.31.01, date=2025-11-26, slot=09:00-09:50, session=4b41b8ed63a21480353a014db7f76068
+[2025-11-25 10:50:49] Returning results: [{"id":39,"date":"2025-11-26","slot":"08:00-08:50","success":true,"status":"pending","active_key":"BK00000039","session_id":"4b41b8ed63a21480353a014db7f76068"},{"id":40,"date":"2025-11-26","slot":"09:00-09:50","success":true,"status":"pending","active_key":"BK00000040","session_id":"4b41b8ed63a21480353a014db7f76068"}]
+[2025-11-25 11:23:28] Raw POST (book_slot): {"room":"02.31.01","purpose":"Lab session","description":"Exam","tel":"0172345678","slots":[{"date":"2025-11-27","slot":"08:00-08:50"},{"date":"2025-11-27","slot":"09:00-09:50"}]}
+[2025-11-25 11:23:28] Book request: user=2 room_id=02.31.01 slots_count=2
+[2025-11-25 11:23:28] session_id column present: yes
+[2025-11-25 11:23:28] Inserted pending booking id=41: user=2, room=02.31.01, date=2025-11-27, slot=08:00-08:50, session=a7219313908fcb94a44bd1fd9820b229, ticket=B0041
+[2025-11-25 11:23:28] Inserted pending booking id=42: user=2, room=02.31.01, date=2025-11-27, slot=09:00-09:50, session=a7219313908fcb94a44bd1fd9820b229, ticket=B0042
+[2025-11-25 11:23:28] Returning results: [{"id":41,"date":"2025-11-27","slot":"08:00-08:50","success":true,"status":"pending","active_key":"BK00000041","ticket":"B0041","session_id":"a7219313908fcb94a44bd1fd9820b229"},{"id":42,"date":"2025-11-27","slot":"09:00-09:50","success":true,"status":"pending","active_key":"BK00000042","ticket":"B0042","session_id":"a7219313908fcb94a44bd1fd9820b229"}]
+[2025-11-25 11:35:03] Raw POST (book_slot): {"room":"02.31.01","purpose":"exam","description":"testing1","tel":"0172345678","slots":[{"date":"2025-11-26","slot":"11:00-11:50"},{"date":"2025-11-26","slot":"12:00-12:50"}]}
+[2025-11-25 11:35:03] Book request: user=2 room_id=02.31.01 slots_count=2
+[2025-11-25 11:35:03] session_id column present: yes
+[2025-11-25 11:35:03] Inserted pending booking id=43: user=2, room=02.31.01, date=2025-11-26, slot=11:00-11:50, session=28f61097ff83a83918c5d35cda16c655, ticket=B0043
+[2025-11-25 11:35:03] Inserted pending booking id=44: user=2, room=02.31.01, date=2025-11-26, slot=12:00-12:50, session=28f61097ff83a83918c5d35cda16c655, ticket=B0044
+[2025-11-25 11:35:03] Returning results: [{"id":43,"date":"2025-11-26","slot":"11:00-11:50","success":true,"status":"pending","active_key":"BK00000043","ticket":"B0043","session_id":"28f61097ff83a83918c5d35cda16c655"},{"id":44,"date":"2025-11-26","slot":"12:00-12:50","success":true,"status":"pending","active_key":"BK00000044","ticket":"B0044","session_id":"28f61097ff83a83918c5d35cda16c655"}]
+[2025-11-25 11:49:13] Raw POST (book_slot): {"room":"02.31.01","purpose":"dr zatul","description":"exam","tel":"0172345678","slots":[{"date":"2025-11-26","slot":"14:00-14:50"},{"date":"2025-11-26","slot":"15:00-15:50"}]}
+[2025-11-25 11:49:13] Book request: user=2 room_id=02.31.01 slots_count=2
+[2025-11-25 11:49:13] session_id column present: yes
+[2025-11-25 11:49:13] Inserted pending booking id=45: user=2, room=02.31.01, date=2025-11-26, slot=14:00-14:50, session=B045, ticket=B0045
+[2025-11-25 11:49:13] Inserted pending booking id=46: user=2, room=02.31.01, date=2025-11-26, slot=15:00-15:50, session=B045, ticket=B0046
+[2025-11-25 11:49:13] Returning results: [{"id":45,"date":"2025-11-26","slot":"14:00-14:50","success":true,"status":"pending","active_key":"BK00000045","ticket":"B0045","session_id":"B045"},{"id":46,"date":"2025-11-26","slot":"15:00-15:50","success":true,"status":"pending","active_key":"BK00000046","ticket":"B0046","session_id":"B045"}]
+[2025-11-25 15:50:53] Raw POST (book_slot): {"room":"02.36.01","purpose":"test","description":"testing1","tel":"0172345678","slots":[{"date":"2025-11-26","slot":"08:00-08:50"},{"date":"2025-11-26","slot":"09:00-09:50"}]}
+[2025-11-25 15:50:53] Book request: user=2 room_id=02.36.01 slots_count=2
+[2025-11-25 15:50:53] session_id column present: yes
+[2025-11-25 15:50:53] Inserted pending booking id=47: user=2, room=02.36.01, date=2025-11-26, slot=08:00-08:50, session=B047, ticket=B0047
+[2025-11-25 15:50:53] Inserted pending booking id=48: user=2, room=02.36.01, date=2025-11-26, slot=09:00-09:50, session=B047, ticket=B0048
+[2025-11-25 15:50:53] Returning results: [{"id":47,"date":"2025-11-26","slot":"08:00-08:50","success":true,"status":"pending","active_key":"BK00000047","ticket":"B0047","session_id":"B047"},{"id":48,"date":"2025-11-26","slot":"09:00-09:50","success":true,"status":"pending","active_key":"BK00000048","ticket":"B0048","session_id":"B047"}]
+[2025-11-30 08:39:59] ✅ Database connected successfully
+[2025-11-30 08:39:59] User: id=2, type=student
+[2025-11-30 08:39:59] 📥 GET request for room: 02.31.01
+[2025-11-30 08:39:59] ✅ Found 17 bookings for room 02.31.01
+[2025-11-30 08:39:59] ✅ Found recurring table: recurring_bookings
+[2025-11-30 08:39:59] ℹ️ Status column exists, filtering active records
+[2025-11-30 08:39:59] ✅ Found 7 recurring rules for room 02.31.01
+[2025-11-30 08:39:59] 📤 Sending response: bookings=17, recurring=7
+[2025-11-30 08:40:02] ✅ Database connected successfully
+[2025-11-30 08:40:02] User: id=2, type=student
+[2025-11-30 08:40:02] 📥 GET request for room: 02.31.01
+[2025-11-30 08:40:02] ✅ Found 17 bookings for room 02.31.01
+[2025-11-30 08:40:02] ✅ Found recurring table: recurring_bookings
+[2025-11-30 08:40:02] ℹ️ Status column exists, filtering active records
+[2025-11-30 08:40:02] ✅ Found 7 recurring rules for room 02.31.01
+[2025-11-30 08:40:02] 📤 Sending response: bookings=17, recurring=7
+[2025-11-30 08:40:08] ✅ Database connected successfully
+[2025-11-30 08:40:08] User: id=2, type=student
+[2025-11-30 08:40:08] 📥 GET request for room: 02.37.01
+[2025-11-30 08:40:08] ✅ Found 0 bookings for room 02.37.01
+[2025-11-30 08:40:08] ✅ Found recurring table: recurring_bookings
+[2025-11-30 08:40:08] ℹ️ Status column exists, filtering active records
+[2025-11-30 08:40:08] ✅ Found 0 recurring rules for room 02.37.01
+[2025-11-30 08:40:08] 📤 Sending response: bookings=0, recurring=0
+[2025-11-30 08:40:10] ✅ Database connected successfully
+[2025-11-30 08:40:10] User: id=2, type=student
+[2025-11-30 08:40:10] 📥 GET request for room: 02.37.01
+[2025-11-30 08:40:10] ✅ Found 0 bookings for room 02.37.01
+[2025-11-30 08:40:10] ✅ Found recurring table: recurring_bookings
+[2025-11-30 08:40:10] ℹ️ Status column exists, filtering active records
+[2025-11-30 08:40:10] ✅ Found 0 recurring rules for room 02.37.01
+[2025-11-30 08:40:10] 📤 Sending response: bookings=0, recurring=0
+[2025-11-30 08:43:05] ✅ Database connected successfully
+[2025-11-30 08:43:05] User: id=2, type=student
+[2025-11-30 08:43:05] 📥 GET request for room: 06.50.02
+[2025-11-30 08:43:05] ✅ Found 0 bookings for room 06.50.02
+[2025-11-30 08:43:05] ✅ Found recurring table: recurring_bookings
+[2025-11-30 08:43:05] ℹ️ Status column exists, filtering active records
+[2025-11-30 08:43:05] ✅ Found 0 recurring rules for room 06.50.02
+[2025-11-30 08:43:05] 📤 Sending response: bookings=0, recurring=0
+[2025-11-30 08:43:07] ✅ Database connected successfully
+[2025-11-30 08:43:07] User: id=2, type=student
+[2025-11-30 08:43:07] 📥 GET request for room: 06.50.02
+[2025-11-30 08:43:07] ✅ Found 0 bookings for room 06.50.02
+[2025-11-30 08:43:07] ✅ Found recurring table: recurring_bookings
+[2025-11-30 08:43:07] ℹ️ Status column exists, filtering active records
+[2025-11-30 08:43:07] ✅ Found 0 recurring rules for room 06.50.02
+[2025-11-30 08:43:07] 📤 Sending response: bookings=0, recurring=0
+[2025-11-30 08:43:47] ✅ Database connected successfully
+[2025-11-30 08:43:47] User: id=2, type=student
+[2025-11-30 08:43:47] 📥 POST request - Raw payload (175 bytes): {"room":"06.50.02","purpose":"test","description":"testing","tel":"0172345678","slots":[{"date":"2025-12-01","slot":"08:00-08:50"},{"date":"2025-12-01","slot":"09:00-09:50"}]}
+[2025-11-30 08:43:47] ✅ JSON decoded successfully: ["room","purpose","description","tel","slots"]
+[2025-11-30 08:43:47] 📝 Book request: user=2 room_id=06.50.02 purpose=test slots_count=2
+[2025-11-30 08:43:47] session_id column present: yes
+[2025-11-30 08:43:47] ✅ Inserted booking id=62: user=2, room=06.50.02, date=2025-12-01, slot=08:00-08:50, ticket=B0062
+[2025-11-30 08:43:47] ✅ Inserted booking id=63: user=2, room=06.50.02, date=2025-12-01, slot=09:00-09:50, ticket=B0063
+[2025-11-30 08:43:47] ✅ Transaction committed successfully. Results count: 2
+[2025-12-09 10:40:09] Raw POST (book_slot): {"room":"08.44.01","purpose":"learning","description":"trial","tel":"01127859019","slots":[{"date":"2025-12-09","slot":"11:00-11:50"},{"date":"2025-12-09","slot":"12:00-12:50"}]}
+[2025-12-09 10:40:09] Book request: user=6 room_id=08.44.01 slots_count=2
+[2025-12-09 10:40:10] session_id column present: yes
+[2025-12-09 10:40:10] Inserted pending booking id=64: user=6, room=08.44.01, date=2025-12-09, slot=11:00-11:50, session=B064, ticket=B0064
+[2025-12-09 10:40:10] Inserted pending booking id=65: user=6, room=08.44.01, date=2025-12-09, slot=12:00-12:50, session=B064, ticket=B0065
+[2025-12-09 10:40:10] Returning results: [{"id":64,"date":"2025-12-09","slot":"11:00-11:50","success":true,"status":"pending","active_key":"BK00000064","ticket":"B0064","session_id":"B064"},{"id":65,"date":"2025-12-09","slot":"12:00-12:50","success":true,"status":"pending","active_key":"BK00000065","ticket":"B0065","session_id":"B064"}]
