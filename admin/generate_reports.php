@@ -42,25 +42,31 @@ $admin_email = $_SESSION['Email'] ?? 'Admin';
 }
 *{ box-sizing:border-box; }
 body{
-  font-family:'Inter',sans-serif;
-  background:linear-gradient(135deg,#667eea,#764ba2);
-  display:flex;
+ margin:0;
+  font-family: 'Inter', system-ui, -apple-system, 'Segoe UI', Roboto, Arial;
   min-height:100vh;
-  margin:0;
-  padding:0;
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  color: var(--gray-700);
+  -webkit-font-smoothing:antialiased;
+  -moz-osx-font-smoothing:grayscale;
 }
 
 .nav-bar{
-  background:white;
-  padding:16px 24px;
-  position:fixed; top:0; left:0; right:0;
-  height:80px;
-  box-shadow:var(--shadow-md);
-  display:flex; align-items:center;
-  z-index:1000;
+  position: fixed;
+  top:0; left:0; right:0;
+  height: var(--nav-height);
+  background: #fff;
+  display:flex;
+  align-items:center;
+  gap:16px;
+  padding:12px 22px;
+  box-shadow: 0 10px 30px rgba(2,6,23,0.12);
+  z-index:1400;
 }
 .nav-logo{ height:50px; }
-
+.btn-download:hover { 
+        transform: translateY(-2px);
+        box-shadow: 0 6px 16px rgba(0, 0, 0, 0.2); }
 .layout{
   width:100%; max-width:2000px;
   margin:100px auto 0;
@@ -69,55 +75,89 @@ body{
   gap:24px;
 }
 
-.sidebar{
-  width:260px; background:white;
-  border-radius:12px;
-  padding:20px;
-  box-shadow:var(--shadow-sm);
-  position:sticky; top:100px;
-  flex-shrink:0;
+/* sidebar */
+.sidebar {
+    width: 260px;
+    background: white;
+    border-radius: 12px;
+    padding: 20px;
+    box-shadow: var(--shadow-lg);
+    z-index: 100;
+    flex-shrink: 0; /* Prevent sidebar from shrinking */
+    
+    /* Sticky Magic */
+    position: sticky;
+    top: 100px; 
 }
+  .sidebar-title {
+    font-size: 14px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    color: var(--gray-600);
+    margin-bottom: 16px;
+    padding-bottom: 12px;
+    border-bottom: 2px solid var(--gray-200);
+  }
+  
+  .sidebar-menu {
+    list-style: none;
+    padding: 0;
+    margin: 0;
+  }
+  
+  .sidebar-menu li {
+    margin-bottom: 8px;
+  }
+  
+  .sidebar-menu a {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 12px 16px;
+    border-radius: 8px;
+    text-decoration: none;
+    color: var(--gray-700);
+    font-size: 14px;
+    font-weight: 500;
+    transition: all 0.2s;
+  }
+  
+  .sidebar-menu a:hover {
+    background: var(--gray-100);
+    color: var(--primary);
+  }
+  
+  .sidebar-menu a.active {
+    background: var(--primary-light);
+    color: var(--primary);
+    font-weight: 600;
+  }
 
-.sidebar-title{
-  font-size:14px; font-weight:700;
-  color:var(--gray-600);
-  text-transform:uppercase;
-  margin-bottom:16px;
-  border-bottom:2px solid var(--gray-200);
-  padding-bottom:10px;
-}
-
-.sidebar-menu li{ list-style:none; margin-bottom:8px; }
-.sidebar-menu a{
-  display:flex; gap:12px; align-items:center;
-  padding:12px 16px;
-  text-decoration:none;
-  border-radius:8px;
-  font-size:14px;
-  color:var(--gray-700);
-  font-weight:500;
-}
-.sidebar-menu a:hover{ background:var(--gray-100); color:var(--primary); }
-.sidebar-menu a.active{ background:var(--primary-light); color:var(--primary); font-weight:600; }
-
-.sidebar-profile{
-  margin-top:auto;
-  padding-top:20px;
-  border-top:1px solid var(--gray-200);
-  display:flex; gap:12px; align-items:center;
-}
-.profile-icon{
-  width:36px; height:36px;
-  background:var(--primary-light);
-  border-radius:50%;
-  display:flex; justify-content:center; align-items:center;
-  color:var(--primary);
-  font-weight:700;
-}
-.profile-info{ font-size:13px; }
-.profile-name{ font-weight:600; color:var(--gray-800); }
-.profile-email{ font-size:11px; color:var(--gray-600); }
-
+    /* Sidebar Profile Styles */
+  .sidebar-profile {
+    margin-top: auto; /* Pushes to bottom */
+    padding-top: 20px;
+    border-top: 1px solid var(--gray-200);
+    display: flex;
+    align-items: center;
+    gap: 12px;
+  }
+ .profile-icon {
+     width: 36px; 
+     height: 36px; 
+     background: var(--primary-light); 
+     border-radius: 50%; 
+     display: flex; 
+     align-items: center; 
+     justify-content: center; 
+     color: var(--primary); 
+     font-weight: 700;
+  }
+  
+  .profile-info { font-size: 13px; }
+  .profile-name { font-weight: 600; color: var(--gray-800); margin-bottom: 2px; }
+  .profile-email { font-size: 11px; color: var(--gray-600); }
 .main{ flex:1; }
 
 .header-card{

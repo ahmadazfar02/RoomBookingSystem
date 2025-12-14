@@ -1,6 +1,8 @@
 <?php
 session_start();
 require_once __DIR__ . '/../includes/db_connect.php';
+// 1. INCLUDE EMAIL HELPER
+require_once __DIR__ . '/../api/email_helper.php';
 
 // Set JSON header FIRST
 header('Content-Type: application/json');
@@ -66,29 +68,61 @@ $conn->begin_transaction();
 
 try {
     //--------------------------------------------------
-    // GET ALL BOOKINGS IN THE SESSION
+    // GET ALL BOOKINGS IN THE SESSION (AND USER/ROOM INFO)
     //--------------------------------------------------
     $stmt = $conn->prepare("
-        SELECT id, status, ticket 
-        FROM bookings 
-        WHERE session_id = ? 
+        SELECT 
+            b.id, b.status, b.ticket, b.user_id, b.slot_date, b.time_start, b.time_end, b.purpose,
+            u.Fullname AS user_name, u.Email AS user_email,
+            r.room_id AS room_no, r.name AS room_name
+        FROM bookings b
+        JOIN users u ON b.user_id = u.id
+        JOIN rooms r ON b.room_id = r.room_id
+        WHERE b.session_id = ? 
         FOR UPDATE
     ");
     $stmt->bind_param("s", $session_id);
     $stmt->execute();
     $res = $stmt->get_result();
 
-    $booking_ids = [];
+    $session_bookings = [];
     while ($row = $res->fetch_assoc()) {
-        $booking_ids[] = $row;
+        $session_bookings[] = $row;
     }
     $stmt->close();
 
-    if (count($booking_ids) === 0) {
+    if (count($session_bookings) === 0) {
         $conn->rollback();
         echo json_encode(['success' => false, 'message' => 'No bookings found for this session']);
         exit;
     }
+
+    // Since all bookings in a session are by the same user and for the same date/room,
+    // we can extract the common data from the first row.
+    $first_booking = $session_bookings[0];
+    $user_email = $first_booking['user_email'];
+    $user_name  = $first_booking['user_name'];
+    $room_info  = htmlspecialchars($first_booking['room_name'] . " (" . $first_booking['room_no'] . ")");
+    $slot_date  = htmlspecialchars($first_booking['slot_date']);
+    $purpose    = htmlspecialchars($first_booking['purpose']);
+
+    // Build Time Slots string for email
+    $time_slots = [];
+    foreach ($session_bookings as $b) {
+        // Only include slots that are currently pending for approval/rejection logic
+        if ($b['status'] === 'pending' || $action === 'delete') {
+            $time_slots[] = htmlspecialchars($b['time_start'] . " - " . $b['time_end']);
+        }
+    }
+    $time_slots_string = implode(' | ', $time_slots);
+
+    // Build the booking details HTML for the email
+    $booking_details_html = "
+        <p><strong>Room:</strong> $room_info</p>
+        <p><strong>Date:</strong> $slot_date</p>
+        <p><strong>Time Slots:</strong> $time_slots_string</p>
+        <p><strong>Purpose:</strong> $purpose</p>
+    ";
 
     //--------------------------------------------------
     // ACTION: APPROVE ALL BOOKINGS
@@ -96,7 +130,7 @@ try {
     if ($action === "approve") {
 
         $approved_count = 0;
-        foreach ($booking_ids as $b) {
+        foreach ($session_bookings as $b) {
 
             if ($b['status'] !== 'pending') continue;
 
@@ -109,6 +143,11 @@ try {
                 $stmt->bind_param("si", $ticket, $b['id']);
                 $stmt->execute();
                 $stmt->close();
+                
+                // If this is the first booking being processed, update the ticket in the email content
+                if ($approved_count == 0) {
+                    $booking_details_html .= "<p><strong>Ticket ID:</strong> $ticket</p>";
+                }
             }
 
             // Approve booking
@@ -123,6 +162,11 @@ try {
 
             insert_admin_log($conn, $admin_id, $b['id'], "approve", "Approved | Ticket: $ticket");
             $approved_count++;
+        }
+
+        if ($approved_count > 0) {
+            // 2. SEND EMAIL ON SUCCESSFUL APPROVAL
+            sendStatusEmail($user_email, $user_name, 'Approved', $booking_details_html);
         }
 
         $conn->commit();
@@ -142,9 +186,11 @@ try {
         if (empty($reason)) {
             $reason = "Rejected by admin (no reason provided)";
         }
+        $reason_html = htmlspecialchars($reason);
+        $booking_details_html .= "<p style='color:#dc2626; margin-top: 10px;'><strong>Rejection Reason:</strong> $reason_html</p>";
 
         $rejected_count = 0;
-        foreach ($booking_ids as $b) {
+        foreach ($session_bookings as $b) {
             if ($b['status'] !== 'pending') continue;
 
             $stmt = $conn->prepare("
@@ -164,6 +210,11 @@ try {
             $rejected_count++;
         }
 
+        if ($rejected_count > 0) {
+            // 2. SEND EMAIL ON SUCCESSFUL REJECTION
+            sendStatusEmail($user_email, $user_name, 'Rejected', $booking_details_html);
+        }
+
         $conn->commit();
         echo json_encode([
             'success' => true, 
@@ -174,12 +225,12 @@ try {
     }
 
     //--------------------------------------------------
-    // ACTION: DELETE BOOKINGS
+    // ACTION: DELETE BOOKINGS (NO EMAIL SENT)
     //--------------------------------------------------
     if ($action === "delete") {
 
         $deleted_count = 0;
-        foreach ($booking_ids as $b) {
+        foreach ($session_bookings as $b) {
 
             // Delete booking
             $stmt = $conn->prepare("DELETE FROM bookings WHERE id = ?");
@@ -209,6 +260,7 @@ try {
 
 } catch (Exception $e) {
     $conn->rollback();
+    error_log("Database error in process_request.php: " . $e->getMessage());
     echo json_encode(['success' => false, 'message' => 'Database error: ' . $e->getMessage()]);
     exit;
 }

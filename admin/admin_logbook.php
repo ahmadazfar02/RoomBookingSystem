@@ -185,6 +185,9 @@ body{
 .btn { padding:8px 12px; border-radius:8px; border:0; cursor:pointer; font-weight:700; text-decoration:none; display:inline-flex; align-items:center; justify-content:center; }
 .btn.primary { background: linear-gradient(135deg,var(--primary),var(--primary-dark)); color: #fff; }
 .btn.outline { background: #fff; border:2px solid var(--gray-300); color: var(--gray-700); }
+.btn:hover { 
+        transform: translateY(-2px);
+        box-shadow: 0 6px 16px rgba(0, 0, 0, 0.2); }
 /* layout */
 .layout {
   width: 100%;
@@ -342,6 +345,9 @@ body{
 .form-group { display: flex; flex-direction: column; gap: 4px; }
 .form-group label { font-size: 12px; font-weight: 600; color: var(--gray-600); text-transform: uppercase; }
 .form-control { padding: 8px 12px; border: 1px solid #ccc; border-radius: 6px; font-size: 14px; }
+.form-control:hover { 
+        transform: translateY(2px);
+        box-shadow: 0 6px 16px rgba(0, 0, 0, 0.2); }
 .btn-primary { background: var(--primary); color: white; border: none; }
 .btn-primary:hover { background: var(--primary-dark); }
 .btn-success { background: #059669; color: white; border: none; }
@@ -437,7 +443,7 @@ body{
                 <a href="admin_logbook.php" class="btn btn-secondary">Reset</a>
             </div>
             <div class="form-group" style="margin-left: auto;">
-                <a href="<?php echo getQueryLink($page) . '&export=true'; ?>" class="btn btn-success">Export CSV</a>
+                <a href="<?php echo getQueryLink($page) . '&export=true'; ?>" class="btn btn-success btn-hover">Export CSV</a>
             </div>
         </form>
         <p style="color:#666; font-size:14px;">Total Logs: <?php echo $total_rows; ?></p>

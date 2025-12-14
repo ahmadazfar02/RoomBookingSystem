@@ -636,6 +636,23 @@
             min-width: 100%;
         }
     }
+    .report-btn{
+      background: linear-gradient(135deg, var(--accent) 0%, var(--accent-dark) 100%);
+        color: white;
+        border: none;
+        padding: 10px 20px;
+        border-radius: 8px;
+        cursor: pointer;
+        font-size: 14px;
+        font-weight: 600;
+        position: relative;
+        transition: all 0.3s ease;
+        box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+    }
+    .report-btn:hover{
+      transform: translateY(-2px);
+      box-shadow: 0 6px 16px rgba(0, 0, 0, 0.2);
+    }
   </style>
 </head>
 <body>
@@ -648,6 +665,8 @@
             Booking Status
             <span class="notification-badge" id="notificationBadge">0</span>
           </button>
+          
+        <a href="user_report_problem.php"><button class="report-btn">Report Issue</button></a>
         </a>
         <!-- add this where your header controls are -->
         <a href="auth/logout.php">
