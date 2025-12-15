@@ -238,7 +238,7 @@ body{
 <nav class="nav-bar" role="navigation" aria-label="Main navigation">
   <img class="nav-logo" src="../assets/images/utmlogo.png" alt="UTM Logo">
     <div class="nav-actions">
-    <a href="logout.php" class="btn outline">Logout</a>
+    <a href="../auth/logout.php" class="btn outline">Logout</a>
   </div>
 </nav>
 

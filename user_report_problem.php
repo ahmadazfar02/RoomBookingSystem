@@ -82,23 +82,7 @@ $rooms = $conn->query("SELECT room_id, name FROM rooms");
         transform: translateY(-2px);
         box-shadow: 0 6px 16px rgba(0, 0, 0, 0.2);
     }
-    .report-btn{
-      background: linear-gradient(135deg, var(--accent) 0%, var(--accent-dark) 100%);
-        color: white;
-        border: none;
-        padding: 10px 20px;
-        border-radius: 8px;
-        cursor: pointer;
-        font-size: 14px;
-        font-weight: 600;
-        position: relative;
-        transition: all 0.3s ease;
-        box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
-    }
-    .report-btn:hover{
-      transform: translateY(-2px);
-      box-shadow: 0 6px 16px rgba(0, 0, 0, 0.2);
-    }
+    
 
     .notification-badge {
         display: none;
@@ -561,6 +545,54 @@ $rooms = $conn->query("SELECT room_id, name FROM rooms");
             min-width: 100%;
         }
     }
+    /*Dropdown for Room Problem*/
+    .dropdownmenu {
+      display: inline-block;
+    }
+    .dropbtn{
+      background: linear-gradient(135deg, var(--accent) 0%, var(--accent-dark) 100%);
+        color: white;
+        border: none;
+        padding: 10px 20px;
+        border-radius: 8px;
+        cursor: pointer;
+        font-size: 14px;
+        font-weight: 600;
+        position: relative;
+        transition: all 0.3s ease;
+        box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+    }
+    .dropbtn:hover{ 
+      transform: translateY(-2px);
+      box-shadow: 0 6px 16px rgba(0, 0, 0, 0.2);
+    }
+    .dropdownmenu-content {
+        display: none; /* Hidden by default */
+        position: absolute;
+        background-color: #f9f9f9;
+        min-width: 160px;
+        box-shadow: 0px 8px 16px 0px rgba(0,0,0,0.2);
+        z-index: 1;
+      }
+
+    .dropdownmenu-content a {
+        color: black;
+        padding: 12px 16px;
+        text-decoration: none;
+        display: block;
+        border-radius: 8px;
+    }
+    .dropdownmenu-content a:hover {
+        transform: translate(-2px);
+        box-shadow: 0 6px 16px rgba(0, 0, 0, 0.2);
+        background: linear-gradient(135deg, var(--accent) 0%, var(--accent-dark) 100%);
+        color: white;
+    }
+
+/* Show the dropdown menu on hover */
+    .dropdownmenu:hover .dropdownmenu-content {
+      display: block;
+    }
   </style>
 </head>
 <body>
@@ -574,9 +606,32 @@ $rooms = $conn->query("SELECT room_id, name FROM rooms");
             <span class="notification-badge" id="notificationBadge">0</span>
           </button>
         </a>
-        <a href="user_report_problem.php"><button class="report-btn">Report Issue</button></a>
+        <div class="dropdownmenu">
+        <button class="dropbtn" onclick="toggleDropdownmenu()">Room Problem</button>
+        <div class="dropdownmenu-content">
+          <a href="user_report_problem.php">Report Issue</a>
+          <a href="user_problem_status.php">Room Problem Status</a> 
+        </div>
+        </div>
+        <!-- script to toggle click show dropdown -->
+        <script>
+          function toggleDropdownmenu(){
+            document.getElementById("myDropdownmenu").classList.toggle("show");
+          }
+
+          window.onclick = function(event){
+            if(!event.target.matches('.dropbtn')){
+              var ddmenu = document.getElementsByClassName("dropdownmenu-content");
+              for(var i = 0; i<ddmenu.length; i++){
+                if(ddmenu[i].classList.contains('show')){
+                  dropdowns[i].classList.remove('show');
+                }
+              }
+            }
+          }
+        </script>
         <!-- add this where your header controls are -->
-        <a href="logout.php">
+        <a href="auth/logout.php">
           <button class="btn btn-nav">
             Logout
           </button>
