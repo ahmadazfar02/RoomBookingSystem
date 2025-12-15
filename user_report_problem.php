@@ -607,29 +607,12 @@ $rooms = $conn->query("SELECT room_id, name FROM rooms");
           </button>
         </a>
         <div class="dropdownmenu">
-        <button class="dropbtn" onclick="toggleDropdownmenu()">Room Problem</button>
+        <button class="dropbtn">Room Problem</button>
         <div class="dropdownmenu-content">
           <a href="user_report_problem.php">Report Issue</a>
           <a href="user_problem_status.php">Room Problem Status</a> 
         </div>
         </div>
-        <!-- script to toggle click show dropdown -->
-        <script>
-          function toggleDropdownmenu(){
-            document.getElementById("myDropdownmenu").classList.toggle("show");
-          }
-
-          window.onclick = function(event){
-            if(!event.target.matches('.dropbtn')){
-              var ddmenu = document.getElementsByClassName("dropdownmenu-content");
-              for(var i = 0; i<ddmenu.length; i++){
-                if(ddmenu[i].classList.contains('show')){
-                  dropdowns[i].classList.remove('show');
-                }
-              }
-            }
-          }
-        </script>
         <!-- add this where your header controls are -->
         <a href="auth/logout.php">
           <button class="btn btn-nav">
