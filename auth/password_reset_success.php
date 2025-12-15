@@ -111,7 +111,7 @@
             Your password has been successfully reset. You can now log in with your new password.
         </div>
 
-        <a href="loginterface.html" class="login-btn">Go to Login</a>
+        <a href="../loginterface.html" class="login-btn">Go to Login</a>
     </div>
 </body>
 </html>

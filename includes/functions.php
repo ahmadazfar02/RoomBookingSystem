@@ -32,7 +32,7 @@ if (!function_exists('store_reset_token')) {
 
 if (!function_exists('send_reset_email')) {
     function send_reset_email($to_email, $to_name, $reset_link) {
-        require_once __DIR__ . '/../config.php';
+        require_once __DIR__ . '/../includes/config.php';
         require_once __DIR__ . '/../vendor/PHPMailer/src/Exception.php';
         require_once __DIR__ . '/../vendor/PHPMailer/src/PHPMailer.php';
         require_once __DIR__ . '/../vendor/PHPMailer/src/SMTP.php';
