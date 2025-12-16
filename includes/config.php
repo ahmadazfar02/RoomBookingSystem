@@ -9,6 +9,8 @@ define('MAIL_FROM', getenv('MAIL_FROM') ?: 'reserveroom446@gmail.com');
 define('MAIL_FROM_NAME', getenv('MAIL_FROM_NAME') ?: 'Room Reservation System');
 define('MAIL_PORT', getenv('MAIL_PORT') ?: 587);
 define('MAIL_ENCRYPTION', getenv('MAIL_ENCRYPTION') ?: 'tls'); // 'tls' or 'ssl'
+define('BASE_URL', 'http://localhost/roomreserve'); // change to your domain in production
+
 
 // Token expiration in seconds (default: 1 hour)
 define('RESET_TOKEN_EXPIRY', 60 * 60);
