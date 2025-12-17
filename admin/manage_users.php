@@ -1,6 +1,15 @@
 <?php
+/**
+ * manage_users.php - COMPLETE VERSION
+ * Features: 
+ * 1. Search & Filter (Existing)
+ * 2. Edit Role & Delete User (Existing)
+ * 3. Create User & Send Activation Email (New)
+ */
 session_start();
 require_once __DIR__ . '/../includes/db_connect.php';
+require_once __DIR__ . '/../includes/functions.php'; // <--- ADD THIS LINE (adjust path if needed)
+require_once __DIR__ . '/../includes/config.php';    // <--- ENSURE CONFIG IS LOADED
 
 // 1. SECURITY CHECK: Only allow 'Admin' to access this page
 if (!isset($_SESSION['loggedin']) || 
@@ -14,112 +23,153 @@ $admin_name = $_SESSION['Fullname'] ?? 'Admin';
 
 // --- SUPER ADMIN CONFIGURATION ---
 $protected_usernames = ['superadmin', 'admin'];
-// ---------------------------------
-
-// EXTRA CHECK: Allow only superadmin to access this page
-$allowed_superAdmins = ['superadmin']; // usernames allowed
+$allowed_superAdmins = ['superadmin']; // usernames allowed to access this page
 
 if (!in_array(strtolower($_SESSION['username']), $allowed_superAdmins)) {
-    // if not superadmin → block access
     header("Location: index-admin.php"); 
     exit;
 }
-
 
 $message = "";
 $error = "";
 
 // 2. HANDLE FORM SUBMISSIONS (POST Request)
 if ($_SERVER["REQUEST_METHOD"] == "POST") {
-    // CSRF protection would be recommended here (left out for brevity)
 
-    // --- A. HANDLE UPDATE ROLE ---
+    // --- A. NEW: CREATE USER (Admin/Technician) ---
+    if (isset($_POST['create_user'])) {
+        $new_fullname = trim($_POST['new_fullname']);
+        $new_email = trim($_POST['new_email']);
+        $new_role = $_POST['new_role'];
+
+        // 1. Check if email exists
+        $stmt = $conn->prepare("SELECT id FROM users WHERE Email = ?");
+        $stmt->bind_param("s", $new_email);
+        $stmt->execute();
+        if ($stmt->fetch()) {
+            $error = "Error: That email is already registered.";
+            $stmt->close();
+        } else {
+            $stmt->close();
+            
+            // 2. Generate Username
+            $username_base = explode('@', $new_email)[0];
+            $new_username = $username_base;
+            $counter = 1;
+            while(true) {
+                $chk = $conn->query("SELECT id FROM users WHERE username = '$new_username'");
+                if ($chk->num_rows == 0) break;
+                $new_username = $username_base . $counter++;
+            }
+
+            // 3. Generate Token using your helper function
+            $token = generate_reset_token(); // From functions.php
+            $expiry = date('Y-m-d H:i:s', strtotime('+24 hours'));
+
+            // 4. Temporary Password (placeholder, user will reset it anyway)
+            $temp_password = bin2hex(random_bytes(8)); 
+            $hashed_password = password_hash($temp_password, PASSWORD_DEFAULT);
+
+            // 5. Insert User
+            $ins = $conn->prepare("INSERT INTO users (username, Fullname, Email, password_hash, User_Type, reset_token, reset_token_expiry) VALUES (?, ?, ?, ?, ?, ?, ?)");
+            $ins->bind_param("sssssss", $new_username, $new_fullname, $new_email, $hashed_password, $new_role, $token, $expiry);
+            
+            if ($ins->execute()) {
+                // 6. GENERATE LINK & SEND EMAIL
+                // Ensure SITE_BASE_URL is defined in config.php, otherwise build it dynamically
+                $base = defined('SITE_BASE_URL') ? SITE_BASE_URL : "http://localhost/roomreserve"; 
+                
+                // Point to your existing reset_password.php page
+                $activation_link = $base . "/../auth/reset_password.php?token=" . $token;
+
+                // CALL THE NEW FUNCTION
+                $sent = send_activation_email($new_email, $new_fullname, $new_username, $new_role, $activation_link);
+
+                if ($sent) {
+                    $message = "User created successfully! Activation email sent to $new_email.";
+                } else {
+                    $message = "User created, but email failed to send. Check server logs.";
+                }
+            } else {
+                $error = "Database error: " . $conn->error;
+            }
+            $ins->close();
+        }
+    }
+
+    // --- B. EXISTING: UPDATE ROLE ---
     if (isset($_POST['user_id']) && isset($_POST['new_role'])) {
         $userIdToUpdate = intval($_POST['user_id']);
         $newRole = $_POST['new_role'];
 
-        // Fetch username for protection check
-        $target_username = "";
+        // Protection check
         $check_stmt = $conn->prepare("SELECT username FROM users WHERE id = ?");
-        if ($check_stmt) {
-            $check_stmt->bind_param("i", $userIdToUpdate);
-            $check_stmt->execute();
-            $check_stmt->bind_result($fetched_username);
-            if ($check_stmt->fetch()) {
-                $target_username = $fetched_username;
-            }
-            $check_stmt->close();
-        }
+        $check_stmt->bind_param("i", $userIdToUpdate);
+        $check_stmt->execute();
+        $check_stmt->bind_result($fetched_username);
+        $check_stmt->fetch();
+        $check_stmt->close();
 
-        if (in_array(strtolower($target_username), $protected_usernames)) {
+        if (in_array(strtolower($fetched_username ?? ''), $protected_usernames)) {
             $error = "Action denied: You cannot modify the Super Admin account.";
         } else {
-            $allowedRoles = ['Admin', 'Lecturer', 'Staff', 'Student'];
+            // Added Technician to allowed roles
+            $allowedRoles = ['Admin', 'Lecturer', 'Staff', 'Student', 'Technician'];
             if (in_array($newRole, $allowedRoles)) {
-                $sql = "UPDATE users SET User_Type = ? WHERE id = ?";
-                if ($stmt = $conn->prepare($sql)) {
-                    $stmt->bind_param("si", $newRole, $userIdToUpdate);
-                    if ($stmt->execute()) {
-                        header("Location: manage_users.php?msg=updated");
-                        exit;
-                    } else {
-                        $error = "Error updating role: " . $conn->error;
-                    }
-                    $stmt->close();
+                $stmt = $conn->prepare("UPDATE users SET User_Type = ? WHERE id = ?");
+                $stmt->bind_param("si", $newRole, $userIdToUpdate);
+                if ($stmt->execute()) {
+                    header("Location: manage_users.php?msg=updated");
+                    exit;
+                } else {
+                    $error = "Error updating role: " . $conn->error;
                 }
+                $stmt->close();
             } else {
                 $error = "Invalid role selected.";
             }
         }
     }
 
-    // --- B. HANDLE DELETE USER ---
+    // --- C. EXISTING: DELETE USER ---
     if (isset($_POST['delete_user_id'])) {
         $userIdToDelete = intval($_POST['delete_user_id']);
 
-        $target_username = "";
+        // Protection check
         $check_stmt = $conn->prepare("SELECT username FROM users WHERE id = ?");
-        if ($check_stmt) {
-            $check_stmt->bind_param("i", $userIdToDelete);
-            $check_stmt->execute();
-            $check_stmt->bind_result($fetched_username);
-            if ($check_stmt->fetch()) {
-                $target_username = $fetched_username;
-            }
-            $check_stmt->close();
-        }
+        $check_stmt->bind_param("i", $userIdToDelete);
+        $check_stmt->execute();
+        $check_stmt->bind_result($fetched_username);
+        $check_stmt->fetch();
+        $check_stmt->close();
 
-        if (in_array(strtolower($target_username), $protected_usernames)) {
+        if (in_array(strtolower($fetched_username ?? ''), $protected_usernames)) {
             $error = "Action denied: You cannot delete a Protected Admin account.";
         } elseif ($userIdToDelete == $_SESSION['id']) {
             $error = "Action denied: You cannot delete your own account while logged in.";
         } else {
             try {
-                $del_sql = "DELETE FROM users WHERE id = ?";
-                if ($del_stmt = $conn->prepare($del_sql)) {
-                    $del_stmt->bind_param("i", $userIdToDelete);
-                    if ($del_stmt->execute()) {
-                        header("Location: manage_users.php?msg=deleted");
-                        exit;
-                    } else {
-                        $error = "Error deleting user. (SQL Error)";
-                    }
-                    $del_stmt->close();
+                $del_stmt = $conn->prepare("DELETE FROM users WHERE id = ?");
+                $del_stmt->bind_param("i", $userIdToDelete);
+                if ($del_stmt->execute()) {
+                    header("Location: manage_users.php?msg=deleted");
+                    exit;
                 }
+                $del_stmt->close();
             } catch (mysqli_sql_exception $e) {
-                $error = "Cannot delete user. They might have existing reservations or logs linked to them.";
+                $error = "Cannot delete user. They might have existing reservations linked to them.";
             }
         }
     }
 }
 
-// Check for success messages from the redirect
+// Check for success messages from redirect
 if (isset($_GET['msg'])) {
     if ($_GET['msg'] == 'updated') $message = "User role successfully updated.";
     if ($_GET['msg'] == 'deleted') $message = "User successfully deleted.";
 }
 
-// 3. SEARCH AND FILTER LOGIC
+// 3. SEARCH AND FILTER LOGIC (Existing)
 $search_query = "";
 $role_filter = "";
 
@@ -132,9 +182,7 @@ if (isset($_GET['search']) && !empty(trim($_GET['search']))) {
     $search_query = trim($_GET['search']);
     $where_clauses[] = "(username LIKE ? OR Fullname LIKE ? OR Email LIKE ?)";
     $like_term = "%" . $search_query . "%";
-    $params[] = $like_term;
-    $params[] = $like_term;
-    $params[] = $like_term;
+    $params[] = $like_term; $params[] = $like_term; $params[] = $like_term;
     $types .= "sss";
 }
 
@@ -172,401 +220,81 @@ if ($stmt = $conn->prepare($sql)) {
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
 <style>
   :root{
-    --primary: #2563eb;
-    --primary-dark: #1d4ed8;
-    --primary-light: #dbeafe;
-    --success: #059669;
-    --danger: #dc2626;
-    --gray-50: #f9fafb;
-    --gray-100: #f3f4f6;
-    --gray-200: #e5e7eb;
-    --gray-300: #d1d5db;
-    --gray-600: #4b5563;
-    --gray-700: #374151;
-    --gray-800: #1f2937;
-    --shadow-sm: 0 4px 12px rgba(18, 38, 63, 0.08);
-    --shadow-md: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
+    --primary: #2563eb; --primary-dark: #1d4ed8; --primary-light: #dbeafe;
+    --success: #059669; --danger: #dc2626;
+    --gray-50: #f9fafb; --gray-100: #f3f4f6; --gray-200: #e5e7eb; --gray-300: #d1d5db;
+    --gray-600: #4b5563; --gray-700: #374151; --gray-800: #1f2937;
+    --shadow-sm: 0 4px 12px rgba(18, 38, 63, 0.08); --shadow-md: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
     --nav-height: 80px;
   }
-
   *{box-sizing:border-box}
-  body{
-    font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
-    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-    display: flex;
-    min-height: 100vh;
-    padding: 0;
-    margin: 0;
-  }
-
-  /* Fixed top nav */
-  .nav-bar {
-    background: white;
-    padding: 16px 24px;
-    box-shadow: var(--shadow-md);
-    position: fixed;
-    top: 0;
-    left: 0;
-    right: 0;
-    z-index: 1000;
-    display: flex;
-    align-items: center;
-    justify-content: flex-start;
-    height: 80px;
-  }
-  .nav-logo { height:50px; width:auto; display:block; }
-
-  /* layout: container centered and below navbar */
-  .layout {
-    width: 100%;
-    max-width: 2000px;
-    padding: 24px;
-    gap: 24px;
-    margin: 100px auto 0;
-    display: flex;
-    align-items: flex-start;
-  }
-
+  body{ font-family: 'Inter', system-ui, sans-serif; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); margin:0; min-height:100vh; display:flex; }
+  
+  /* Navbar & Layout */
+  .nav-bar { background: white; padding: 16px 24px; box-shadow: var(--shadow-md); position: fixed; top: 0; left: 0; right: 0; z-index: 1000; height: 80px; display: flex; align-items: center; }
+  .nav-logo { height:50px; }
+  .layout { width: 100%; max-width: 2000px; padding: 24px; gap: 24px; margin: 100px auto 0; display: flex; align-items: flex-start; }
+  
   /* Sidebar */
-  .sidebar {
-    width: 260px;
-    background: white;
-    border-radius: 12px;
-    padding: 20px;
-    box-shadow: var(--shadow-sm);
-    z-index: 100;
-    flex-shrink: 0;
-    position: sticky;
-    top: 100px;
-  }
+  .sidebar { width: 260px; background: white; border-radius: 12px; padding: 20px; box-shadow: var(--shadow-sm); z-index: 100; flex-shrink: 0; position: sticky; top: 100px; }
+  .sidebar-menu { list-style:none; padding:0; margin:0; }
+  .sidebar-menu a { display:flex; align-items:center; gap:12px; padding:12px 16px; border-radius:8px; text-decoration:none; color:var(--gray-700); font-size:14px; font-weight:500; margin-bottom:8px; }
+  .sidebar-menu a:hover { background:var(--gray-100); color:var(--primary); }
+  .sidebar-menu a.active { background:var(--primary-light); color:var(--primary); font-weight:600; }
+  .sidebar-profile { margin-top:20px; padding-top:20px; border-top:1px solid var(--gray-200); display:flex; gap:12px; align-items:center; }
+  .profile-icon { width:36px; height:36px; background:var(--primary-light); color:var(--primary); border-radius:50%; display:flex; align-items:center; justify-content:center; font-weight:700; }
   
-  .sidebar-title {
-    font-size: 14px;
-    font-weight: 700;
-    text-transform: uppercase;
-    letter-spacing: 0.5px;
-    color: var(--gray-600);
-    margin-bottom: 16px;
-    padding-bottom: 12px;
-    border-bottom: 2px solid var(--gray-200);
-  }
-  
-  .sidebar-menu {
-    list-style: none;
-    padding: 0;
-    margin: 0;
-  }
-  
-  .sidebar-menu li {
-    margin-bottom: 8px;
-  }
-  
-  .sidebar-menu a {
-    display: flex;
-    align-items: center;
-    gap: 12px;
-    padding: 12px 16px;
-    border-radius: 8px;
-    text-decoration: none;
-    color: var(--gray-700);
-    font-size: 14px;
-    font-weight: 500;
-    transition: all 0.2s;
-  }
-  
-  .sidebar-menu a:hover {
-    background: var(--gray-100);
-    color: var(--primary);
-  }
-  
-  .sidebar-menu a.active {
-    background: var(--primary-light);
-    color: var(--primary);
-    font-weight: 600;
-  }
-
-  .sidebar-profile {
-    margin-top: auto;
-    padding-top: 20px;
-    border-top: 1px solid var(--gray-200);
-    display: flex;
-    align-items: center;
-    gap: 12px;
-  }
-
-  .profile-icon {
-    width: 36px; 
-    height: 36px; 
-    background: var(--primary-light); 
-    border-radius: 50%; 
-    display: flex; 
-    align-items: center; 
-    justify-content: center; 
-    color: var(--primary); 
-    font-weight: 700;
-  }
-  
-  .profile-info { font-size: 13px; }
-  .profile-name { font-weight: 600; color: var(--gray-800); margin-bottom: 2px; }
-  .profile-email { font-size: 11px; color: var(--gray-600); }
-
-  /* Main area */
-  .main {
-    flex:1;
-    min-width:0;
-  }
-
-  /* Header Card */
-  .header-card {
-    background: white;
-    border-radius: 12px;
-    padding: 24px 32px;
-    margin-bottom: 24px;
-    box-shadow: var(--shadow-md);
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-  }
-  
-  .header-title {
-    display: flex;
-    align-items: center;
-    gap: 12px;
-  }
-  
-  .header-title h1 {
-    font-size: 24px;
-    font-weight: 700;
-    color: var(--gray-800);
-    margin: 0;
-  }
-  
-  .header-badge {
-    background: var(--primary-light);
-    color: var(--primary);
-    padding: 4px 12px;
-    border-radius: 20px;
-    font-size: 12px;
-    font-weight: 600;
-    text-transform: uppercase;
-    letter-spacing: 0.5px;
-  }
-
-  .card {
-    background:#fff;
-    border-radius:12px;
-    padding:24px;
-    box-shadow: var(--shadow-sm);
-  }
+  /* Main */
+  .main { flex:1; min-width:0; }
+  .header-card { background: white; border-radius: 12px; padding: 24px 32px; margin-bottom: 24px; box-shadow: var(--shadow-md); display: flex; justify-content: space-between; align-items: center; }
+  .header-title h1 { font-size: 24px; font-weight: 700; margin: 0; color: var(--gray-800); }
+  .header-badge { background: var(--primary-light); color: var(--primary); padding: 4px 12px; border-radius: 20px; font-size: 12px; font-weight: 600; text-transform: uppercase; }
+  .card { background:#fff; border-radius:12px; padding:24px; box-shadow: var(--shadow-sm); }
 
   /* Alerts */
-  .alert {
-    padding: 14px 18px;
-    margin-bottom: 20px;
-    border-radius: 8px;
-    font-weight: 500;
-  }
-
-  .alert-success {
-    background: linear-gradient(135deg, #d1fae5 0%, #a7f3d0 100%);
-    color: #065f46;
-    border-left: 4px solid var(--success);
-  }
-
-  .alert-error {
-    background: linear-gradient(135deg, #fee2e2 0%, #fecaca 100%);
-    color: #991b1b;
-    border-left: 4px solid var(--danger);
-  }
+  .alert { padding: 14px 18px; margin-bottom: 20px; border-radius: 8px; font-weight: 500; }
+  .alert-success { background: #d1fae5; color: #065f46; border-left: 4px solid var(--success); }
+  .alert-error { background: #fee2e2; color: #991b1b; border-left: 4px solid var(--danger); }
 
   /* Controls */
-  .top-controls { 
-    display:flex; 
-    gap:12px; 
-    align-items:center; 
-    justify-content:space-between; 
-    flex-wrap:wrap; 
-    margin-bottom:20px; 
-    padding-bottom: 16px;
-    border-bottom: 2px solid var(--gray-200);
-  }
+  .top-controls { display:flex; gap:12px; align-items:center; justify-content:space-between; flex-wrap:wrap; margin-bottom:20px; padding-bottom: 16px; border-bottom: 2px solid var(--gray-200); }
+  .search-input { padding:10px 14px; border-radius:8px; border:2px solid var(--gray-300); background:#fff; min-width: 250px; }
+  .role-select { padding:10px 12px; border-radius:8px; border:2px solid var(--gray-300); background:#fff; }
   
-  .left-controls { display:flex; gap:12px; align-items:center; flex-wrap: wrap; }
-  
-  .search-input { 
-    padding:10px 14px; 
-    border-radius:8px; 
-    border:2px solid var(--gray-300); 
-    font-weight:500; 
-    background:#fff;
-    min-width: 250px;
-  }
-  
-  .role-select { 
-    padding:10px 12px; 
-    border-radius:8px; 
-    border:2px solid var(--gray-300); 
-    font-weight:600; 
-    background:#fff; 
-  }
-  
-  .btn { 
-    padding:10px 14px; 
-    border-radius:8px; 
-    border:0; 
-    cursor:pointer; 
-    font-weight:700;
-    text-decoration: none;
-    display: inline-block;
-  }
-  
-  .btn.primary { 
-    background:linear-gradient(135deg,var(--primary),var(--primary-dark)); 
-    color:#fff; 
-  }
-  
-  .btn.outline { 
-    background:#fff; 
-    border:2px solid var(--gray-300); 
-    color:var(--gray-700); 
-  }
-
-  .btn.danger {
-    background: linear-gradient(135deg, var(--danger) 0%, #b91c1c 100%);
-    color: white;
-  }
+  /* Buttons */
+  .btn { padding:10px 14px; border-radius:8px; border:0; cursor:pointer; font-weight:700; text-decoration: none; display: inline-block; transition:0.2s; }
+  .btn.primary { background:linear-gradient(135deg,var(--primary),var(--primary-dark)); color:#fff; }
+  .btn.primary:hover { transform:translateY(-2px); box-shadow:0 4px 12px rgba(37,99,235,0.3); }
+  .btn.outline { background:#fff; border:2px solid var(--gray-300); color:var(--gray-700); }
+  .btn.danger { background:linear-gradient(135deg,var(--danger),#b91c1c); color:white; }
 
   /* Table */
-  .table-wrap {
-    overflow: auto;
-    border-radius:10px;
-    border:1px solid var(--gray-200);
-    margin-top:8px;
-    position: relative;
-    -webkit-overflow-scrolling: touch;
-  }
-
-  table.grid {
-    width:100%;
-    border-collapse:collapse;
-    min-width:980px;
-    background:#fff;
-  }
-
-  table.grid th,
-  table.grid td {
-    padding:12px 10px;
-    border-bottom:1px solid var(--gray-100);
-    text-align:left;
-    vertical-align:middle;
-    background: #fff;
-  }
-
-  table.grid thead th {
-    background: linear-gradient(180deg, var(--gray-100) 0%, var(--gray-50) 100%);
-    font-weight:700;
-    font-size:12px;
-    text-transform:uppercase;
-    letter-spacing:0.5px;
-    position: sticky;
-    top: 0;
-    z-index: 140;
-  }
-
-  table.grid th:first-child,
-  table.grid td:first-child {
-    position: sticky;
-    left: 0;
-    z-index: 150;
-    background: #fff;
-    box-shadow: 2px 0 6px rgba(2,6,23,0.05);
-  }
-
-  table.grid thead th:first-child {
-    z-index: 160;
-  }
-
-  table.grid tbody tr:hover {
-    background: var(--gray-50);
-  }
-
-  /* Badges */
-  .badge-protected {
-    display:inline-block; 
-    padding:6px 10px; 
-    border-radius:8px; 
-    font-weight:700; 
-    font-size:13px;
-    background:linear-gradient(135deg,#fef3c7,#fde68a); 
-    color:#92400e;
-  }
-
-  /* Form elements in table */
-  .role-select-inline {
-    padding: 6px 10px;
-    border-radius: 6px;
-    border: 2px solid var(--gray-300);
-    font-size: 13px;
-    font-weight: 500;
-  }
-
-  .role-select-inline:disabled {
-    background: var(--gray-100);
-    opacity: 0.6;
-    cursor: not-allowed;
-  }
-
-  /* Action buttons */
-  .actions { 
-    display: flex;
-    gap: 8px;
-    align-items: center;
-  }
+  .table-wrap { overflow: auto; border-radius:10px; border:1px solid var(--gray-200); position: relative; }
+  table.grid { width:100%; border-collapse:collapse; min-width:980px; background:#fff; }
+  table.grid th, table.grid td { padding:12px 10px; border-bottom:1px solid var(--gray-100); text-align:left; vertical-align:middle; }
+  table.grid thead th { background: var(--gray-50); font-weight:700; font-size:12px; text-transform:uppercase; position: sticky; top: 0; z-index: 10; }
   
-  .actions button { 
-    padding:8px 12px; 
-    border-radius:8px; 
-    border:0; 
-    cursor:pointer; 
-    font-weight:700; 
-  }
-  
-  .actions .btn-update { 
-    background:linear-gradient(135deg,#10b981,#059669); 
-    color:#fff; 
-  }
-  
-  .actions .btn-delete { 
-    background:linear-gradient(135deg,#ef4444,#dc2626); 
-    color:#fff; 
-  }
+  /* Inline Forms */
+  .role-select-inline { padding: 6px 10px; border-radius: 6px; border: 2px solid var(--gray-300); font-size: 13px; font-weight: 500; }
+  .actions { display: flex; gap: 8px; align-items: center; }
+  .btn-update { background:#10b981; color:#fff; padding:8px 12px; border-radius:8px; border:0; cursor:pointer; font-weight:700; }
+  .btn-delete { background:#ef4444; color:#fff; padding:8px 12px; border-radius:8px; border:0; cursor:pointer; font-weight:700; }
+  .badge-protected { background:#fef3c7; color:#92400e; padding:6px 10px; border-radius:8px; font-weight:700; font-size:13px; }
 
-  .actions button:disabled {
-    background: var(--gray-300);
-    cursor: not-allowed;
-    opacity: 0.6;
-  }
+  /* MODAL CSS */
+  .modal-overlay { position: fixed; top:0; left:0; right:0; bottom:0; background: rgba(0,0,0,0.5); z-index: 2000; display: none; align-items: center; justify-content: center; backdrop-filter: blur(4px); }
+  .modal-overlay.active { display: flex; }
+  .modal-box { background: white; width: 100%; max-width: 500px; border-radius: 16px; padding: 24px; box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.25); animation: slideUp 0.3s ease; }
+  @keyframes slideUp { from { transform: translateY(20px); opacity: 0; } to { transform: translateY(0); opacity: 1; } }
+  .form-group { margin-bottom: 16px; }
+  .form-label { display: block; margin-bottom: 8px; font-weight: 600; font-size: 14px; color: var(--gray-700); }
+  .form-control { width: 100%; padding: 12px; border: 2px solid var(--gray-200); border-radius: 8px; font-size: 14px; transition: border-color 0.2s; }
+  .form-control:focus { outline:none; border-color:var(--primary); }
+  .modal-header { display: flex; justify-content: space-between; align-items:center; margin-bottom: 24px; }
+  .modal-title { font-size: 20px; font-weight: 700; margin:0; color:var(--gray-800); }
+  .close-btn { background: none; border: none; font-size: 24px; cursor: pointer; color: var(--gray-600); }
 
-  .footer-note {
-    margin-top: 20px;
-    padding-top: 16px;
-    border-top: 1px solid var(--gray-200);
-    font-size: 13px;
-    color: var(--gray-600);
-    font-style: italic;
-  }
-
-  /* Responsive */
-  @media (max-width:1200px) {
-    .sidebar { display:none; }
-    .layout { margin-left:18px; margin-right:18px; display:block; }
-  }
-  
-  @media (max-width:720px) {
-    table.grid { min-width:860px; }
-    .left-controls { flex-direction: column; width: 100%; }
-    .search-input { width: 100%; }
-  }
+  @media (max-width:1200px) { .sidebar { display:none; } .layout { display:block; } }
 </style>
 </head>
 <body>
@@ -576,9 +304,8 @@ if ($stmt = $conn->prepare($sql)) {
 </nav>
 
 <div class="layout">
-
   <aside class="sidebar">
-    <div class="sidebar-title">Main Menu</div>
+    <div style="font-weight:700; color:#666; margin-bottom:16px; text-transform:uppercase; font-size:12px;">Main Menu</div>
     <ul class="sidebar-menu">
       <li><a href="index-admin.php">Dashboard</a></li>
       <li><a href="reservation_request.php">Reservation Request</a></li>
@@ -589,12 +316,11 @@ if ($stmt = $conn->prepare($sql)) {
       <li><a href="generate_reports.php">Generate Reports</a></li>
       <li><a href="admin_problems.php">Room Problems</a></li>
     </ul>
-
     <div class="sidebar-profile">
       <div class="profile-icon"><?php echo strtoupper(substr($admin_name,0,1)); ?></div>
-      <div class="profile-info">
-        <div class="profile-name"><?php echo htmlspecialchars($admin_name); ?></div>
-        <div class="profile-email"><?php echo htmlspecialchars($_SESSION['Email'] ?? 'Admin'); ?></div>
+      <div style="font-size:13px;">
+        <div style="font-weight:600;"><?php echo htmlspecialchars($admin_name); ?></div>
+        <div style="font-size:11px; color:#666;">SuperAdmin</div>
       </div>
     </div>
   </aside>
@@ -605,23 +331,26 @@ if ($stmt = $conn->prepare($sql)) {
         <h1>User Management</h1>
         <span class="header-badge">Admin</span>
       </div>
+      <button onclick="openModal()" class="btn primary" style="display:flex; align-items:center; gap:8px;">
+        <span>+</span> Create User
+      </button>
     </div>
 
     <div class="card">
       <?php if ($message): ?>
         <div class="alert alert-success" id="flashMsg"><?php echo htmlspecialchars($message); ?></div>
       <?php endif; ?>
-      
       <?php if ($error): ?>
         <div class="alert alert-error" id="flashMsg"><?php echo htmlspecialchars($error); ?></div>
       <?php endif; ?>
 
       <form method="GET" class="top-controls">
-        <div class="left-controls">
-          <input type="text" name="search" class="search-input" placeholder="Search by name, username, or email..." value="<?php echo htmlspecialchars($search_query); ?>">
+        <div style="display:flex; gap:10px; width:100%;">
+          <input type="text" name="search" class="search-input" placeholder="Search by name, username, or email..." value="<?php echo htmlspecialchars($search_query); ?>" style="flex-grow:1;">
           <select name="role_filter" class="role-select">
             <option value="">All Roles</option>
             <option value="Admin" <?php if($role_filter == 'Admin') echo 'selected'; ?>>Admin</option>
+            <option value="Technician" <?php if($role_filter == 'Technician') echo 'selected'; ?>>Technician</option>
             <option value="Lecturer" <?php if($role_filter == 'Lecturer') echo 'selected'; ?>>Lecturer</option>
             <option value="Staff" <?php if($role_filter == 'Staff') echo 'selected'; ?>>Staff</option>
             <option value="Student" <?php if($role_filter == 'Student') echo 'selected'; ?>>Student</option>
@@ -666,10 +395,11 @@ if ($stmt = $conn->prepare($sql)) {
                     <form method="POST" style="display:inline-flex;gap:8px;margin:0;" onsubmit="return confirmRoleChange(this);">
                       <input type="hidden" name="user_id" value="<?php echo $user['id']; ?>">
                       <select name="new_role" class="role-select-inline" <?php echo $is_protected ? 'disabled' : ''; ?>>
-                        <option value="Admin" <?php echo (strcasecmp($user['User_Type'], 'Admin') == 0) ? 'selected' : ''; ?>>Admin</option>
-                        <option value="Lecturer" <?php echo (strcasecmp($user['User_Type'], 'Lecturer') == 0) ? 'selected' : ''; ?>>Lecturer</option>
-                        <option value="Staff" <?php echo (strcasecmp($user['User_Type'], 'Staff') == 0) ? 'selected' : ''; ?>>Staff</option>
-                        <option value="Student" <?php echo (strcasecmp($user['User_Type'], 'Student') == 0) ? 'selected' : ''; ?>>Student</option>
+                        <option value="Admin" <?php echo ($user['User_Type'] == 'Admin') ? 'selected' : ''; ?>>Admin</option>
+                        <option value="Technician" <?php echo ($user['User_Type'] == 'Technician') ? 'selected' : ''; ?>>Technician</option>
+                        <option value="Lecturer" <?php echo ($user['User_Type'] == 'Lecturer') ? 'selected' : ''; ?>>Lecturer</option>
+                        <option value="Staff" <?php echo ($user['User_Type'] == 'Staff') ? 'selected' : ''; ?>>Staff</option>
+                        <option value="Student" <?php echo ($user['User_Type'] == 'Student') ? 'selected' : ''; ?>>Student</option>
                       </select>
                       <button type="submit" class="btn-update" <?php echo $is_protected ? 'disabled' : ''; ?>>Update</button>
                     </form>
@@ -688,13 +418,53 @@ if ($stmt = $conn->prepare($sql)) {
           </tbody>
         </table>
       </div>
-
-      <div class="footer-note">* Protected accounts cannot be modified or deleted from this interface.</div>
+      <div style="margin-top:20px; color:#666; font-size:13px; font-style:italic;">* Protected accounts cannot be modified here.</div>
     </div>
   </div>
 </div>
 
+<div id="createUserModal" class="modal-overlay">
+  <div class="modal-box">
+    <div class="modal-header">
+      <h3 class="modal-title">Create New User</h3>
+      <button onclick="closeModal()" class="close-btn">&times;</button>
+    </div>
+    <form method="POST">
+      <div class="form-group">
+        <label class="form-label">Full Name</label>
+        <input type="text" name="new_fullname" class="form-control" required placeholder="e.g. Ahmad Technician">
+      </div>
+      <div class="form-group">
+        <label class="form-label">Email Address</label>
+        <input type="email" name="new_email" class="form-control" required placeholder="e.g. tech@utm.my">
+        <small style="color:#666; font-size:12px;">Activation link will be sent to this email.</small>
+      </div>
+      <div class="form-group">
+        <label class="form-label">Role</label>
+        <select name="new_role" class="form-control">
+            <option value="Admin">Admin</option>
+            <option value="Technician">Technician</option>
+        </select>
+      </div>
+      <div style="margin-top:24px; text-align:right;">
+        <button type="button" onclick="closeModal()" class="btn outline" style="margin-right:8px;">Cancel</button>
+        <button type="submit" name="create_user" class="btn primary">Create & Send Email</button>
+      </div>
+    </form>
+  </div>
+</div>
+
 <script>
+// Modal Logic
+function openModal() { document.getElementById('createUserModal').classList.add('active'); }
+function closeModal() { document.getElementById('createUserModal').classList.remove('active'); }
+
+// Click outside to close
+document.getElementById('createUserModal').addEventListener('click', function(e) {
+  if (e.target === this) closeModal();
+});
+
+// Existing Alerts fade out
 window.addEventListener('DOMContentLoaded', () => {
   const flash = document.getElementById('flashMsg');
   if (flash) {
@@ -710,13 +480,11 @@ function confirmRoleChange(form) {
   const select = form.querySelector('select[name="new_role"]');
   if (!select) return true;
   const newRole = select.value;
-  if (!confirm('Change role to "' + newRole + '"?')) return false;
-  return true;
+  return confirm('Change role to "' + newRole + '"?');
 }
 
 function confirmDelete(form) {
-  if (!confirm('WARNING: Are you sure you want to delete this user? This action cannot be undone.')) return false;
-  return true;
+  return confirm('WARNING: Are you sure you want to delete this user? This action cannot be undone.');
 }
 </script>
 
