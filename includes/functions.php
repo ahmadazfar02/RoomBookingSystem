@@ -228,4 +228,59 @@ if (!function_exists('update_password')) {
     }
 }
 
+if (!function_exists('send_activation_email')) {
+    function send_activation_email($to_email, $to_name, $username, $role, $activation_link) {
+        // Reuse the same includes/logic as send_reset_email
+        require_once __DIR__ . '/../includes/config.php';
+        require_once __DIR__ . '/../vendor/PHPMailer/src/Exception.php';
+        require_once __DIR__ . '/../vendor/PHPMailer/src/PHPMailer.php';
+        require_once __DIR__ . '/../vendor/PHPMailer/src/SMTP.php';
+
+        $mail = new PHPMailer\PHPMailer\PHPMailer(true);
+        try {
+            // SMTP Settings (Same as before)
+            $mail->isSMTP();
+            $mail->Host = MAIL_HOST;
+            $mail->SMTPAuth = true;
+            $mail->Username = MAIL_USERNAME;
+            $mail->Password = MAIL_PASSWORD;
+            $mail->SMTPSecure = (strtolower(MAIL_ENCRYPTION) === 'ssl') ? PHPMailer\PHPMailer\PHPMailer::ENCRYPTION_SMTPS : PHPMailer\PHPMailer\PHPMailer::ENCRYPTION_STARTTLS;
+            $mail->Port = MAIL_PORT;
+
+            $mail->setFrom(MAIL_FROM, MAIL_FROM_NAME);
+            $mail->addAddress($to_email, $to_name);
+            $mail->isHTML(true);
+            $mail->Subject = 'Activate Your Account - ' . MAIL_FROM_NAME;
+
+            // HTML Body for Welcome Email
+            $mail->Body = '
+            <!DOCTYPE html>
+            <html>
+            <body style="font-family: Arial, sans-serif; line-height: 1.6; color: #333; background-color: #f4f4f4; padding: 20px;">
+                <div style="max-width: 600px; margin: 0 auto; background: #fff; padding: 30px; border-radius: 8px;">
+                    <h2 style="color: #3f51b5; text-align: center;">Welcome to ' . MAIL_FROM_NAME . '</h2>
+                    <p>Hello <strong>' . htmlspecialchars($to_name) . '</strong>,</p>
+                    <p>An account has been created for you by the administrator.</p>
+                    <p style="background: #f9f9f9; padding: 15px; border-left: 4px solid #3f51b5;">
+                        <strong>Username:</strong> ' . htmlspecialchars($username) . '<br>
+                        <strong>Role:</strong> ' . htmlspecialchars($role) . '
+                    </p>
+                    <p>Please click the button below to set your password and activate your account:</p>
+                    <div style="text-align: center; margin: 30px 0;">
+                        <a href="' . htmlspecialchars($activation_link) . '" style="background-color: #3f51b5; color: white; padding: 12px 24px; text-decoration: none; border-radius: 5px; font-weight: bold;">Activate Account</a>
+                    </div>
+                    <p style="font-size: 12px; color: #666;">Link expires in 24 hours.<br>If the button does not work, paste this link: ' . htmlspecialchars($activation_link) . '</p>
+                </div>
+            </body>
+            </html>';
+
+            $mail->send();
+            return true;
+        } catch (Exception $e) {
+            error_log("Activation email error: " . $mail->ErrorInfo);
+            return false;
+        }
+    }
+}
+
 ?>
