@@ -169,6 +169,68 @@ body{
   cursor:pointer;
 }
 
+/* Time Period Selector */
+.period-section{
+  background:var(--gray-50);
+  border:2px solid var(--gray-200);
+  border-radius:10px;
+  padding:18px 20px;
+  margin-bottom:24px;
+}
+.period-title{
+  font-size:15px;
+  font-weight:700;
+  color:var(--gray-800);
+  margin-bottom:12px;
+  display:flex;
+  align-items:center;
+  gap:8px;
+}
+.period-title svg{
+  width:18px;
+  height:18px;
+  color:var(--primary);
+}
+.period-options{
+  display:flex;
+  flex-wrap:wrap;
+  gap:10px;
+}
+.period-option{
+  position:relative;
+}
+.period-option input[type="radio"]{
+  position:absolute;
+  opacity:0;
+  pointer-events:none;
+}
+.period-option label{
+  display:inline-block;
+  padding:10px 18px;
+  background:white;
+  border:2px solid var(--gray-200);
+  border-radius:8px;
+  font-size:13px;
+  font-weight:500;
+  color:var(--gray-700);
+  cursor:pointer;
+  transition:all 0.2s;
+}
+.period-option label:hover{
+  border-color:var(--primary);
+  color:var(--primary);
+}
+.period-option input[type="radio"]:checked + label{
+  background:var(--primary);
+  border-color:var(--primary);
+  color:white;
+}
+.period-hint{
+  font-size:12px;
+  color:var(--gray-600);
+  margin-top:10px;
+}
+
 /* Popup */
 .popup-overlay{
   position:fixed;
@@ -235,7 +297,36 @@ body{
 
   <div class="card">
     <div class="card-title">Generate Reports</div>
-    <p>Select report(s) and choose the file format(s).</p>
+    <p>Select a data collection period, report(s) and file format(s).</p>
+
+    <!-- Time Period Selector -->
+    <div class="period-section">
+      <div class="period-title">
+        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor">
+          <path stroke-linecap="round" stroke-linejoin="round" d="M6.75 3v2.25M17.25 3v2.25M3 18.75V7.5a2.25 2.25 0 012.25-2.25h13.5A2.25 2.25 0 0121 7.5v11.25m-18 0A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75m-18 0v-7.5A2.25 2.25 0 015.25 9h13.5A2.25 2.25 0 0121 11.25v7.5" />
+        </svg>
+        Select Data Collection Period
+      </div>
+      <div class="period-options">
+        <div class="period-option">
+          <input type="radio" name="period" id="period7" value="7days">
+          <label for="period7">Last 7 Days</label>
+        </div>
+        <div class="period-option">
+          <input type="radio" name="period" id="period30" value="30days">
+          <label for="period30">Last 30 Days</label>
+        </div>
+        <div class="period-option">
+          <input type="radio" name="period" id="period6m" value="6months">
+          <label for="period6m">Last 6 Months</label>
+        </div>
+        <div class="period-option">
+          <input type="radio" name="period" id="period12m" value="12months">
+          <label for="period12m">Last 12 Months</label>
+        </div>
+      </div>
+      <div class="period-hint">* Reports will only include data from the selected time period.</div>
+    </div>
 
     <!-- Booking -->
     <div class="report-block">
@@ -304,6 +395,14 @@ document.querySelectorAll('.report-check').forEach(ch => {
 });
 
 document.getElementById("downloadBtn").onclick = () => {
+  // Validate time period selection
+  const selectedPeriod = document.querySelector('input[name="period"]:checked');
+  if (!selectedPeriod) {
+    alert("Please select a data collection period before generating reports.");
+    return;
+  }
+  const period = selectedPeriod.value;
+
   const map = { r1:"booking", r2:"room", r3:"user", r4:"adminlog" };
   let downloads = [];
 
@@ -319,7 +418,7 @@ document.getElementById("downloadBtn").onclick = () => {
 
     formats.forEach(fmt=>{
       downloads.push({
-        url: `../api/generate_reports_action.php?report=${code}&format=${fmt}`
+        url: `../api/generate_reports_action.php?report=${code}&format=${fmt}&period=${period}`
       });
     });
   });
