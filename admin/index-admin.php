@@ -49,20 +49,72 @@ if ($stmt) {
     $stmt->close();
 }
 
-// recent notifications (latest 5 bookings)
-$notifications = [];
+// --- NEW: Activity Summary Data ---
+// Bookings this week
+$bookings_this_week = 0;
+$stmt = $conn->prepare("SELECT COUNT(*) FROM bookings WHERE YEARWEEK(slot_date, 1) = YEARWEEK(CURDATE(), 1)");
+if ($stmt) {
+    $stmt->execute();
+    $stmt->bind_result($cnt_week);
+    $stmt->fetch();
+    $bookings_this_week = intval($cnt_week);
+    $stmt->close();
+}
+
+// Most popular room this week
+$popular_room = ['name' => 'N/A', 'count' => 0];
 $stmt = $conn->prepare("
-    SELECT b.id, r.name AS room_name, u.username AS requester, b.slot_date, b.time_start, b.time_end, b.status
+    SELECT r.name, COUNT(*) as booking_count
     FROM bookings b
     JOIN rooms r ON b.room_id = r.room_id
-    JOIN users u ON b.user_id = u.id
-    ORDER BY b.slot_date DESC, b.time_start DESC
-    LIMIT 5
+    WHERE YEARWEEK(b.slot_date, 1) = YEARWEEK(CURDATE(), 1)
+    GROUP BY r.room_id
+    ORDER BY booking_count DESC
+    LIMIT 1
 ");
 if ($stmt) {
     $stmt->execute();
     $res = $stmt->get_result();
-    while ($n = $res->fetch_assoc()) $notifications[] = $n;
+    if ($row = $res->fetch_assoc()) {
+        $popular_room = ['name' => $row['name'], 'count' => intval($row['booking_count'])];
+    }
+    $stmt->close();
+}
+
+// Recent cancellations (last 3)
+$recent_cancellations = [];
+$stmt = $conn->prepare("
+    SELECT r.name AS room_name, u.username, b.slot_date
+    FROM bookings b
+    JOIN rooms r ON b.room_id = r.room_id
+    JOIN users u ON b.user_id = u.id
+    WHERE b.status = 'cancelled'
+    ORDER BY b.updated_at DESC
+    LIMIT 3
+");
+if ($stmt) {
+    $stmt->execute();
+    $res = $stmt->get_result();
+    while ($row = $res->fetch_assoc()) $recent_cancellations[] = $row;
+    $stmt->close();
+}
+
+// Upcoming bookings (next 7 days)
+$upcoming_bookings = [];
+$stmt = $conn->prepare("
+    SELECT r.name AS room_name, u.username, b.slot_date, b.time_start
+    FROM bookings b
+    JOIN rooms r ON b.room_id = r.room_id
+    JOIN users u ON b.user_id = u.id
+    WHERE b.slot_date BETWEEN CURDATE() AND DATE_ADD(CURDATE(), INTERVAL 7 DAY)
+    AND b.status = 'booked'
+    ORDER BY b.slot_date ASC, b.time_start ASC
+    LIMIT 3
+");
+if ($stmt) {
+    $stmt->execute();
+    $res = $stmt->get_result();
+    while ($row = $res->fetch_assoc()) $upcoming_bookings[] = $row;
     $stmt->close();
 }
 
@@ -99,6 +151,7 @@ if ($stmt) {
   --accent: #6e0b0b;
   --success: #059669;
   --danger: #dc2626;
+  --warning: #f59e0b;
   --gray-50: #f9fafb;
   --gray-100: #f3f4f6;
   --gray-200: #e5e7eb;
@@ -157,9 +210,7 @@ body{
     padding: 20px;
     box-shadow: var(--shadow-lg);
     z-index: 100;
-    flex-shrink: 0; /* Prevent sidebar from shrinking */
-    
-    /* Sticky Magic */
+    flex-shrink: 0;
     position: sticky;
     top: 100px; 
 }
@@ -208,9 +259,8 @@ body{
     font-weight: 600;
   }
 
-    /* Sidebar Profile Styles */
   .sidebar-profile {
-    margin-top: auto; /* Pushes to bottom */
+    margin-top: auto;
     padding-top: 20px;
     border-top: 1px solid var(--gray-200);
     display: flex;
@@ -218,7 +268,7 @@ body{
     gap: 12px;
   }
 
-    .profile-icon {
+  .profile-icon {
      width: 36px; 
      height: 36px; 
      background: var(--primary-light); 
@@ -253,16 +303,59 @@ body{
 .stat-card h4 { margin:0 0 8px 0; font-size:13px; color:var(--gray-600); font-weight:700; }
 .stat-card .value { font-size:2rem; font-weight:800; color:var(--gray-800); margin-top:6px; }
 
-/* notifications + table layout */
+/* activity summary + table layout */
 .row { display:flex; gap:16px; }
 @media (max-width:1000px){ .row { flex-direction:column; } }
 
 .card { background:#fff; border-radius:12px; padding:16px; box-shadow:var(--shadow-sm); }
 
-/* notifications */
-.notifications { flex:1; max-width:420px; }
-.notifications .item { padding:10px 0; border-bottom:1px dashed #eee; font-size:13px; color:var(--gray-700); }
-.notifications .meta { font-size:12px; color:var(--gray-500); margin-top:6px; }
+/* NEW: Activity Summary Styles */
+.activity-summary { flex:1; max-width:420px; }
+.activity-section { margin-bottom: 20px; padding-bottom: 16px; border-bottom: 1px solid var(--gray-200); }
+.activity-section:last-child { border-bottom: none; margin-bottom: 0; }
+.activity-section h5 { margin: 0 0 10px 0; font-size: 13px; font-weight: 700; color: var(--gray-700); text-transform: uppercase; letter-spacing: 0.5px; }
+
+.activity-highlight {
+  background: linear-gradient(135deg, var(--primary-light), #e0e7ff);
+  padding: 12px 16px;
+  border-radius: 8px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 8px;
+}
+.activity-highlight .label { font-size: 12px; color: var(--gray-600); font-weight: 600; }
+.activity-highlight .value { font-size: 24px; font-weight: 800; color: var(--primary); }
+
+.activity-item {
+  padding: 8px 0;
+  font-size: 13px;
+  color: var(--gray-700);
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  border-bottom: 1px dashed #eee;
+}
+.activity-item:last-child { border-bottom: none; }
+.activity-item .icon {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  margin-right: 8px;
+  display: inline-block;
+}
+.activity-item .icon.success { background: var(--success); }
+.activity-item .icon.warning { background: var(--warning); }
+.activity-item .icon.danger { background: var(--danger); }
+.activity-date { font-size: 11px; color: var(--gray-500); }
+
+.empty-state { 
+  text-align: center; 
+  padding: 16px; 
+  color: var(--gray-500); 
+  font-size: 13px;
+  font-style: italic;
+}
 
 /* requests table */
 .table-wrap { overflow:auto; border-radius:8px; border:1px solid var(--gray-200); background:#fff; }
@@ -273,7 +366,7 @@ body{
 .status.pending { background:linear-gradient(135deg,#fff7ed,#fff1c2); color:#92400e; }
 .status.booked { background:linear-gradient(135deg,#ecfdf5,#dcfce7); color:var(--success); }
 .status.approve { background:linear-gradient(135deg,#dbeafe,#cfe0ff); color:var(--primary); }
-.status.cancel { background:linear-gradient(135deg,#fff1f2,#fee2e2); color:var(--danger); }
+.status.cancel, .status.cancelled { background:linear-gradient(135deg,#fff1f2,#fee2e2); color:var(--danger); }
 
 /* small helpers */
 .link-secondary { color:var(--accent); text-decoration:none; font-weight:700; }
@@ -354,21 +447,73 @@ body{
     </div>
 
     <div class="row" style="margin-bottom:16px">
-      <div class="card notifications">
-        <h4 style="margin:0 0 12px 0">Notifications</h4>
-        <?php if (count($notifications) === 0): ?>
-          <div class="item">No recent notifications.</div>
-        <?php else: ?>
-          <?php foreach ($notifications as $n): ?>
-            <div class="item">
-              <strong><?php echo htmlspecialchars($n['room_name']); ?></strong> reserved by <strong><?php echo htmlspecialchars($n['requester']); ?></strong>
-              <div class="meta"><?php echo date('d M Y', strtotime($n['slot_date'])); ?> — <?php echo htmlspecialchars($n['time_start'] . ' - ' . $n['time_end']); ?> • <span class="status <?php echo htmlspecialchars($n['status']); ?>"><?php echo ucfirst(htmlspecialchars($n['status'])); ?></span></div>
+      <!-- NEW: Activity Summary Section -->
+      <div class="card activity-summary">
+        <h4 style="margin:0 0 16px 0">Activity Summary</h4>
+        
+        <!-- Bookings This Week -->
+        <div class="activity-section">
+          <div class="activity-highlight">
+            <div class="label">Bookings This Week</div>
+            <div class="value"><?php echo number_format($bookings_this_week); ?></div>
+          </div>
+        </div>
+
+        <!-- Most Popular Room -->
+        <div class="activity-section">
+          <h5>🔥 Most Popular Room</h5>
+          <?php if ($popular_room['count'] > 0): ?>
+            <div style="background: var(--gray-50); padding: 10px; border-radius: 6px; font-size: 13px;">
+              <strong><?php echo htmlspecialchars($popular_room['name']); ?></strong>
+              <div style="color: var(--gray-600); font-size: 12px; margin-top: 4px;">
+                <?php echo $popular_room['count']; ?> booking<?php echo $popular_room['count'] !== 1 ? 's' : ''; ?> this week
+              </div>
             </div>
-          <?php endforeach; ?>
-        <?php endif; ?>
-        <div style="margin-top:12px"><a class="link-secondary" href="reservation_request.php">View all requests →</a></div>
+          <?php else: ?>
+            <div class="empty-state">No bookings this week</div>
+          <?php endif; ?>
+        </div>
+
+        <!-- Upcoming Bookings -->
+        <div class="activity-section">
+          <h5>📅 Upcoming (Next 7 Days)</h5>
+          <?php if (count($upcoming_bookings) > 0): ?>
+            <?php foreach ($upcoming_bookings as $ub): ?>
+              <div class="activity-item">
+                <div>
+                  <span class="icon success"></span>
+                  <strong><?php echo htmlspecialchars($ub['room_name']); ?></strong> — <?php echo htmlspecialchars($ub['username']); ?>
+                </div>
+                <span class="activity-date"><?php echo date('M d', strtotime($ub['slot_date'])); ?> • <?php echo htmlspecialchars($ub['time_start']); ?></span>
+              </div>
+            <?php endforeach; ?>
+          <?php else: ?>
+            <div class="empty-state">No upcoming bookings</div>
+          <?php endif; ?>
+        </div>
+
+        <!-- Recent Cancellations -->
+        <div class="activity-section">
+          <h5>❌ Recent Cancellations</h5>
+          <?php if (count($recent_cancellations) > 0): ?>
+            <?php foreach ($recent_cancellations as $rc): ?>
+              <div class="activity-item">
+                <div>
+                  <span class="icon danger"></span>
+                  <strong><?php echo htmlspecialchars($rc['room_name']); ?></strong> by <?php echo htmlspecialchars($rc['username']); ?>
+                </div>
+                <span class="activity-date"><?php echo date('M d', strtotime($rc['slot_date'])); ?></span>
+              </div>
+            <?php endforeach; ?>
+          <?php else: ?>
+            <div class="empty-state">No recent cancellations</div>
+          <?php endif; ?>
+        </div>
+
+        <div style="margin-top:12px"><a class="link-secondary" href="generate_reports.php">View detailed reports →</a></div>
       </div>
 
+      <!-- Recent Booking Requests Table -->
       <div class="card" style="flex:1">
         <h4 style="margin:0 0 12px 0">Recent Booking Requests</h4>
         <div class="table-wrap">
@@ -403,6 +548,7 @@ body{
             </tbody>
           </table>
         </div>
+        <div style="margin-top:12px"><a class="link-secondary" href="reservation_request.php">View all requests →</a></div>
       </div>
     </div>
 
@@ -410,7 +556,6 @@ body{
 </div>
 
 <script>
-// small auto-hide for any flash message you might add later
 document.addEventListener('DOMContentLoaded', () => {
   const flash = document.querySelector('.alert-success, .alert-error');
   if (flash) setTimeout(()=> flash.remove(), 3500);
