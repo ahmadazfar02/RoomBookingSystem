@@ -23,6 +23,7 @@ if (!isset($_SESSION['loggedin']) || strcasecmp($_SESSION['User_Type'], 'Admin')
 
 $report = $_GET['report'] ?? '';
 $format = $_GET['format'] ?? '';
+$period = $_GET['period'] ?? '';
 
 // Validate format (ppt = PowerPoint HTML format)
 $allowedFormats = ['pdf', 'excel', 'ppt'];
@@ -36,6 +37,51 @@ if (!in_array($report, $allowedReports)) {
     exit("Invalid Report Type. Allowed: adminlog, booking, room, user");
 }
 
+// Validate and process time period
+$allowedPeriods = ['7days', '30days', '6months', '12months'];
+if (!in_array($period, $allowedPeriods)) {
+    exit("Invalid Time Period. Please select a valid data collection period.");
+}
+
+// Calculate date range based on selected period
+$periodLabels = [
+    '7days' => 'Last 7 Days',
+    '30days' => 'Last 30 Days',
+    '6months' => 'Last 6 Months',
+    '12months' => 'Last 12 Months'
+];
+$periodFileNames = [
+    '7days' => 'Last_7_Days',
+    '30days' => 'Last_30_Days',
+    '6months' => 'Last_6_Months',
+    '12months' => 'Last_12_Months'
+];
+
+$periodLabel = $periodLabels[$period];
+$periodFileName = $periodFileNames[$period];
+
+// Calculate start date based on period
+$endDate = date('Y-m-d');
+switch ($period) {
+    case '7days':
+        $startDate = date('Y-m-d', strtotime('-7 days'));
+        break;
+    case '30days':
+        $startDate = date('Y-m-d', strtotime('-30 days'));
+        break;
+    case '6months':
+        $startDate = date('Y-m-d', strtotime('-6 months'));
+        break;
+    case '12months':
+        $startDate = date('Y-m-d', strtotime('-12 months'));
+        break;
+}
+
+// Format dates for display
+$startDateFormatted = date('d M Y', strtotime($startDate));
+$endDateFormatted = date('d M Y', strtotime($endDate));
+$dateRangeDisplay = "Data from: $startDateFormatted – $endDateFormatted";
+
 // Include FPDF for PDF generation
 require_once(__DIR__ . '/../libs/fpdf/fpdf.php');
 
@@ -44,6 +90,8 @@ require_once(__DIR__ . '/../libs/fpdf/fpdf.php');
    ===================================================================== */
 class ReportPDF extends FPDF {
     public $reportTitle = 'Report';
+    public $periodLabel = '';
+    public $dateRange = '';
     public $headers = [];
     public $colWidths = [];
     
@@ -53,6 +101,17 @@ class ReportPDF extends FPDF {
         $this->Cell(0, 10, $this->reportTitle, 0, 1, 'C');
         $this->SetFont('Arial', '', 10);
         $this->Cell(0, 6, "Generated: " . date('Y-m-d H:i:s'), 0, 1, 'C');
+        
+        // Add period info
+        if (!empty($this->periodLabel)) {
+            $this->SetFont('Arial', 'B', 10);
+            $this->SetTextColor(37, 99, 235); // Primary blue
+            $this->Cell(0, 6, "Report Period: " . $this->periodLabel, 0, 1, 'C');
+            $this->SetFont('Arial', '', 9);
+            $this->SetTextColor(100, 100, 100);
+            $this->Cell(0, 5, $this->dateRange, 0, 1, 'C');
+            $this->SetTextColor(0, 0, 0);
+        }
         $this->Ln(5);
         
         // Table header
@@ -72,7 +131,8 @@ class ReportPDF extends FPDF {
     function Footer() {
         $this->SetY(-15);
         $this->SetFont('Arial', 'I', 8);
-        $this->Cell(0, 10, "Page " . $this->PageNo() . " | " . $this->reportTitle . " | Room Reservation System", 0, 0, 'C');
+        $periodInfo = !empty($this->periodLabel) ? " | " . $this->periodLabel : "";
+        $this->Cell(0, 10, "Page " . $this->PageNo() . " | " . $this->reportTitle . $periodInfo . " | Room Reservation System", 0, 0, 'C');
     }
     
     // Helper to calculate row height for multi-line cells
@@ -124,16 +184,38 @@ function exportToCSV($filename, $headers, $data) {
 }
 
 /* =====================================================================
-   HELPER: Export data to real PowerPoint .pptx format
+   HELPER: Export data to real PowerPoint .pptx format with PIE CHARTS
    PPTX is a ZIP file containing XML files - we build it manually
    ===================================================================== */
 function exportToPPT($filename, $title, $slides) {
-    // Create temp file for the ZIP
-    $tempFile = tempnam(sys_get_temp_dir(), 'pptx');
+    // Clear any previous output
+    if (ob_get_level()) {
+        ob_end_clean();
+    }
+    
+    // Create temp file for the ZIP with unique name
+    $tempDir = sys_get_temp_dir();
+    $tempFile = $tempDir . DIRECTORY_SEPARATOR . 'pptx_' . uniqid() . '.zip';
+    
+    // Ensure temp directory exists and is writable
+    if (!is_writable($tempDir)) {
+        exit("Error: Temp directory is not writable");
+    }
     
     $zip = new ZipArchive();
-    if ($zip->open($tempFile, ZipArchive::CREATE | ZipArchive::OVERWRITE) !== true) {
-        exit("Cannot create PowerPoint file");
+    $result = $zip->open($tempFile, ZipArchive::CREATE | ZipArchive::OVERWRITE);
+    if ($result !== true) {
+        exit("Cannot create PowerPoint file. Error code: " . $result);
+    }
+    
+    // Count slides with charts (pie_chart data)
+    $chartCount = 0;
+    $slideChartMap = []; // Maps slide number to chart number
+    foreach ($slides as $idx => $slide) {
+        if (isset($slide['pie_chart']) && !empty($slide['pie_chart'])) {
+            $chartCount++;
+            $slideChartMap[$idx + 1] = $chartCount;
+        }
     }
     
     // [Content_Types].xml
@@ -149,6 +231,12 @@ function exportToPPT($filename, $title, $slides) {
     for ($i = 1; $i <= count($slides); $i++) {
         $contentTypes .= '
     <Override PartName="/ppt/slides/slide' . $i . '.xml" ContentType="application/vnd.openxmlformats-officedocument.presentationml.slide+xml"/>';
+    }
+    
+    // Add chart content types
+    for ($i = 1; $i <= $chartCount; $i++) {
+        $contentTypes .= '
+    <Override PartName="/ppt/charts/chart' . $i . '.xml" ContentType="application/vnd.openxmlformats-officedocument.drawingml.chart+xml"/>';
     }
     
     $contentTypes .= '
@@ -223,11 +311,11 @@ function exportToPPT($filename, $title, $slides) {
             <a:lt1><a:sysClr val="window" lastClr="FFFFFF"/></a:lt1>
             <a:dk2><a:srgbClr val="44546A"/></a:dk2>
             <a:lt2><a:srgbClr val="E7E6E6"/></a:lt2>
-            <a:accent1><a:srgbClr val="5B9BD5"/></a:accent1>
+            <a:accent1><a:srgbClr val="4472C4"/></a:accent1>
             <a:accent2><a:srgbClr val="ED7D31"/></a:accent2>
             <a:accent3><a:srgbClr val="A5A5A5"/></a:accent3>
             <a:accent4><a:srgbClr val="FFC000"/></a:accent4>
-            <a:accent5><a:srgbClr val="4472C4"/></a:accent5>
+            <a:accent5><a:srgbClr val="5B9BD5"/></a:accent5>
             <a:accent6><a:srgbClr val="70AD47"/></a:accent6>
             <a:hlink><a:srgbClr val="0563C1"/></a:hlink>
             <a:folHlink><a:srgbClr val="954F72"/></a:folHlink>
@@ -301,40 +389,294 @@ function exportToPPT($filename, $title, $slides) {
 </Relationships>';
     $zip->addFromString('ppt/slideLayouts/_rels/slideLayout1.xml.rels', $slRels);
     
-    // Generate each slide
+    // Generate each slide and charts
     $slideNum = 1;
     foreach ($slides as $slide) {
-        $slideXml = generateSlideXml($slide, $slideNum, count($slides));
+        $hasChart = isset($slide['pie_chart']) && !empty($slide['pie_chart']);
+        $chartNum = $hasChart ? $slideChartMap[$slideNum] : 0;
+        
+        $slideXml = generateSlideXml($slide, $slideNum, count($slides), $hasChart, $chartNum);
         $zip->addFromString('ppt/slides/slide' . $slideNum . '.xml', $slideXml);
         
-        // Slide rels
+        // Slide rels - include chart reference if this slide has a chart
         $slideRels = '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
 <Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
-    <Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/slideLayout" Target="../slideLayouts/slideLayout1.xml"/>
+    <Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/slideLayout" Target="../slideLayouts/slideLayout1.xml"/>';
+        
+        if ($hasChart) {
+            $slideRels .= '
+    <Relationship Id="rId2" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/chart" Target="../charts/chart' . $chartNum . '.xml"/>';
+            
+            // Generate chart XML
+            $chartXml = generatePieChartXml($slide['pie_chart'], $slide['title'] ?? 'Chart');
+            $zip->addFromString('ppt/charts/chart' . $chartNum . '.xml', $chartXml);
+        }
+        
+        $slideRels .= '
 </Relationships>';
         $zip->addFromString('ppt/slides/_rels/slide' . $slideNum . '.xml.rels', $slideRels);
         
         $slideNum++;
     }
     
-    $zip->close();
+    // Close the ZIP archive properly
+    $closeResult = $zip->close();
+    if ($closeResult !== true) {
+        exit("Error closing ZIP file");
+    }
+    
+    // Verify the file exists and has content
+    if (!file_exists($tempFile) || filesize($tempFile) === 0) {
+        exit("Error: Generated file is empty or does not exist");
+    }
     
     // Output the file
     $pptxFilename = str_replace('.ppt', '.pptx', $filename);
+    if (substr($pptxFilename, -5) !== '.pptx') {
+        $pptxFilename .= '.pptx';
+    }
+    
     header('Content-Type: application/vnd.openxmlformats-officedocument.presentationml.presentation');
     header('Content-Disposition: attachment; filename="' . $pptxFilename . '"');
     header('Content-Length: ' . filesize($tempFile));
-    header('Cache-Control: max-age=0');
+    header('Cache-Control: no-cache, no-store, must-revalidate');
+    header('Pragma: no-cache');
+    header('Expires: 0');
     
+    // Read and output the file
     readfile($tempFile);
-    unlink($tempFile);
+    
+    // Clean up temp file
+    @unlink($tempFile);
     exit;
 }
 
 /* =====================================================================
-   HELPER: Generate XML for a single slide
+   HELPER: Generate Pie Chart XML with proper styling
    ===================================================================== */
-function generateSlideXml($slide, $slideNum, $totalSlides) {
+function generatePieChartXml($chartData, $chartTitle) {
+    // $chartData should be an associative array: ['Label' => value, ...]
+    $labels = array_keys($chartData);
+    $values = array_values($chartData);
+    $total = array_sum($values);
+    
+    // Vibrant colors for pie slices
+    $colors = ['4472C4', 'ED7D31', 'FFC000', '70AD47', '5B9BD5', '7030A0', 'C00000', '00B0F0', '00B050', 'FF6600'];
+    
+    $xml = '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<c:chartSpace xmlns:c="http://schemas.openxmlformats.org/drawingml/2006/chart" xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships">
+    <c:date1904 val="0"/>
+    <c:lang val="en-US"/>
+    <c:roundedCorners val="1"/>
+    <c:style val="2"/>
+    <c:chart>
+        <c:title>
+            <c:tx>
+                <c:rich>
+                    <a:bodyPr rot="0" spcFirstLastPara="1" vertOverflow="ellipsis" vert="horz" wrap="square" anchor="ctr" anchorCtr="1"/>
+                    <a:lstStyle/>
+                    <a:p>
+                        <a:pPr>
+                            <a:defRPr sz="2000" b="1" i="0" u="none" strike="noStrike" kern="1200" baseline="0">
+                                <a:solidFill><a:srgbClr val="333333"/></a:solidFill>
+                                <a:latin typeface="Calibri"/>
+                            </a:defRPr>
+                        </a:pPr>
+                        <a:r>
+                            <a:rPr lang="en-US" sz="2000" b="1">
+                                <a:solidFill><a:srgbClr val="333333"/></a:solidFill>
+                            </a:rPr>
+                            <a:t>' . htmlspecialchars($chartTitle) . '</a:t>
+                        </a:r>
+                    </a:p>
+                </c:rich>
+            </c:tx>
+            <c:layout/>
+            <c:overlay val="0"/>
+        </c:title>
+        <c:autoTitleDeleted val="0"/>
+        <c:plotArea>
+            <c:layout>
+                <c:manualLayout>
+                    <c:layoutTarget val="inner"/>
+                    <c:xMode val="edge"/>
+                    <c:yMode val="edge"/>
+                    <c:x val="0.05"/>
+                    <c:y val="0.15"/>
+                    <c:w val="0.6"/>
+                    <c:h val="0.75"/>
+                </c:manualLayout>
+            </c:layout>
+            <c:pieChart>
+                <c:varyColors val="1"/>
+                <c:ser>
+                    <c:idx val="0"/>
+                    <c:order val="0"/>
+                    <c:tx>
+                        <c:v>Data</c:v>
+                    </c:tx>
+                    <c:explosion val="3"/>';
+    
+    // Data point colors with explosion effect
+    foreach ($values as $idx => $val) {
+        $colorIdx = $idx % count($colors);
+        $xml .= '
+                    <c:dPt>
+                        <c:idx val="' . $idx . '"/>
+                        <c:bubble3D val="0"/>
+                        <c:spPr>
+                            <a:solidFill>
+                                <a:srgbClr val="' . $colors[$colorIdx] . '"/>
+                            </a:solidFill>
+                            <a:ln w="19050">
+                                <a:solidFill><a:srgbClr val="FFFFFF"/></a:solidFill>
+                            </a:ln>
+                            <a:effectLst>
+                                <a:outerShdw blurRad="40000" dist="23000" dir="5400000" rotWithShape="0">
+                                    <a:srgbClr val="000000"><a:alpha val="35000"/></a:srgbClr>
+                                </a:outerShdw>
+                            </a:effectLst>
+                        </c:spPr>
+                    </c:dPt>';
+    }
+    
+    // Data labels showing category name, value and percentage
+    $xml .= '
+                    <c:dLbls>
+                        <c:spPr>
+                            <a:noFill/>
+                            <a:ln><a:noFill/></a:ln>
+                            <a:effectLst/>
+                        </c:spPr>
+                        <c:txPr>
+                            <a:bodyPr rot="0" spcFirstLastPara="1" vertOverflow="ellipsis" vert="horz" wrap="square" anchor="ctr" anchorCtr="1"/>
+                            <a:lstStyle/>
+                            <a:p>
+                                <a:pPr>
+                                    <a:defRPr sz="1100" b="1" i="0" u="none" strike="noStrike" kern="1200" baseline="0">
+                                        <a:solidFill><a:srgbClr val="333333"/></a:solidFill>
+                                        <a:latin typeface="Calibri"/>
+                                    </a:defRPr>
+                                </a:pPr>
+                                <a:endParaRPr lang="en-US"/>
+                            </a:p>
+                        </c:txPr>
+                        <c:showLegendKey val="0"/>
+                        <c:showVal val="1"/>
+                        <c:showCatName val="1"/>
+                        <c:showSerName val="0"/>
+                        <c:showPercent val="1"/>
+                        <c:showBubbleSize val="0"/>
+                        <c:separator>
+</c:separator>
+                        <c:showLeaderLines val="1"/>
+                        <c:leaderLines>
+                            <c:spPr>
+                                <a:ln w="9525">
+                                    <a:solidFill><a:srgbClr val="666666"/></a:solidFill>
+                                </a:ln>
+                            </c:spPr>
+                        </c:leaderLines>
+                    </c:dLbls>
+                    <c:cat>
+                        <c:strRef>
+                            <c:f>Sheet1!$A$1:$A$' . count($labels) . '</c:f>
+                            <c:strCache>
+                                <c:ptCount val="' . count($labels) . '"/>';
+    
+    foreach ($labels as $idx => $label) {
+        $xml .= '
+                                <c:pt idx="' . $idx . '">
+                                    <c:v>' . htmlspecialchars($label) . '</c:v>
+                                </c:pt>';
+    }
+    
+    $xml .= '
+                            </c:strCache>
+                        </c:strRef>
+                    </c:cat>
+                    <c:val>
+                        <c:numRef>
+                            <c:f>Sheet1!$B$1:$B$' . count($values) . '</c:f>
+                            <c:numCache>
+                                <c:formatCode>General</c:formatCode>
+                                <c:ptCount val="' . count($values) . '"/>';
+    
+    foreach ($values as $idx => $value) {
+        $xml .= '
+                                <c:pt idx="' . $idx . '">
+                                    <c:v>' . $value . '</c:v>
+                                </c:pt>';
+    }
+    
+    $xml .= '
+                            </c:numCache>
+                        </c:numRef>
+                    </c:val>
+                </c:ser>
+                <c:firstSliceAng val="0"/>
+            </c:pieChart>
+            <c:spPr>
+                <a:noFill/>
+                <a:ln><a:noFill/></a:ln>
+            </c:spPr>
+        </c:plotArea>
+        <c:legend>
+            <c:legendPos val="r"/>
+            <c:layout>
+                <c:manualLayout>
+                    <c:xMode val="edge"/>
+                    <c:yMode val="edge"/>
+                    <c:x val="0.7"/>
+                    <c:y val="0.25"/>
+                    <c:w val="0.28"/>
+                    <c:h val="0.5"/>
+                </c:manualLayout>
+            </c:layout>
+            <c:overlay val="0"/>
+            <c:spPr>
+                <a:noFill/>
+                <a:ln><a:noFill/></a:ln>
+            </c:spPr>
+            <c:txPr>
+                <a:bodyPr rot="0" spcFirstLastPara="1" vertOverflow="ellipsis" vert="horz" wrap="square" anchor="ctr" anchorCtr="1"/>
+                <a:lstStyle/>
+                <a:p>
+                    <a:pPr>
+                        <a:defRPr sz="1200" b="0" i="0" u="none" strike="noStrike" kern="1200" baseline="0">
+                            <a:solidFill><a:srgbClr val="333333"/></a:solidFill>
+                            <a:latin typeface="Calibri"/>
+                        </a:defRPr>
+                    </a:pPr>
+                    <a:endParaRPr lang="en-US"/>
+                </a:p>
+            </c:txPr>
+        </c:legend>
+        <c:plotVisOnly val="1"/>
+        <c:dispBlanksAs val="gap"/>
+    </c:chart>
+    <c:spPr>
+        <a:solidFill><a:srgbClr val="FFFFFF"/></a:solidFill>
+        <a:ln w="12700" cap="flat" cmpd="sng" algn="ctr">
+            <a:solidFill><a:srgbClr val="CCCCCC"/></a:solidFill>
+            <a:prstDash val="solid"/>
+            <a:round/>
+        </a:ln>
+        <a:effectLst>
+            <a:outerShdw blurRad="50800" dist="38100" dir="2700000" algn="tl" rotWithShape="0">
+                <a:srgbClr val="000000"><a:alpha val="23000"/></a:srgbClr>
+            </a:outerShdw>
+        </a:effectLst>
+    </c:spPr>
+</c:chartSpace>';
+    
+    return $xml;
+}
+
+/* =====================================================================
+   HELPER: Generate XML for a single slide (with optional pie chart support)
+   ===================================================================== */
+function generateSlideXml($slide, $slideNum, $totalSlides, $hasChart = false, $chartNum = 0) {
     $isTitleSlide = isset($slide['title_slide']) && $slide['title_slide'];
     
     // Colors for different slides
@@ -342,7 +684,7 @@ function generateSlideXml($slide, $slideNum, $totalSlides) {
     $bgColor = $colors[($slideNum - 1) % count($colors)];
     
     $xml = '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
-<p:sld xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main" xmlns:p="http://schemas.openxmlformats.org/presentationml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships">
+<p:sld xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main" xmlns:p="http://schemas.openxmlformats.org/presentationml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships" xmlns:c="http://schemas.openxmlformats.org/drawingml/2006/chart">
     <p:cSld>
         <p:bg>
             <p:bgPr>
@@ -357,6 +699,11 @@ function generateSlideXml($slide, $slideNum, $totalSlides) {
     // Title text box
     $titleY = $isTitleSlide ? '2500000' : '300000';
     $titleSize = $isTitleSlide ? '4400' : '3200';
+    
+    // Adjust title position if chart exists
+    if ($hasChart && !$isTitleSlide) {
+        $titleY = '200000';
+    }
     
     $xml .= '
             <p:sp>
@@ -375,7 +722,7 @@ function generateSlideXml($slide, $slideNum, $totalSlides) {
                                 <a:solidFill><a:srgbClr val="FFFFFF"/></a:solidFill>
                                 <a:latin typeface="Calibri Light"/>
                             </a:rPr>
-                            <a:t>' . htmlspecialchars($slide['title']) . '</a:t>
+                            <a:t>' . htmlspecialchars($slide['title'] ?? 'Slide') . '</a:t>
                         </a:r>
                     </a:p>
                 </p:txBody>
@@ -407,8 +754,56 @@ function generateSlideXml($slide, $slideNum, $totalSlides) {
             </p:sp>';
     }
     
-    // Statistics (if exists)
-    if (isset($slide['stats'])) {
+    // Pie Chart (if exists)
+    if ($hasChart && $chartNum > 0) {
+        // Add white rounded rectangle background for the chart
+        $xml .= '
+            <p:sp>
+                <p:nvSpPr><p:cNvPr id="49" name="ChartBg"/><p:cNvSpPr/><p:nvPr/></p:nvSpPr>
+                <p:spPr>
+                    <a:xfrm><a:off x="400000" y="900000"/><a:ext cx="8300000" cy="5600000"/></a:xfrm>
+                    <a:prstGeom prst="roundRect"><a:avLst><a:gd name="adj" fmla="val 5000"/></a:avLst></a:prstGeom>
+                    <a:solidFill><a:srgbClr val="FFFFFF"/></a:solidFill>
+                    <a:ln w="12700">
+                        <a:solidFill><a:srgbClr val="DDDDDD"/></a:solidFill>
+                    </a:ln>
+                    <a:effectLst>
+                        <a:outerShdw blurRad="50800" dist="38100" dir="2700000" algn="tl" rotWithShape="0">
+                            <a:srgbClr val="000000"><a:alpha val="20000"/></a:srgbClr>
+                        </a:outerShdw>
+                    </a:effectLst>
+                </p:spPr>
+                <p:txBody>
+                    <a:bodyPr/>
+                    <a:lstStyle/>
+                    <a:p><a:endParaRPr lang="en-US"/></a:p>
+                </p:txBody>
+            </p:sp>';
+        
+        // The actual chart
+        $xml .= '
+            <p:graphicFrame>
+                <p:nvGraphicFramePr>
+                    <p:cNvPr id="50" name="Chart ' . $chartNum . '"/>
+                    <p:cNvGraphicFramePr>
+                        <a:graphicFrameLocks noGrp="1"/>
+                    </p:cNvGraphicFramePr>
+                    <p:nvPr/>
+                </p:nvGraphicFramePr>
+                <p:xfrm>
+                    <a:off x="500000" y="1000000"/>
+                    <a:ext cx="8100000" cy="5400000"/>
+                </p:xfrm>
+                <a:graphic>
+                    <a:graphicData uri="http://schemas.openxmlformats.org/drawingml/2006/chart">
+                        <c:chart xmlns:c="http://schemas.openxmlformats.org/drawingml/2006/chart" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships" r:id="rId2"/>
+                    </a:graphicData>
+                </a:graphic>
+            </p:graphicFrame>';
+    }
+    
+    // Statistics (if exists and no chart)
+    if (isset($slide['stats']) && !$hasChart) {
         $statX = 500000;
         $statY = $isTitleSlide ? 4200000 : 1600000;
         $statWidth = 1800000;
@@ -563,21 +958,28 @@ function generateSlideXml($slide, $slideNum, $totalSlides) {
    ===================================================================== */
 if ($report === 'adminlog') {
     
-    // Fetch admin log data
+    // Fetch admin log data with date filter
     $sql = "SELECT l.id, u.username AS admin_name, l.action, l.booking_id, l.note, l.ip_address, l.created_at 
             FROM admin_logs l 
             LEFT JOIN users u ON l.admin_id = u.id 
+            WHERE DATE(l.created_at) >= ? AND DATE(l.created_at) <= ?
             ORDER BY l.created_at DESC";
-    $res = $conn->query($sql);
+    $stmt = $conn->prepare($sql);
+    $stmt->bind_param("ss", $startDate, $endDate);
+    $stmt->execute();
+    $res = $stmt->get_result();
     $logs = [];
     while ($row = $res->fetch_assoc()) {
         $logs[] = $row;
     }
+    $stmt->close();
 
     // ----- ADMIN LOG: PDF FORMAT -----
     if ($format === 'pdf') {
         $pdf = new ReportPDF();
         $pdf->reportTitle = 'Admin Log Report';
+        $pdf->periodLabel = $periodLabel;
+        $pdf->dateRange = $dateRangeDisplay;
         $pdf->headers = ['ID', 'Admin', 'Action', 'Booking', 'Details', 'IP Address', 'Date/Time'];
         $pdf->colWidths = [15, 35, 25, 20, 85, 30, 40];
         
@@ -605,14 +1007,15 @@ if ($report === 'adminlog') {
         $pdf->SetFont('Arial', 'B', 10);
         $pdf->Cell(0, 8, "Total Records: " . count($logs), 0, 1);
 
-        $pdf->Output('D', 'admin_log_report_' . date('Ymd') . '.pdf');
+        $pdf->Output('D', 'Admin_Log_Report_' . $periodFileName . '_' . date('Ymd') . '.pdf');
         exit;
     }
     
     // ----- ADMIN LOG: EXCEL (CSV) FORMAT -----
     if ($format === 'excel') {
-        $headers = ['ID', 'Admin', 'Action', 'Booking ID', 'Details', 'IP Address', 'Date/Time'];
+        $headers = ['Report Period', $periodLabel, $dateRangeDisplay, '', '', '', ''];
         $data = [];
+        $data[] = ['ID', 'Admin', 'Action', 'Booking ID', 'Details', 'IP Address', 'Date/Time'];
         foreach ($logs as $log) {
             $data[] = [
                 $log['id'],
@@ -624,20 +1027,37 @@ if ($report === 'adminlog') {
                 $log['created_at']
             ];
         }
-        exportToCSV('admin_log_report_' . date('Ymd') . '.csv', $headers, $data);
+        $data[] = [];
+        $data[] = ['Total Records: ' . count($logs)];
+        exportToCSV('Admin_Log_Report_' . $periodFileName . '_' . date('Ymd') . '.csv', $headers, $data);
     }
     
     // ----- ADMIN LOG: POWERPOINT FORMAT -----
     if ($format === 'ppt') {
         $slides = [];
         
-        // Title slide
+        // Count actions by type first (needed for pie chart)
+        $actionCounts = [];
+        foreach ($logs as $log) {
+            $action = ucfirst($log['action']);
+            $actionCounts[$action] = ($actionCounts[$action] ?? 0) + 1;
+        }
+        
+        // Title slide with period info
         $slides[] = [
             'title' => 'Admin Log Report',
-            'subtitle' => 'Room Reservation System - Generated ' . date('F j, Y'),
+            'subtitle' => $periodLabel . ' | ' . $dateRangeDisplay . "\nGenerated " . date('F j, Y'),
             'title_slide' => true,
             'stats' => ['Total Records' => count($logs)]
         ];
+        
+        // PIE CHART slide for action types distribution
+        if (!empty($actionCounts)) {
+            $slides[] = [
+                'title' => 'Admin Actions Distribution',
+                'pie_chart' => $actionCounts
+            ];
+        }
         
         // Data slides (10 records per slide)
         $chunks = array_chunk($logs, 10);
@@ -664,20 +1084,13 @@ if ($report === 'adminlog') {
             $slideNum++;
         }
         
-        // Count actions by type
-        $actionCounts = [];
-        foreach ($logs as $log) {
-            $action = ucfirst($log['action']);
-            $actionCounts[$action] = ($actionCounts[$action] ?? 0) + 1;
-        }
-        
         // Summary slide
         $slides[] = [
             'title' => 'Summary',
             'stats' => array_merge(['Total Actions' => count($logs)], $actionCounts)
         ];
         
-        exportToPPT('admin_log_report_' . date('Ymd') . '.ppt', 'Admin Log Report', $slides);
+        exportToPPT('Admin_Log_Report_' . $periodFileName . '_' . date('Ymd') . '.ppt', 'Admin Log Report', $slides);
     }
 }
 
@@ -688,18 +1101,23 @@ if ($report === 'adminlog') {
    ===================================================================== */
 if ($report === 'booking') {
     
-    // Fetch booking data with user and room info
+    // Fetch booking data with user and room info - filtered by date
     $sql = "SELECT b.id, b.ticket, u.username, u.Fullname, r.name AS room_name, b.room_id,
                    b.purpose, b.slot_date, b.time_start, b.time_end, b.status, b.created_at
             FROM bookings b
             LEFT JOIN users u ON b.user_id = u.id
             LEFT JOIN rooms r ON b.room_id = r.room_id
+            WHERE DATE(b.created_at) >= ? AND DATE(b.created_at) <= ?
             ORDER BY b.slot_date DESC, b.time_start ASC";
-    $res = $conn->query($sql);
+    $stmt = $conn->prepare($sql);
+    $stmt->bind_param("ss", $startDate, $endDate);
+    $stmt->execute();
+    $res = $stmt->get_result();
     $bookings = [];
     while ($row = $res->fetch_assoc()) {
         $bookings[] = $row;
     }
+    $stmt->close();
     
     // Calculate statistics
     $stats = ['total' => 0, 'pending' => 0, 'booked' => 0, 'cancelled' => 0, 'rejected' => 0, 'maintenance' => 0];
@@ -713,6 +1131,8 @@ if ($report === 'booking') {
     if ($format === 'pdf') {
         $pdf = new ReportPDF();
         $pdf->reportTitle = 'Booking Summary Report';
+        $pdf->periodLabel = $periodLabel;
+        $pdf->dateRange = $dateRangeDisplay;
         $pdf->headers = ['Ticket', 'User', 'Room', 'Purpose', 'Date', 'Time', 'Status'];
         $pdf->colWidths = [25, 40, 50, 55, 28, 30, 22];
         
@@ -748,14 +1168,15 @@ if ($report === 'booking') {
         $pdf->Cell(50, 7, "Rejected: " . $stats['rejected'], 0, 0);
         $pdf->Cell(50, 7, "Maintenance: " . $stats['maintenance'], 0, 1);
 
-        $pdf->Output('D', 'booking_summary_report_' . date('Ymd') . '.pdf');
+        $pdf->Output('D', 'Booking_Summary_Report_' . $periodFileName . '_' . date('Ymd') . '.pdf');
         exit;
     }
     
     // ----- BOOKING SUMMARY: EXCEL (CSV) FORMAT -----
     if ($format === 'excel') {
-        $headers = ['Ticket', 'Username', 'Full Name', 'Room ID', 'Room Name', 'Purpose', 'Date', 'Time Start', 'Time End', 'Status', 'Created At'];
+        $headers = ['Report Period', $periodLabel, $dateRangeDisplay, '', '', '', '', '', '', '', ''];
         $data = [];
+        $data[] = ['Ticket', 'Username', 'Full Name', 'Room ID', 'Room Name', 'Purpose', 'Date', 'Time Start', 'Time End', 'Status', 'Created At'];
         foreach ($bookings as $b) {
             $data[] = [
                 $b['ticket'] ?? 'N/A',
@@ -781,17 +1202,17 @@ if ($report === 'booking') {
         $data[] = ['Rejected', $stats['rejected']];
         $data[] = ['Maintenance', $stats['maintenance']];
         
-        exportToCSV('booking_summary_report_' . date('Ymd') . '.csv', $headers, $data);
+        exportToCSV('Booking_Summary_Report_' . $periodFileName . '_' . date('Ymd') . '.csv', $headers, $data);
     }
     
     // ----- BOOKING SUMMARY: POWERPOINT FORMAT -----
     if ($format === 'ppt') {
         $slides = [];
         
-        // Title slide with overview stats
+        // Title slide with overview stats and period info
         $slides[] = [
             'title' => 'Booking Summary Report',
-            'subtitle' => 'Room Reservation System - Generated ' . date('F j, Y'),
+            'subtitle' => $periodLabel . ' | ' . $dateRangeDisplay . "\nGenerated " . date('F j, Y'),
             'title_slide' => true,
             'stats' => [
                 'Total Bookings' => $stats['total'],
@@ -799,6 +1220,21 @@ if ($report === 'booking') {
                 'Pending' => $stats['pending']
             ]
         ];
+        
+        // PIE CHART slide for booking status distribution
+        $pieChartData = [];
+        if ($stats['booked'] > 0) $pieChartData['Approved'] = $stats['booked'];
+        if ($stats['pending'] > 0) $pieChartData['Pending'] = $stats['pending'];
+        if ($stats['cancelled'] > 0) $pieChartData['Cancelled'] = $stats['cancelled'];
+        if ($stats['rejected'] > 0) $pieChartData['Rejected'] = $stats['rejected'];
+        if ($stats['maintenance'] > 0) $pieChartData['Maintenance'] = $stats['maintenance'];
+        
+        if (!empty($pieChartData)) {
+            $slides[] = [
+                'title' => 'Booking Status Distribution',
+                'pie_chart' => $pieChartData
+            ];
+        }
         
         // Statistics slide
         $slides[] = [
@@ -839,7 +1275,7 @@ if ($report === 'booking') {
             $slideNum++;
         }
         
-        exportToPPT('booking_summary_report_' . date('Ymd') . '.ppt', 'Booking Summary Report', $slides);
+        exportToPPT('Booking_Summary_Report_' . $periodFileName . '_' . date('Ymd') . '.ppt', 'Booking Summary Report', $slides);
     }
 }
 
@@ -850,7 +1286,7 @@ if ($report === 'booking') {
    ===================================================================== */
 if ($report === 'room') {
     
-    // Fetch room usage statistics
+    // Fetch room usage statistics - filtered by date
     $sql = "SELECT r.room_id, r.name AS room_name, r.capacity,
                    COUNT(b.id) AS total_bookings,
                    SUM(CASE WHEN b.status = 'booked' THEN 1 ELSE 0 END) AS approved_bookings,
@@ -858,33 +1294,43 @@ if ($report === 'room') {
                    SUM(CASE WHEN b.status = 'cancelled' THEN 1 ELSE 0 END) AS cancelled_bookings,
                    SUM(CASE WHEN b.status = 'maintenance' THEN 1 ELSE 0 END) AS maintenance_slots
             FROM rooms r
-            LEFT JOIN bookings b ON r.room_id = b.room_id
+            LEFT JOIN bookings b ON r.room_id = b.room_id AND DATE(b.created_at) >= ? AND DATE(b.created_at) <= ?
             GROUP BY r.room_id, r.name, r.capacity
             ORDER BY total_bookings DESC";
-    $res = $conn->query($sql);
+    $stmt = $conn->prepare($sql);
+    $stmt->bind_param("ss", $startDate, $endDate);
+    $stmt->execute();
+    $res = $stmt->get_result();
     $rooms = [];
     while ($row = $res->fetch_assoc()) {
         $rooms[] = $row;
     }
+    $stmt->close();
     
-    // Also get detailed bookings per room for the last 30 days
+    // Also get detailed bookings per room within the selected period
     $sql2 = "SELECT r.room_id, r.name AS room_name, b.slot_date, b.time_start, b.time_end, 
                     b.purpose, b.status, u.Fullname
              FROM bookings b
              JOIN rooms r ON b.room_id = r.room_id
              LEFT JOIN users u ON b.user_id = u.id
-             WHERE b.slot_date >= DATE_SUB(CURDATE(), INTERVAL 30 DAY)
+             WHERE DATE(b.created_at) >= ? AND DATE(b.created_at) <= ?
              ORDER BY r.room_id, b.slot_date DESC";
-    $res2 = $conn->query($sql2);
+    $stmt2 = $conn->prepare($sql2);
+    $stmt2->bind_param("ss", $startDate, $endDate);
+    $stmt2->execute();
+    $res2 = $stmt2->get_result();
     $recentBookings = [];
     while ($row = $res2->fetch_assoc()) {
         $recentBookings[] = $row;
     }
+    $stmt2->close();
 
     // ----- ROOM USAGE: PDF FORMAT -----
     if ($format === 'pdf') {
         $pdf = new ReportPDF();
         $pdf->reportTitle = 'Room Usage Report';
+        $pdf->periodLabel = $periodLabel;
+        $pdf->dateRange = $dateRangeDisplay;
         $pdf->headers = ['Room ID', 'Room Name', 'Capacity', 'Total', 'Approved', 'Pending', 'Cancelled', 'Maintenance'];
         $pdf->colWidths = [30, 55, 25, 25, 28, 25, 28, 30];
         
@@ -923,14 +1369,15 @@ if ($report === 'room') {
             $pdf->Cell(0, 7, "Most Used Room: " . $rooms[0]['room_name'] . " (" . $rooms[0]['total_bookings'] . " bookings)", 0, 1);
         }
 
-        $pdf->Output('D', 'room_usage_report_' . date('Ymd') . '.pdf');
+        $pdf->Output('D', 'Room_Usage_Report_' . $periodFileName . '_' . date('Ymd') . '.pdf');
         exit;
     }
     
     // ----- ROOM USAGE: EXCEL (CSV) FORMAT -----
     if ($format === 'excel') {
-        $headers = ['Room ID', 'Room Name', 'Capacity', 'Total Bookings', 'Approved', 'Pending', 'Cancelled', 'Maintenance'];
+        $headers = ['Report Period', $periodLabel, $dateRangeDisplay, '', '', '', '', ''];
         $data = [];
+        $data[] = ['Room ID', 'Room Name', 'Capacity', 'Total Bookings', 'Approved', 'Pending', 'Cancelled', 'Maintenance'];
         foreach ($rooms as $r) {
             $data[] = [
                 $r['room_id'],
@@ -946,7 +1393,7 @@ if ($report === 'room') {
         
         // Add recent bookings detail
         $data[] = [];
-        $data[] = ['RECENT BOOKINGS (Last 30 Days)'];
+        $data[] = ['BOOKINGS WITHIN PERIOD'];
         $data[] = ['Room ID', 'Room Name', 'Date', 'Time Start', 'Time End', 'Purpose', 'Status', 'Booked By'];
         foreach ($recentBookings as $rb) {
             $data[] = [
@@ -961,7 +1408,7 @@ if ($report === 'room') {
             ];
         }
         
-        exportToCSV('room_usage_report_' . date('Ymd') . '.csv', $headers, $data);
+        exportToCSV('Room_Usage_Report_' . $periodFileName . '_' . date('Ymd') . '.csv', $headers, $data);
     }
     
     // ----- ROOM USAGE: POWERPOINT FORMAT -----
@@ -969,16 +1416,33 @@ if ($report === 'room') {
         $slides = [];
         $grandTotal = array_sum(array_column($rooms, 'total_bookings'));
         
-        // Title slide
+        // Title slide with period info
         $slides[] = [
             'title' => 'Room Usage Report',
-            'subtitle' => 'Room Reservation System - Generated ' . date('F j, Y'),
+            'subtitle' => $periodLabel . ' | ' . $dateRangeDisplay . "\nGenerated " . date('F j, Y'),
             'title_slide' => true,
             'stats' => [
                 'Total Rooms' => count($rooms),
                 'Total Bookings' => $grandTotal
             ]
         ];
+        
+        // PIE CHART slide for room usage distribution (top rooms)
+        $roomUsageData = [];
+        $topRoomsForChart = array_slice($rooms, 0, 8); // Top 8 rooms for chart
+        foreach ($topRoomsForChart as $r) {
+            if ($r['total_bookings'] > 0) {
+                $roomName = substr($r['room_name'], 0, 15);
+                $roomUsageData[$roomName] = (int)$r['total_bookings'];
+            }
+        }
+        
+        if (!empty($roomUsageData)) {
+            $slides[] = [
+                'title' => 'Room Usage Distribution',
+                'pie_chart' => $roomUsageData
+            ];
+        }
         
         // Room statistics slide
         $rows = [];
@@ -1011,7 +1475,7 @@ if ($report === 'room') {
             'stats' => $topStats
         ];
         
-        exportToPPT('room_usage_report_' . date('Ymd') . '.ppt', 'Room Usage Report', $slides);
+        exportToPPT('Room_Usage_Report_' . $periodFileName . '_' . date('Ymd') . '.ppt', 'Room Usage Report', $slides);
     }
 }
 
@@ -1022,7 +1486,7 @@ if ($report === 'room') {
    ===================================================================== */
 if ($report === 'user') {
     
-    // Fetch user activity statistics
+    // Fetch user activity statistics - filtered by date
     $sql = "SELECT u.id, u.username, u.Fullname, u.Email, u.User_Type, u.Phone_Number,
                    COUNT(b.id) AS total_bookings,
                    SUM(CASE WHEN b.status = 'booked' THEN 1 ELSE 0 END) AS approved_bookings,
@@ -1031,19 +1495,25 @@ if ($report === 'user') {
                    SUM(CASE WHEN b.status = 'rejected' THEN 1 ELSE 0 END) AS rejected_bookings,
                    MAX(b.created_at) AS last_booking
             FROM users u
-            LEFT JOIN bookings b ON u.id = b.user_id
+            LEFT JOIN bookings b ON u.id = b.user_id AND DATE(b.created_at) >= ? AND DATE(b.created_at) <= ?
             GROUP BY u.id, u.username, u.Fullname, u.Email, u.User_Type, u.Phone_Number
             ORDER BY total_bookings DESC";
-    $res = $conn->query($sql);
+    $stmt = $conn->prepare($sql);
+    $stmt->bind_param("ss", $startDate, $endDate);
+    $stmt->execute();
+    $res = $stmt->get_result();
     $users = [];
     while ($row = $res->fetch_assoc()) {
         $users[] = $row;
     }
+    $stmt->close();
 
     // ----- USER ACTIVITY: PDF FORMAT -----
     if ($format === 'pdf') {
         $pdf = new ReportPDF();
         $pdf->reportTitle = 'User Activity Report';
+        $pdf->periodLabel = $periodLabel;
+        $pdf->dateRange = $dateRangeDisplay;
         $pdf->headers = ['ID', 'Username', 'Full Name', 'Type', 'Total', 'Approved', 'Pending', 'Cancelled', 'Last Booking'];
         $pdf->colWidths = [12, 30, 50, 22, 20, 25, 22, 25, 40];
         
@@ -1081,14 +1551,15 @@ if ($report === 'user') {
         $pdf->Cell(60, 7, "Users with Bookings: " . $activeUsers, 0, 0);
         $pdf->Cell(60, 7, "Users without Bookings: " . ($totalUsers - $activeUsers), 0, 1);
 
-        $pdf->Output('D', 'user_activity_report_' . date('Ymd') . '.pdf');
+        $pdf->Output('D', 'User_Activity_Report_' . $periodFileName . '_' . date('Ymd') . '.pdf');
         exit;
     }
     
     // ----- USER ACTIVITY: EXCEL (CSV) FORMAT -----
     if ($format === 'excel') {
-        $headers = ['User ID', 'Username', 'Full Name', 'Email', 'User Type', 'Phone', 'Total Bookings', 'Approved', 'Pending', 'Cancelled', 'Rejected', 'Last Booking'];
+        $headers = ['Report Period', $periodLabel, $dateRangeDisplay, '', '', '', '', '', '', '', '', ''];
         $data = [];
+        $data[] = ['User ID', 'Username', 'Full Name', 'Email', 'User Type', 'Phone', 'Total Bookings', 'Approved', 'Pending', 'Cancelled', 'Rejected', 'Last Booking'];
         foreach ($users as $u) {
             $data[] = [
                 $u['id'],
@@ -1106,7 +1577,7 @@ if ($report === 'user') {
             ];
         }
         
-        exportToCSV('user_activity_report_' . date('Ymd') . '.csv', $headers, $data);
+        exportToCSV('User_Activity_Report_' . $periodFileName . '_' . date('Ymd') . '.csv', $headers, $data);
     }
     
     // ----- USER ACTIVITY: POWERPOINT FORMAT -----
@@ -1115,10 +1586,10 @@ if ($report === 'user') {
         $totalUsers = count($users);
         $activeUsers = count(array_filter($users, fn($u) => $u['total_bookings'] > 0));
         
-        // Title slide
+        // Title slide with period info
         $slides[] = [
             'title' => 'User Activity Report',
-            'subtitle' => 'Room Reservation System - Generated ' . date('F j, Y'),
+            'subtitle' => $periodLabel . ' | ' . $dateRangeDisplay . "\nGenerated " . date('F j, Y'),
             'title_slide' => true,
             'stats' => [
                 'Total Users' => $totalUsers,
@@ -1133,10 +1604,26 @@ if ($report === 'user') {
             $type = $u['User_Type'] ?? 'Unknown';
             $userTypes[$type] = ($userTypes[$type] ?? 0) + 1;
         }
-        $slides[] = [
-            'title' => 'Users by Type',
-            'stats' => $userTypes
-        ];
+        
+        // PIE CHART slide for user types distribution
+        if (!empty($userTypes)) {
+            $slides[] = [
+                'title' => 'Users by Type Distribution',
+                'pie_chart' => $userTypes
+            ];
+        }
+        
+        // User activity pie chart (active vs inactive)
+        $activityData = [];
+        if ($activeUsers > 0) $activityData['Active Users'] = $activeUsers;
+        if (($totalUsers - $activeUsers) > 0) $activityData['Inactive Users'] = $totalUsers - $activeUsers;
+        
+        if (!empty($activityData)) {
+            $slides[] = [
+                'title' => 'User Activity Status',
+                'pie_chart' => $activityData
+            ];
+        }
         
         // Data slides (8 records per slide)
         $chunks = array_chunk($users, 8);
@@ -1175,7 +1662,7 @@ if ($report === 'user') {
             'stats' => $topStats
         ];
         
-        exportToPPT('user_activity_report_' . date('Ymd') . '.ppt', 'User Activity Report', $slides);
+        exportToPPT('User_Activity_Report_' . $periodFileName . '_' . date('Ymd') . '.ppt', 'User Activity Report', $slides);
     }
 }
 
