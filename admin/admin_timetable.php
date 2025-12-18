@@ -2,6 +2,7 @@
 // admin_timetable.php - COMPLETE FIXED VERSION
 session_start();
 require_once __DIR__ . '/../includes/db_connect.php';
+require_once __DIR__ . '/../includes/mail_helper.php'; // <--- ADD THIS
 
 // --- NEW: Fetch Technicians for Dropdown ---
 $technicians = [];
@@ -237,7 +238,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $purpose = trim($data['purpose'] ?? '');
             $description = trim($data['description'] ?? '');
             $tel = trim($data['tel'] ?? '');
-            $technician = trim($data['technician'] ?? ''); // <--- ADD THIS
+            $technician = trim($data['technician'] ?? '');
             $status = $data['status'] ?? 'booked';
             $overwrite = !empty($data['overwrite']);
             $provided_booking_id = intval($data['booking_id'] ?? 0);
@@ -247,6 +248,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             if (!$purpose) throw new Exception('Purpose required');
 
             $created = 0; $updated = 0; $skipped = 0; $errors = [];
+            
+            // --- NEW: Array to collect slots for email ---
+            $maintenance_notification_data = []; 
 
             foreach ($slots as $slot) {
                 $slot_date = $slot['date'] ?? ($slot[0] ?? null);
@@ -258,50 +262,107 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 $time_start = date('H:i:s', strtotime(trim($parts[0])));
                 $time_end = date('H:i:s', strtotime(trim($parts[1])));
 
+                $success = false; // Flag to track if save worked
+
+                // 1. Update Specific ID
                 if ($provided_booking_id) {
-                    // Added 'technician=?'
                     $stmtUpd = $conn->prepare("UPDATE bookings SET purpose=?, description=?, tel=?, technician=?, status=?, updated_at=NOW() WHERE id=?");
                     $stmtUpd->bind_param("sssssi", $purpose, $description, $tel, $technician, $status, $provided_booking_id);
-                    if (!$stmtUpd->execute()) { $errors[] = "Update failed"; $stmtUpd->close(); continue; }
-                    $stmtUpd->close();
-                    admin_log($conn, $admin_id, $provided_booking_id, 'update', 'Admin updated');
-                    $updated++;
-                    continue;
-                }
-
-                $chk = $conn->prepare("SELECT id FROM bookings WHERE room_id=? AND slot_date=? AND time_start=? AND status NOT IN ('cancelled','rejected') LIMIT 1 FOR UPDATE");
-                $chk->bind_param("sss", $room_id, $slot_date, $time_start);
-                $chk->execute();
-                $resChk = $chk->get_result();
-                $exists = $resChk->fetch_assoc() ?? null;
-                $chk->close();
-
-                if ($exists) {
-                    if ($overwrite) {
-                        $eid = intval($exists['id']);
-                        $ust = $conn->prepare("UPDATE bookings SET purpose=?, description=?, tel=?, status=?, updated_at=NOW() WHERE id=?");
-                        $ust->bind_param("ssssi", $purpose, $description, $tel, $status, $eid);
-                        if (!$ust->execute()) { $errors[] = "Overwrite failed"; $ust->close(); continue; }
-                        $ust->close();
-                        admin_log($conn, $admin_id, $eid, 'update', 'Admin overwrote');
+                    if ($stmtUpd->execute()) {
+                        $admin_log($conn, $admin_id, $provided_booking_id, 'update', 'Admin updated');
                         $updated++;
+                        $success = true;
                     } else {
-                        $skipped++;
+                        $errors[] = "Update failed";
                     }
-                    continue;
+                    $stmtUpd->close();
+                    // Continue loop handling logic below...
+                } 
+                // 2. Check Collision & Overwrite/Insert
+                else {
+                    $chk = $conn->prepare("SELECT id FROM bookings WHERE room_id=? AND slot_date=? AND time_start=? AND status NOT IN ('cancelled','rejected') LIMIT 1 FOR UPDATE");
+                    $chk->bind_param("sss", $room_id, $slot_date, $time_start);
+                    $chk->execute();
+                    $resChk = $chk->get_result();
+                    $exists = $resChk->fetch_assoc() ?? null;
+                    $chk->close();
+
+                    if ($exists) {
+                        if ($overwrite) {
+                            $eid = intval($exists['id']);
+                            $ust = $conn->prepare("UPDATE bookings SET purpose=?, description=?, tel=?, technician=?, status=?, updated_at=NOW() WHERE id=?");
+                            $ust->bind_param("sssssi", $purpose, $description, $tel, $technician, $status, $eid);
+                            if ($ust->execute()) {
+                                admin_log($conn, $admin_id, $eid, 'update', 'Admin overwrote');
+                                $updated++;
+                                $success = true;
+                            } else {
+                                $errors[] = "Overwrite failed";
+                            }
+                            $ust->close();
+                        } else {
+                            $skipped++;
+                        }
+                    } else {
+                        $ticket = 'ADM-' . strtoupper(substr(md5(uniqid((string)microtime(true), true)),0,10));
+                        $stmtIns = $conn->prepare("INSERT INTO bookings (ticket, user_id, room_id, purpose, description, tel, technician, slot_date, time_start, time_end, status, created_at, updated_at, active_key, session_id) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NOW(), NOW(), ?, ?)");
+                        $active_key = 'ADM' . str_pad(mt_rand(0,99999999), 8, '0', STR_PAD_LEFT);
+                        $session_id = $ticket;
+                        $stmtIns->bind_param("sisssssssssss", $ticket, $admin_id, $room_id, $purpose, $description, $tel, $technician, $slot_date, $time_start, $time_end, $status, $active_key, $session_id);
+
+                        if ($stmtIns->execute()) {
+                            $newid = $stmtIns->insert_id;
+                            admin_log($conn, $admin_id, $newid, 'create', "Created ($ticket)");
+                            $created++;
+                            $success = true;
+                        } else {
+                            $errors[] = "Insert failed";
+                        }
+                        $stmtIns->close();
+                    }
                 }
 
-                $ticket = 'ADM-' . strtoupper(substr(md5(uniqid((string)microtime(true), true)),0,10));
-                $stmtIns = $conn->prepare("INSERT INTO bookings (ticket, user_id, room_id, purpose, description, tel, technician, slot_date, time_start, time_end, status, created_at, updated_at, active_key, session_id) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NOW(), NOW(), ?, ?)");
-                $active_key = 'ADM' . str_pad(mt_rand(0,99999999), 8, '0', STR_PAD_LEFT);
-                $session_id = $ticket;
-                $stmtIns->bind_param("sisssssssssss", $ticket, $admin_id, $room_id, $purpose, $description, $tel, $technician, $slot_date, $time_start, $time_end, $status, $active_key, $session_id);
+                // --- NEW: Add to email list if successful and is maintenance ---
+                if ($success && $status === 'maintenance' && !empty($technician)) {
+                    $maintenance_notification_data[] = [
+                        'date' => $slot_date,
+                        'time' => $parts[0] . ' - ' . $parts[1]
+                    ];
+                }
+            }
 
-                if (!$stmtIns->execute()) { $errors[] = "Insert failed"; $stmtIns->close(); continue; }
-                $newid = $stmtIns->insert_id;
-                $stmtIns->close();
-                admin_log($conn, $admin_id, $newid, 'create', "Created ($ticket)");
-                $created++;
+            // --- NEW: SEND EMAIL ---
+            if (!empty($maintenance_notification_data)) {
+                $stmtTech = $conn->prepare("SELECT Email, Fullname FROM users WHERE Fullname = ? AND User_Type = 'Technician' LIMIT 1");
+                $stmtTech->bind_param("s", $technician);
+                $stmtTech->execute();
+                $resTech = $stmtTech->get_result();
+                
+                if ($techRow = $resTech->fetch_assoc()) {
+                    $toEmail = $techRow['Email'];
+                    $toName = $techRow['Fullname'];
+                    
+                    $subject = "🔧 New Maintenance Task Assigned: " . $room_id;
+                    $message = "<h3>New Maintenance Assignment</h3>";
+                    $message .= "<p>Hello <strong>$toName</strong>,</p>";
+                    $message .= "<p>You have been assigned a new maintenance task.</p>";
+                    $message .= "<ul>";
+                    $message .= "<li><strong>Room:</strong> " . htmlspecialchars($room_id) . "</li>";
+                    $message .= "<li><strong>Task:</strong> " . htmlspecialchars($purpose) . "</li>";
+                    if($description) $message .= "<li><strong>Notes:</strong> " . htmlspecialchars($description) . "</li>";
+                    $message .= "</ul>";
+                    
+                    $message .= "<table border='1' cellpadding='5' cellspacing='0' style='border-collapse:collapse;'>";
+                    $message .= "<tr style='background:#eee;'><th>Date</th><th>Time Slot</th></tr>";
+                    foreach ($maintenance_notification_data as $row) {
+                        $message .= "<tr><td>{$row['date']}</td><td>{$row['time']}</td></tr>";
+                    }
+                    $message .= "</table>";
+
+                    // Use your mail function
+                    send_mail($toEmail, $toName, $subject, $message);
+                }
+                $stmtTech->close();
             }
 
             $conn->commit();

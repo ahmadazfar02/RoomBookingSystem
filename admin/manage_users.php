@@ -331,9 +331,6 @@ if ($stmt = $conn->prepare($sql)) {
         <h1>User Management</h1>
         <span class="header-badge">Admin</span>
       </div>
-      <button onclick="openModal()" class="btn primary" style="display:flex; align-items:center; gap:8px;">
-        <span>+</span> Create User
-      </button>
     </div>
 
     <div class="card">
@@ -356,10 +353,13 @@ if ($stmt = $conn->prepare($sql)) {
             <option value="Student" <?php if($role_filter == 'Student') echo 'selected'; ?>>Student</option>
           </select>
           <button type="submit" class="btn primary">Search</button>
-          <?php if (!empty($search_query) || !empty($role_filter)): ?>
-            <a href="manage_users.php" class="btn outline">Reset</a>
-          <?php endif; ?>
-        </div>
+              <?php if (!empty($search_query) || !empty($role_filter)): ?>
+                <a href="manage_users.php" class="btn outline">Reset</a>
+              <?php endif; ?>
+            </div>
+                  <button onclick="openModal()" class="btn primary" style="display:flex; align-items:center; gap:8px;">
+            <span>+</span> Create User
+          </button>
       </form>
 
       <div class="table-wrap">
