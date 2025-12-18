@@ -1,10 +1,10 @@
 <?php
 session_start();
-require_once __DIR__ . '/includes/db_connect.php'; // Adjust path as needed
+require_once __DIR__ . '/includes/db_connect.php';
 
 // SECURITY: Check if user is logged in
 if (!isset($_SESSION["loggedin"]) || $_SESSION["loggedin"] !== true) {
-    header("location: loginterface.html"); // Redirect if not logged in
+    header("location: loginterface.html");
     exit;
 }
 
@@ -40,75 +40,51 @@ $stmt->close();
 <!DOCTYPE html>
 <html lang="en">
 <head>
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>My Reported Problems</title>
-<link href="https://fonts.googleapis.com/css2?family=Segoe+UI:wght@400;600;700&display=swap" rel="stylesheet">
-<style>
-    :root {
-        --accent: #5c6bc0;
-        --accent-dark: #3f51b5;
-        --bg-gradient: linear-gradient(135deg, #7986cb 10%, #B3E5FC 50%, #FF8A80 100%);
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Room Problem Status - UTM Room Booking</title>
+  <!-- Google Fonts -->
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+  <!-- FontAwesome -->
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
+  <style>
+    :root{ 
+        --utm-maroon: #800000;
+        --utm-maroon-light: #a31313;
+        --utm-maroon-dark: #600000;
+        --accent: #800000;
+        --accent-dark: #600000;
+        --bg-light: #f8fafc;
         --card-bg: #ffffff;
-        --text-primary: #1f2937;
-        --text-secondary: #6b7280;
-        --border: #e5e7eb;
-        --pending-bg: #fffbe6;
-        --pending-text: #b45309;
-        --resolved-bg: #dcfce7;
-        --resolved-text: #059669;
+        --text-primary: #1e293b;
+        --text-secondary: #64748b;
+        --border: #e2e8f0;
+        --pending: #f59e0b;
+        --resolved: #16a34a;
+        --in-progress: #3b82f6;
     }
-
-    * { box-sizing: border-box; margin: 0; padding: 0; }
-
+    
+    * { 
+        box-sizing: border-box; 
+        margin: 0; 
+        padding: 0; 
+    }
+    
     body { 
-        font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-        background: var(--bg-gradient);
+        font-family: 'Inter', sans-serif;
+        background: var(--bg-light);
         min-height: 100vh;
         color: var(--text-primary);
     }
+    
+    /* Header */
     .main-header {
-        background: rgba(255, 255, 255, 0.98);
-        backdrop-filter: blur(10px);
-        box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
+        background: white;
+        box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
         position: sticky;
         top: 0;
         z-index: 1000;
     }
-    .booking-status-btn {
-        background: linear-gradient(135deg, var(--accent) 0%, var(--accent-dark) 100%);
-        color: white;
-        border: none;
-        padding: 10px 20px;
-        border-radius: 8px;
-        cursor: pointer;
-        font-size: 14px;
-        font-weight: 600;
-        position: relative;
-        transition: all 0.3s ease;
-        box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
-    }
-    
-    .booking-status-btn:hover {
-        transform: translateY(-2px);
-        box-shadow: 0 6px 16px rgba(0, 0, 0, 0.2);
-    }
-    
-
-    .notification-badge {
-        display: none;
-        position: absolute;
-        top: -8px;
-        right: -8px;
-        background: linear-gradient(135deg, #ef4444 0%, #dc2626 100%);
-        color: white;
-        border-radius: 10px;
-        padding: 2px 6px;
-        font-size: 11px;
-        box-shadow: 0 2px 6px rgba(239, 68, 68, 0.4);
-    }
-    
-    .notification-badge.active { display: block; }
     
     .header-content {
         max-width: 1400px;
@@ -117,125 +93,68 @@ $stmt->close();
         display: flex;
         justify-content: space-between;
         align-items: center;
-    }
-    
-    .logo { height: 72px; }
-    .main-content {
-        max-width: 1400px;
-        margin: 40px auto;
-        padding: 24px;
-    }
-    
-    .card {
-        background: rgba(255, 255, 255, 0.95);
-        backdrop-filter: blur(10px);
-        border-radius: 16px;
-        padding: 30px;
-        box-shadow: 0 10px 30px rgba(0, 0, 0, 0.15);
-        margin-bottom: 25px;
-    }
-
-    h2 {
-        color: var(--accent);
-        font-size: 28px;
-        margin-bottom: 25px;
-        border-bottom: 2px solid var(--border);
-        padding-bottom: 10px;
-    }
-
-    .report-list {
-        display: grid;
         gap: 20px;
     }
-
-    .report-item {
-        border: 1px solid var(--border);
-        border-radius: 12px;
-        padding: 20px;
-        box-shadow: 0 4px 10px rgba(0, 0, 0, 0.05);
-        background: var(--card-bg);
-        transition: all 0.3s ease;
-    }
-    .report-item:hover {
-        box-shadow: 0 6px 15px rgba(0, 0, 0, 0.1);
-        transform: translateY(-2px);
-    }
-
-    .report-header {
+    
+    .logo-section {
         display: flex;
-        justify-content: space-between;
         align-items: center;
-        margin-bottom: 10px;
-        padding-bottom: 10px;
-        border-bottom: 1px dashed var(--border);
+        gap: 16px;
     }
-
-    .report-title {
+    
+    .logo { 
+        height: 60px; 
+    }
+    
+    .logo-text {
+        display: flex;
+        flex-direction: column;
+    }
+    
+    .logo-text h1 {
         font-size: 18px;
         font-weight: 700;
-        color: var(--accent-dark);
+        color: var(--utm-maroon);
         margin: 0;
     }
-
-    .report-room {
-        font-size: 14px;
-        font-weight: 600;
-        color: var(--text-primary);
-    }
     
-    .report-status {
-        padding: 6px 12px;
-        border-radius: 20px;
-        font-size: 13px;
-        font-weight: 700;
-        text-transform: uppercase;
-        letter-spacing: 0.5px;
-    }
-    
-    .status-pending {
-        background: var(--pending-bg);
-        color: var(--pending-text);
-    }
-    
-    .status-resolved {
-        background: var(--resolved-bg);
-        color: var(--resolved-text);
-    }
-
-    .report-body p {
-        font-size: 14px;
-        color: var(--text-secondary);
-        margin-top: 10px;
-        margin-bottom: 15px;
-    }
-    
-    .report-footer {
+    .logo-text p {
         font-size: 12px;
         color: var(--text-secondary);
-        text-align: right;
+        margin: 0;
     }
-
-    .btn-back {
-        background: var(--accent);
-        color: white;
-        text-decoration: none;
-        padding: 10px 20px;
-        border-radius: 8px;
-        font-weight: 600;
-        display: inline-block;
-        margin-top: 20px;
-        transition: background 0.3s;
+    
+    .header-controls {
+        display: flex;
+        align-items: center;
+        gap: 12px;
     }
-    .btn-back:hover {
-        background: var(--accent-dark);
-    }
+    
     .btn {
-        padding: 10px 18px;
+        padding: 10px 20px;
+        border: none;
         border-radius: 8px;
-        cursor: pointer;
         font-size: 14px;
         font-weight: 600;
+        cursor: pointer;
         transition: all 0.3s ease;
+        text-decoration: none;
+        display: inline-flex;
+        align-items: center;
+        gap: 8px;
+        font-family: 'Inter', sans-serif;
+    }
+    
+    .btn-secondary {
+        background: var(--utm-maroon);
+        color: white;
+        box-shadow: 0 2px 4px rgba(128, 0, 0, 0.2);
+    }
+    
+    .btn-secondary:hover {
+        background: var(--utm-maroon-light);
+        transform: translateY(-1px);
+        box-shadow: 0 4px 8px rgba(128, 0, 0, 0.3);
     }
     
     .btn-nav {
@@ -245,124 +164,569 @@ $stmt->close();
     }
     
     .btn-nav:hover {
-        border-color: var(--accent);
-        color: var(--accent);
-        transform: translateY(-2px);
-        box-shadow: 0 4px 12px rgba(0, 0, 0, 0.12);
+        border-color: var(--utm-maroon);
+        color: var(--utm-maroon);
+        transform: translateY(-1px);
+        box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
     }
-    /*Dropdown for Room Problem*/
-    .dropdownmenu {
-      display: inline-block;
+    
+    /* Dropdown Menu */
+    .dropdown-menu {
+        position: relative;
+        display: inline-block;
     }
-    .dropbtn{
-      background: linear-gradient(135deg, var(--accent) 0%, var(--accent-dark) 100%);
+    
+    .dropdown-btn {
+        background: var(--utm-maroon);
         color: white;
-        border: none;
+        box-shadow: 0 2px 4px rgba(128, 0, 0, 0.2);
+        position: relative;
+    }
+    
+    .dropdown-btn:hover {
+        background: var(--utm-maroon-light);
+        transform: translateY(-1px);
+        box-shadow: 0 4px 8px rgba(128, 0, 0, 0.3);
+    }
+    
+    .dropdown-content {
+        display: none;
+        position: absolute;
+        right: 0;
+        background-color: white;
+        min-width: 200px;
+        box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+        border-radius: 8px;
+        overflow: hidden;
+        z-index: 1001;
+        margin-top: 8px;
+    }
+    
+    .dropdown-content a {
+        color: var(--text-primary);
+        padding: 12px 16px;
+        text-decoration: none;
+        display: block;
+        transition: all 0.2s ease;
+        font-size: 14px;
+        font-weight: 500;
+    }
+    
+    .dropdown-content a:hover {
+        background: var(--utm-maroon);
+        color: white;
+    }
+    
+    .dropdown-menu:hover .dropdown-content {
+        display: block;
+    }
+    
+    /* Main Container */
+    .container {
+        max-width: 1400px;
+        margin: 0 auto;
+        padding: 24px;
+    }
+    
+    /* Page Title Card */
+    .page-title-card {
+        background: white;
+        padding: 24px;
+        border-radius: 12px;
+        box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+        border: 1px solid var(--border);
+        margin-bottom: 20px;
+    }
+    
+    .page-title-card h1 {
+        font-size: 28px;
+        font-weight: 700;
+        color: var(--utm-maroon);
+        margin-bottom: 8px;
+        display: flex;
+        align-items: center;
+        gap: 12px;
+    }
+    
+    .page-title-card p {
+        color: var(--text-secondary);
+        font-size: 14px;
+    }
+    
+    /* Filters Card */
+    .filters-card {
+        background: white;
+        padding: 20px 24px;
+        border-radius: 12px;
+        box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+        border: 1px solid var(--border);
+        margin-bottom: 20px;
+    }
+    
+    .filters {
+        display: flex;
+        gap: 12px;
+        align-items: center;
+        flex-wrap: wrap;
+    }
+    
+    .filter-btn {
         padding: 10px 20px;
+        border-radius: 8px;
+        border: 1px solid var(--border);
+        background: white;
+        color: var(--text-primary);
+        cursor: pointer;
+        font-size: 14px;
+        font-weight: 600;
+        transition: all 0.3s ease;
+        font-family: 'Inter', sans-serif;
+    }
+    
+    .filter-btn:hover {
+        border-color: var(--utm-maroon);
+        color: var(--utm-maroon);
+        transform: translateY(-1px);
+        box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+    }
+    
+    .filter-btn.active {
+        background: var(--utm-maroon);
+        color: white;
+        border-color: var(--utm-maroon);
+        box-shadow: 0 2px 4px rgba(128, 0, 0, 0.2);
+    }
+    
+    .status-count {
+        margin-left: auto;
+        font-size: 14px;
+        color: var(--text-secondary);
+        font-weight: 600;
+        padding: 8px 16px;
+        background: var(--bg-light);
+        border-radius: 8px;
+    }
+    
+    /* Report List */
+    .reports-container {
+        display: grid;
+        gap: 16px;
+    }
+    
+    .report-card {
+        background: white;
+        border-radius: 12px;
+        box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+        border: 1px solid var(--border);
+        overflow: hidden;
+        transition: all 0.3s ease;
+    }
+    
+    .report-card:hover {
+        box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+        transform: translateY(-2px);
+    }
+    
+    .report-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: start;
+        padding: 20px 24px;
+        border-bottom: 1px solid var(--border);
+        background: #fafafa;
+    }
+    
+    .report-info {
+        flex: 1;
+    }
+    
+    .report-title {
+        font-size: 18px;
+        font-weight: 700;
+        color: var(--utm-maroon);
+        margin-bottom: 8px;
+        display: flex;
+        align-items: center;
+        gap: 8px;
+    }
+    
+    .report-meta {
+        display: flex;
+        gap: 16px;
+        flex-wrap: wrap;
+        font-size: 13px;
+        color: var(--text-secondary);
+    }
+    
+    .report-meta-item {
+        display: flex;
+        align-items: center;
+        gap: 6px;
+    }
+    
+    .report-meta-item i {
+        font-size: 12px;
+    }
+    
+    /* Status Badges */
+    .status-badge {
+        padding: 8px 16px;
+        border-radius: 8px;
+        font-weight: 600;
+        font-size: 13px;
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+        white-space: nowrap;
+    }
+    
+    .status-pending {
+        color: #92400e;
+        background: #fef3c7;
+        border: 1px solid #fde68a;
+    }
+    
+    .status-resolved {
+        color: #065f46;
+        background: #d1fae5;
+        border: 1px solid #a7f3d0;
+    }
+    
+    .status-in-progress {
+        color: #1e40af;
+        background: #dbeafe;
+        border: 1px solid #bfdbfe;
+    }
+    
+    .report-body {
+        padding: 20px 24px;
+    }
+    
+    .report-description {
+        color: var(--text-primary);
+        font-size: 14px;
+        line-height: 1.6;
+        margin: 0;
+    }
+    
+    .report-footer {
+        padding: 16px 24px;
+        background: #fafafa;
+        border-top: 1px solid var(--border);
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        font-size: 13px;
+        color: var(--text-secondary);
+    }
+    
+    .report-date {
+        display: flex;
+        align-items: center;
+        gap: 6px;
+    }
+    
+    .report-id {
+        font-family: 'Courier New', monospace;
+        background: #f1f5f9;
+        padding: 4px 8px;
+        border-radius: 4px;
+        font-size: 12px;
+    }
+    
+    /* Empty State */
+    .empty-state {
+        background: white;
+        padding: 60px 24px;
+        border-radius: 12px;
+        box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+        border: 1px solid var(--border);
+        text-align: center;
+    }
+    
+    .empty-state i {
+        font-size: 64px;
+        color: var(--border);
+        margin-bottom: 20px;
+    }
+    
+    .empty-state h3 {
+        font-size: 20px;
+        color: var(--text-primary);
+        margin-bottom: 8px;
+    }
+    
+    .empty-state p {
+        color: var(--text-secondary);
+        font-size: 14px;
+        margin-bottom: 24px;
+    }
+    
+    /* Action Buttons */
+    .action-buttons {
+        display: flex;
+        gap: 12px;
+        margin-top: 24px;
+        padding-top: 24px;
+        border-top: 1px solid var(--border);
+    }
+    
+    .btn-back {
+        flex: 1;
+        padding: 12px 24px;
         border-radius: 8px;
         cursor: pointer;
         font-size: 14px;
         font-weight: 600;
-        position: relative;
+        text-align: center;
         transition: all 0.3s ease;
-        box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
-    }
-    .dropbtn:hover{ 
-      transform: translateY(-2px);
-      box-shadow: 0 6px 16px rgba(0, 0, 0, 0.2);
-    }
-    .dropdownmenu-content {
-        display: none; /* Hidden by default */
-        position: absolute;
-        background-color: #f9f9f9;
-        min-width: 160px;
-        box-shadow: 0px 8px 16px 0px rgba(0,0,0,0.2);
-        z-index: 1;
-      }
-
-    .dropdownmenu-content a {
-        color: black;
-        padding: 12px 16px;
         text-decoration: none;
-        display: block;
-        border-radius: 8px;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        gap: 8px;
+        font-family: 'Inter', sans-serif;
+        background: white;
+        border: 2px solid var(--border);
+        color: var(--text-primary);
     }
-    .dropdownmenu-content a:hover {
-        transform: translate(-2px);
-        box-shadow: 0 6px 16px rgba(0, 0, 0, 0.2);
-        background: linear-gradient(135deg, var(--accent) 0%, var(--accent-dark) 100%);
-        color: white;
+    
+    .btn-back:hover {
+        border-color: var(--utm-maroon);
+        color: var(--utm-maroon);
+        transform: translateY(-1px);
+        box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
     }
-
-/* Show the dropdown menu on hover */
-    .dropdownmenu:hover .dropdownmenu-content {
-      display: block;
+    
+    /* Responsive */
+    @media (max-width: 768px) {
+        .header-content {
+            flex-wrap: wrap;
+        }
+        
+        .header-controls {
+            width: 100%;
+            justify-content: space-between;
+        }
+        
+        .container {
+            padding: 16px;
+        }
+        
+        .filters {
+            justify-content: center;
+        }
+        
+        .status-count {
+            margin-left: 0;
+            width: 100%;
+            text-align: center;
+        }
+        
+        .report-header {
+            flex-direction: column;
+            gap: 12px;
+        }
+        
+        .report-footer {
+            flex-direction: column;
+            gap: 8px;
+            align-items: flex-start;
+        }
+        
+        .page-title-card h1 {
+            font-size: 22px;
+        }
     }
-</style>
+  </style>
 </head>
 <body>
-<header class="main-header">
+  <header class="main-header">
     <div class="header-content">
-      <img src="assets/images/utmlogo.png" alt="UTM Logo" class="logo">
+      <div class="logo-section">
+        <img src="assets/images/utmlogo.png" alt="UTM Logo" class="logo">
+        <div class="logo-text">
+          <h1>Room Booking System</h1>
+          <p>Universiti Teknologi Malaysia</p>
+        </div>
+      </div>
+      
       <div class="header-controls">
-        <a href="booking_status.html" style="text-decoration: none;">
-          <button class="booking-status-btn">
-            Booking Status
-            <span class="notification-badge" id="notificationBadge">0</span>
-          </button>
+        <a href="booking_status.html" class="btn btn-secondary">
+          <i class="fa-solid fa-calendar-check"></i>
+          Booking Status
         </a>
-        <div class="dropdownmenu">
-        <button class="dropbtn">Room Problem</button>
-        <div class="dropdownmenu-content">
-          <a href="user_report_problem.php">Report Issue</a>
-          <a href="user_problem_status.php">Room Problem Status</a> 
-        </div>
-        </div>
-        <!-- add this where your header controls are -->
-        <a href="auth/logout.php">
-          <button class="btn btn-nav">
-            Logout
+        
+        <div class="dropdown-menu">
+          <button class="btn btn-secondary dropdown-btn">
+            <i class="fa-solid fa-tools"></i>
+            Room Problem
+            <i class="fa-solid fa-chevron-down" style="font-size: 10px;"></i>
           </button>
+          <div class="dropdown-content">
+            <a href="user_report_problem.php">
+              <i class="fa-solid fa-exclamation-circle"></i> Report Issue
+            </a>
+            <a href="user_problem_status.php">
+              <i class="fa-solid fa-list-check"></i> Problem Status
+            </a>
+          </div>
+        </div>
+        
+        <a href="timetable.html" class="btn btn-nav">
+          <i class="fa-solid fa-calendar"></i>
+          Timetable
+        </a>
+        
+        <a href="auth/logout.php" class="btn btn-nav">
+          <i class="fa-solid fa-sign-out-alt"></i>
+          Logout
         </a>
       </div>
     </div>
   </header>
-    <main class="main-content">
-        <div class="card">
-            <h2>My Reported Problems</h2>
 
-            <div class="report-list">
-                <?php if (!empty($reports)): ?>
-                    <?php foreach ($reports as $report): ?>
-                        <div class="report-item">
-                            <div class="report-header">
-                                <div style="display: flex; flex-direction: column; align-items: flex-start;">
-                                    <h3 class="report-title"><?php echo htmlspecialchars($report['title']); ?></h3>
-                                    <span class="report-room">Room: <?php echo htmlspecialchars($report['room_name']); ?></span>
-                                </div>
-                                <span class="report-status status-<?php echo strtolower($report['status']); ?>">
-                                    <?php echo ucfirst(htmlspecialchars($report['status'])); ?>
-                                </span>
-                            </div>
-                            <div class="report-body">
-                                <p><?php echo nl2br(htmlspecialchars($report['description'])); ?></p>
-                            </div>
-                            <div class="report-footer">
-                                Reported: <?php echo date("F j, Y, g:i a", strtotime($report['created_at'])); ?>
-                            </div>
-                        </div>
-                    <?php endforeach; ?>
-                <?php else: ?>
-                    <p style="text-align: center; padding: 30px; color: var(--text-secondary);">
-                        You have not reported any room problems yet.
-                    </p>
-                <?php endif; ?>
-            </div>
+  <div class="container">
+    <div class="page-title-card">
+      <h1>
+        <i class="fa-solid fa-clipboard-list"></i>
+        My Reported Problems
+      </h1>
+      <p>Track the status of your room problem reports</p>
+    </div>
 
-            <a href="timetable.html" class="btn-back">← Back to Timetable</a>
-
+    <div class="filters-card">
+      <div class="filters" aria-label="Problem filters">
+        <button class="filter-btn active" onclick="filterReports('all')">
+          <i class="fa-solid fa-list"></i>
+          All Reports
+        </button>
+        <button class="filter-btn" onclick="filterReports('pending')">
+          <i class="fa-solid fa-clock"></i>
+          Pending
+        </button>
+        <button class="filter-btn" onclick="filterReports('in-progress')">
+          <i class="fa-solid fa-spinner"></i>
+          In Progress
+        </button>
+        <button class="filter-btn" onclick="filterReports('resolved')">
+          <i class="fa-solid fa-check-circle"></i>
+          Resolved
+        </button>
+        <div class="status-count" id="statusCount">
+          <?php echo count($reports); ?> report<?php echo count($reports) !== 1 ? 's' : ''; ?>
         </div>
-    </main>
+      </div>
+    </div>
+
+    <div class="reports-container" id="reportsContainer">
+      <?php if (!empty($reports)): ?>
+        <?php foreach ($reports as $report): ?>
+          <div class="report-card" data-status="<?php echo strtolower($report['status']); ?>">
+            <div class="report-header">
+              <div class="report-info">
+                <h3 class="report-title">
+                  <i class="fa-solid fa-tools"></i>
+                  <?php echo htmlspecialchars($report['title']); ?>
+                </h3>
+                <div class="report-meta">
+                  <span class="report-meta-item">
+                    <i class="fa-solid fa-door-open"></i>
+                    <strong><?php echo htmlspecialchars($report['room_name']); ?></strong>
+                  </span>
+                  <span class="report-meta-item">
+                    <i class="fa-solid fa-hashtag"></i>
+                    ID: <span class="report-id"><?php echo str_pad($report['id'], 4, '0', STR_PAD_LEFT); ?></span>
+                  </span>
+                </div>
+              </div>
+              <span class="status-badge status-<?php echo strtolower(str_replace(' ', '-', $report['status'])); ?>">
+                <?php 
+                  $status = strtolower($report['status']);
+                  if ($status === 'pending') {
+                      echo '<i class="fa-solid fa-clock"></i>';
+                  } elseif ($status === 'resolved') {
+                      echo '<i class="fa-solid fa-check-circle"></i>';
+                  } elseif ($status === 'in-progress' || $status === 'in progress') {
+                      echo '<i class="fa-solid fa-spinner"></i>';
+                  }
+                  echo ucfirst(htmlspecialchars($report['status'])); 
+                ?>
+              </span>
+            </div>
+            
+            <div class="report-body">
+              <p class="report-description">
+                <?php echo nl2br(htmlspecialchars($report['description'])); ?>
+              </p>
+            </div>
+            
+            <div class="report-footer">
+              <div class="report-date">
+                <i class="fa-solid fa-calendar"></i>
+                Reported: <?php echo date("F j, Y", strtotime($report['created_at'])); ?>
+              </div>
+              <div class="report-date">
+                <i class="fa-solid fa-clock"></i>
+                <?php echo date("g:i A", strtotime($report['created_at'])); ?>
+              </div>
+            </div>
+          </div>
+        <?php endforeach; ?>
+      <?php else: ?>
+        <div class="empty-state">
+          <i class="fa-solid fa-inbox"></i>
+          <h3>No Reports Yet</h3>
+          <p>You haven't reported any room problems yet.</p>
+          <a href="user_report_problem.php" class="btn btn-secondary">
+            <i class="fa-solid fa-plus"></i>
+            Report a Problem
+          </a>
+        </div>
+      <?php endif; ?>
+    </div>
+
+    <?php if (!empty($reports)): ?>
+    <div style="background: white; padding: 24px; border-radius: 12px; box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1); border: 1px solid var(--border); margin-top: 20px;">
+      <div class="action-buttons">
+        <a href="timetable.html" class="btn-back">
+          <i class="fa-solid fa-arrow-left"></i>
+          Back to Timetable
+        </a>
+        <a href="user_report_problem.php" class="btn btn-secondary" style="flex: 1; justify-content: center;">
+          <i class="fa-solid fa-plus"></i>
+          Report New Problem
+        </a>
+      </div>
+    </div>
+    <?php endif; ?>
+  </div>
+
+  <script>
+    function filterReports(status) {
+      const cards = document.querySelectorAll('.report-card');
+      const filterBtns = document.querySelectorAll('.filter-btn');
+      const statusCount = document.getElementById('statusCount');
+      
+      // Update active button
+      filterBtns.forEach(btn => btn.classList.remove('active'));
+      event.target.closest('.filter-btn').classList.add('active');
+      
+      let visibleCount = 0;
+      
+      cards.forEach(card => {
+        const cardStatus = card.dataset.status.replace(' ', '-');
+        if (status === 'all' || cardStatus === status) {
+          card.style.display = 'block';
+          visibleCount++;
+        } else {
+          card.style.display = 'none';
+        }
+      });
+      
+      statusCount.textContent = `${visibleCount} report${visibleCount !== 1 ? 's' : ''}`;
+    }
+  </script>
 
 </body>
 </html>

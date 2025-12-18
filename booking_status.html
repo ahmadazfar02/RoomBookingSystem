@@ -4,35 +4,45 @@
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width,initial-scale=1" />
   <title>Booking Status - UTM Room Booking</title>
+  <!-- Google Fonts -->
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+  <!-- FontAwesome -->
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
   <style>
     :root{ 
-        --accent: #5c6bc0;
-        --accent-dark: #3f51b5;
-        --bg-gradient: linear-gradient(135deg, #7986cb 10%, #B3E5FC 50%, #FF8A80 100%);
+        --utm-maroon: #800000;
+        --utm-maroon-light: #a31313;
+        --utm-maroon-dark: #600000;
+        --accent: #800000;
+        --accent-dark: #600000;
+        --bg-light: #f8fafc;
         --card-bg: #ffffff;
-        --text-primary: #1f2937;
-        --text-secondary: #6b7280;
-        --border: #e5e7eb;
+        --text-primary: #1e293b;
+        --text-secondary: #64748b;
+        --border: #e2e8f0;
         --pending: #f59e0b;
-        --approved: #10b981;
-        --rejected: #ef4444;
-        --cancelled: #6b7280;
+        --approved: #16a34a;
+        --rejected: #dc2626;
+        --cancelled: #64748b;
     }
     
-    * { box-sizing: border-box; margin: 0; padding: 0; }
+    * { 
+        box-sizing: border-box; 
+        margin: 0; 
+        padding: 0; 
+    }
     
     body { 
-        font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-        background: var(--bg-gradient);
+        font-family: 'Inter', sans-serif;
+        background: var(--bg-light);
         min-height: 100vh;
         color: var(--text-primary);
     }
     
     /* Header */
     .main-header {
-        background: rgba(255, 255, 255, 0.98);
-        backdrop-filter: blur(10px);
-        box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
+        background: white;
+        box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
         position: sticky;
         top: 0;
         z-index: 1000;
@@ -45,49 +55,62 @@
         display: flex;
         justify-content: space-between;
         align-items: center;
+        gap: 20px;
     }
     
-    .logo { height: 72px; }
+    .logo-section {
+        display: flex;
+        align-items: center;
+        gap: 16px;
+    }
     
-    .header-title {
+    .logo { 
+        height: 60px; 
+    }
+    
+    .logo-text {
         display: flex;
         flex-direction: column;
-        gap: 4px;
     }
     
-    .header-title h1 {
-        font-size: 28px;
-        color: var(--accent);
-        margin-bottom: 8px;
+    .logo-text h1 {
+        font-size: 18px;
+        font-weight: 700;
+        color: var(--utm-maroon);
+        margin: 0;
     }
     
-    .header-subtitle {
-        font-size: 14px;
+    .logo-text p {
+        font-size: 12px;
         color: var(--text-secondary);
+        margin: 0;
     }
     
     .btn {
         padding: 10px 20px;
         border: none;
         border-radius: 8px;
-        font-size: 15px;
+        font-size: 14px;
         font-weight: 600;
         cursor: pointer;
         transition: all 0.3s ease;
         text-decoration: none;
-        display: inline-block;
+        display: inline-flex;
+        align-items: center;
+        gap: 8px;
+        font-family: 'Inter', sans-serif;
     }
     
     .btn-secondary {
-        background: var(--accent);
+        background: var(--utm-maroon);
         color: white;
-        box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+        box-shadow: 0 2px 4px rgba(128, 0, 0, 0.2);
     }
     
     .btn-secondary:hover {
-        background: var(--accent-dark);
-        transform: translateY(-2px);
-        box-shadow: 0 6px 16px rgba(0, 0, 0, 0.2);
+        background: var(--utm-maroon-light);
+        transform: translateY(-1px);
+        box-shadow: 0 4px 8px rgba(128, 0, 0, 0.3);
     }
     
     /* Main Container */
@@ -97,14 +120,36 @@
         padding: 24px;
     }
     
+    /* Page Title Card */
+    .page-title-card {
+        background: white;
+        padding: 24px;
+        border-radius: 12px;
+        box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+        border: 1px solid var(--border);
+        margin-bottom: 20px;
+    }
+    
+    .page-title-card h1 {
+        font-size: 28px;
+        font-weight: 700;
+        color: var(--utm-maroon);
+        margin-bottom: 8px;
+    }
+    
+    .page-title-card p {
+        color: var(--text-secondary);
+        font-size: 14px;
+    }
+    
     /* Filters Card */
     .filters-card {
-        background: rgba(255, 255, 255, 0.95);
-        backdrop-filter: blur(10px);
+        background: white;
         padding: 20px 24px;
-        border-radius: 16px;
-        box-shadow: 0 10px 25px rgba(0, 0, 0, 0.1);
-        margin-bottom: 24px;
+        border-radius: 12px;
+        box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+        border: 1px solid var(--border);
+        margin-bottom: 20px;
     }
     
     .filters {
@@ -117,27 +162,28 @@
     .filter-btn {
         padding: 10px 20px;
         border-radius: 8px;
-        border: 2px solid var(--border);
+        border: 1px solid var(--border);
         background: white;
         color: var(--text-primary);
         cursor: pointer;
         font-size: 14px;
         font-weight: 600;
         transition: all 0.3s ease;
+        font-family: 'Inter', sans-serif;
     }
     
     .filter-btn:hover {
-        border-color: var(--accent);
-        color: var(--accent);
-        transform: translateY(-2px);
-        box-shadow: 0 4px 12px rgba(0, 0, 0, 0.12);
+        border-color: var(--utm-maroon);
+        color: var(--utm-maroon);
+        transform: translateY(-1px);
+        box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
     }
     
     .filter-btn.active {
-        background: var(--accent);
+        background: var(--utm-maroon);
         color: white;
-        border-color: var(--accent);
-        box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+        border-color: var(--utm-maroon);
+        box-shadow: 0 2px 4px rgba(128, 0, 0, 0.2);
     }
     
     .status-count {
@@ -146,24 +192,24 @@
         color: var(--text-secondary);
         font-weight: 600;
         padding: 8px 16px;
-        background: #f3f4f6;
+        background: var(--bg-light);
         border-radius: 8px;
     }
     
     /* Table Card */
     .table-card {
-        background: rgba(255, 255, 255, 0.95);
-        backdrop-filter: blur(10px);
+        background: white;
         padding: 24px;
-        border-radius: 16px;
-        box-shadow: 0 10px 30px rgba(0, 0, 0, 0.15);
+        border-radius: 12px;
+        box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+        border: 1px solid var(--border);
         overflow: hidden;
     }
     
     .table-wrapper {
         overflow-x: auto;
-        border-radius: 12px;
-        box-shadow: 0 4px 12px rgba(0, 0, 0, 0.08);
+        border-radius: 8px;
+        border: 1px solid var(--border);
     }
     
     table {
@@ -180,14 +226,13 @@
     }
     
     thead th {
-        background: var(--accent);
+        background: var(--utm-maroon);
         color: white;
         font-weight: 600;
         position: sticky;
         top: 0;
         z-index: 10;
-        border-bottom: 2px solid rgba(255, 255, 255, 0.2);
-        text-shadow: 0 1px 2px rgba(0, 0, 0, 0.1);
+        font-size: 13px;
     }
     
     tbody tr {
@@ -196,9 +241,7 @@
     }
     
     tbody tr:hover {
-        background: #f5f7ff;
-        transform: translateY(-2px);
-        box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+        background: #fafafa;
     }
     
     tbody tr:last-child td {
@@ -208,42 +251,46 @@
     /* Status Badges */
     .status-pending {
         color: #92400e;
-        background: linear-gradient(135deg, #fde68a 0%, #fbbf24 100%);
+        background: #fef3c7;
         padding: 6px 12px;
         border-radius: 6px;
         font-weight: 600;
         font-size: 13px;
         display: inline-block;
+        border: 1px solid #fde68a;
     }
     
     .status-booked {
         color: #065f46;
-        background: linear-gradient(135deg, #d1fae5 0%, #6ee7b7 100%);
+        background: #d1fae5;
         padding: 6px 12px;
         border-radius: 6px;
         font-weight: 600;
         font-size: 13px;
         display: inline-block;
+        border: 1px solid #a7f3d0;
     }
     
     .status-cancelled {
         color: #374151;
-        background: linear-gradient(135deg, #e5e7eb 0%, #d1d5db 100%);
+        background: #e5e7eb;
         padding: 6px 12px;
         border-radius: 6px;
         font-weight: 600;
         font-size: 13px;
         display: inline-block;
+        border: 1px solid #d1d5db;
     }
     
     .status-rejected {
         color: #7f1d1d;
-        background: linear-gradient(135deg, #fecaca 0%, #f87171 100%);
+        background: #fee2e2;
         padding: 6px 12px;
         border-radius: 6px;
         font-weight: 600;
         font-size: 13px;
         display: inline-block;
+        border: 1px solid #fecaca;
     }
     
     /* Slot Pills */
@@ -256,7 +303,7 @@
     }
     
     .slot-pill {
-        background: linear-gradient(135deg, #f1f5f9 0%, #e2e8f0 100%);
+        background: var(--bg-light);
         padding: 6px 10px;
         border-radius: 6px;
         font-size: 12px;
@@ -267,15 +314,14 @@
     }
     
     .slot-pill:hover {
-        background: linear-gradient(135deg, #dbeafe 0%, #bfdbfe 100%);
-        border-color: var(--accent);
-        transform: translateY(-1px);
+        background: #e0e7ff;
+        border-color: var(--utm-maroon);
     }
     
     /* Action Buttons */
     .btn-cancel {
         padding: 8px 16px;
-        background: linear-gradient(135deg, #ef4444 0%, #dc2626 100%);
+        background: #dc2626;
         color: white;
         border: none;
         border-radius: 6px;
@@ -283,13 +329,15 @@
         font-weight: 600;
         cursor: pointer;
         transition: all 0.3s ease;
-        box-shadow: 0 2px 4px rgba(239, 68, 68, 0.3);
+        box-shadow: 0 2px 4px rgba(220, 38, 38, 0.2);
         margin-right: 8px;
         margin-bottom: 6px;
+        font-family: 'Inter', sans-serif;
     }
+    
     .btn-edit {
         padding: 8px 14px;
-        background: linear-gradient(135deg, #f97316 0%, #fb923c 100%);
+        background: #f97316;
         color: white;
         border: none;
         border-radius: 6px;
@@ -297,50 +345,145 @@
         font-weight: 600;
         cursor: pointer;
         transition: all 0.3s ease;
-        box-shadow: 0 2px 4px rgba(251, 146, 60, 0.2);
+        box-shadow: 0 2px 4px rgba(249, 115, 22, 0.2);
+        font-family: 'Inter', sans-serif;
     }
-    .btn-edit:hover { transform: translateY(-2px); box-shadow: 0 4px 8px rgba(251,146,60,0.3); }
-    .btn-cancel:hover:not(:disabled) { transform: translateY(-2px); box-shadow: 0 4px 8px rgba(239,68,68,0.4); }
-    .btn-cancel:disabled, .btn-edit:disabled { opacity:0.6; cursor:not-allowed; }
+    
+    .btn-edit:hover { 
+        background: #ea580c;
+        transform: translateY(-1px); 
+        box-shadow: 0 4px 8px rgba(249, 115, 22, 0.3); 
+    }
+    
+    .btn-cancel:hover:not(:disabled) { 
+        background: #b91c1c;
+        transform: translateY(-1px); 
+        box-shadow: 0 4px 8px rgba(220, 38, 38, 0.3); 
+    }
+    
+    .btn-cancel:disabled, 
+    .btn-edit:disabled { 
+        opacity: 0.6; 
+        cursor: not-allowed; 
+    }
     
     /* Loading & error */
-    .loading-cell { text-align:center; padding:40px !important; color:var(--text-secondary); font-size:15px; }
-    .error-cell { text-align:left; padding:20px !important; color:#dc2626; background:#fef2f2; border-radius:8px; }
-    .small { font-size:12px; color:var(--text-secondary); font-weight:400; }
+    .loading-cell { 
+        text-align: center; 
+        padding: 40px !important; 
+        color: var(--text-secondary); 
+        font-size: 15px; 
+    }
+    
+    .error-cell { 
+        text-align: left; 
+        padding: 20px !important; 
+        color: #dc2626; 
+        background: #fef2f2; 
+        border-radius: 8px; 
+    }
+    
+    .small { 
+        font-size: 12px; 
+        color: var(--text-secondary); 
+        font-weight: 400; 
+    }
     
     /* Responsive */
-    @media (max-width: 800px) {
-        .header-content { flex-direction: column; gap: 16px; align-items: flex-start; }
-        .filters { justify-content: center; }
-        .status-count { margin-left: 0; width: 100%; text-align: center; }
-        table, thead, tbody, th, td, tr { display: block; }
-        thead { display: none; }
-        tbody tr { margin-bottom: 16px; border: 2px solid var(--border); border-radius: 12px; padding: 16px; box-shadow: 0 2px 8px rgba(0,0,0,0.05); }
-        td { border: 0; padding: 8px 0; display: flex; justify-content: space-between; align-items: center; }
-        td::before { content: attr(data-label); font-weight: 600; color: var(--text-secondary); margin-right: 12px; }
+    @media (max-width: 768px) {
+        .header-content { 
+            flex-wrap: wrap;
+        }
+        
+        .filters { 
+            justify-content: center; 
+        }
+        
+        .status-count { 
+            margin-left: 0; 
+            width: 100%; 
+            text-align: center; 
+        }
+        
+        table, thead, tbody, th, td, tr { 
+            display: block; 
+        }
+        
+        thead { 
+            display: none; 
+        }
+        
+        tbody tr { 
+            margin-bottom: 16px; 
+            border: 1px solid var(--border); 
+            border-radius: 12px; 
+            padding: 16px; 
+            box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1); 
+        }
+        
+        td { 
+            border: 0; 
+            padding: 8px 0; 
+            display: flex; 
+            justify-content: space-between; 
+            align-items: center; 
+        }
+        
+        td::before { 
+            content: attr(data-label); 
+            font-weight: 600; 
+            color: var(--text-secondary); 
+            margin-right: 12px; 
+        }
     }
   </style>
 </head>
 <body>
   <header class="main-header">
     <div class="header-content">
-      <img src="assets/images/utmlogo.png" alt="UTM Logo" class="logo">
+      <div class="logo-section">
+        <img src="assets/images/utmlogo.png" alt="UTM Logo" class="logo">
+        <div class="logo-text">
+          <h1>Room Booking System</h1>
+          <p>Universiti Teknologi Malaysia</p>
+        </div>
+      </div>
       
-      <a href="timetable.html" class="btn btn-secondary">← Back to Timetable</a>
+      <a href="timetable.html" class="btn btn-secondary">
+        <i class="fa-solid fa-arrow-left"></i>
+        Back to Timetable
+      </a>
     </div>
   </header>
 
   <div class="container">
+    <div class="page-title-card">
+      <h1><i class="fa-solid fa-calendar-check"></i> Booking Status</h1>
+      <p>View and manage your room bookings</p>
+    </div>
+
     <div class="filters-card">
-      <div class="header-title">
-        <h1>Booking Status</h1>
-      </div>
       <div class="filters" aria-label="Booking filters">
-        <button class="filter-btn active" data-filter="pending">Booking Requests</button>
-        <button class="filter-btn" data-filter="booked">My Bookings</button>
-        <button class="filter-btn" data-filter="cancelled">Cancelled</button>
-        <button class="filter-btn" data-filter="rejected">Rejected</button>
-        <button class="filter-btn" data-filter="all">All</button>
+        <button class="filter-btn active" data-filter="pending">
+          <i class="fa-solid fa-clock"></i>
+          Booking Requests
+        </button>
+        <button class="filter-btn" data-filter="booked">
+          <i class="fa-solid fa-check-circle"></i>
+          My Bookings
+        </button>
+        <button class="filter-btn" data-filter="cancelled">
+          <i class="fa-solid fa-ban"></i>
+          Cancelled
+        </button>
+        <button class="filter-btn" data-filter="rejected">
+          <i class="fa-solid fa-times-circle"></i>
+          Rejected
+        </button>
+        <button class="filter-btn" data-filter="all">
+          <i class="fa-solid fa-list"></i>
+          All
+        </button>
         <div class="status-count" id="statusCount">Loading…</div>
       </div>
     </div>
@@ -360,7 +503,7 @@
             </tr>
           </thead>
           <tbody>
-            <tr><td colspan="7" class="loading-cell">Loading sessions...</td></tr>
+            <tr><td colspan="7" class="loading-cell"><i class="fa-solid fa-spinner fa-spin"></i> Loading sessions...</td></tr>
           </tbody>
         </table>
       </div>
@@ -391,7 +534,7 @@ filterButtons.forEach(btn => {
 });
 
 function fetchSessions(filter='pending'){
-  tbody.innerHTML = '<tr><td colspan="7" class="loading-cell">Loading sessions...</td></tr>';
+  tbody.innerHTML = '<tr><td colspan="7" class="loading-cell"><i class="fa-solid fa-spinner fa-spin"></i> Loading sessions...</td></tr>';
   statusCountEl.textContent = 'Loading…';
   
   const url = 'booking_status.php?view=status' + (filter && filter!=='all' ? '&filter=' + encodeURIComponent(filter) : '');
@@ -410,7 +553,7 @@ function fetchSessions(filter='pending'){
 
       if (!sessions || sessions.length === 0) {
         const filterName = getFilterDisplayName(filter);
-        tbody.innerHTML = `<tr><td colspan="7" class="loading-cell">No ${filterName.toLowerCase()} found.</td></tr>`;
+        tbody.innerHTML = `<tr><td colspan="7" class="loading-cell"><i class="fa-solid fa-inbox"></i> No ${filterName.toLowerCase()} found.</td></tr>`;
         statusCountEl.textContent = '0 sessions';
         return;
       }
@@ -420,7 +563,7 @@ function fetchSessions(filter='pending'){
     })
     .catch(err => {
       console.error(err);
-      tbody.innerHTML = `<tr><td colspan="7" class="error-cell"><strong>Error loading sessions:</strong><br>${escapeHtml(err.message)}</td></tr>`;
+      tbody.innerHTML = `<tr><td colspan="7" class="error-cell"><i class="fa-solid fa-exclamation-triangle"></i> <strong>Error loading sessions:</strong><br>${escapeHtml(err.message)}</td></tr>`;
       statusCountEl.textContent = 'Error';
     });
 }
@@ -438,7 +581,7 @@ function getFilterDisplayName(filter) {
 
 function renderSessions(sessions){
   if (!sessions || sessions.length === 0) {
-    tbody.innerHTML = '<tr><td colspan="7" class="loading-cell">No sessions found.</td></tr>';
+    tbody.innerHTML = '<tr><td colspan="7" class="loading-cell"><i class="fa-solid fa-inbox"></i> No sessions found.</td></tr>';
     return;
   }
   
@@ -470,11 +613,11 @@ function renderSessions(sessions){
     let slotsHtml = '';
     if (Array.isArray(s.slots) && s.slots.length > 0) {
       const pills = s.slots.map(slot => 
-        `<span class="slot-pill">Date: ${escapeHtml(slot.date)}<br>Time: ${escapeHtml(slot.time)}</span>`
+        `<span class="slot-pill"><i class="fa-solid fa-clock"></i> ${escapeHtml(slot.date)} • ${escapeHtml(slot.time)}</span>`
       );
       slotsHtml = `<div class="slot-list">${pills.join('')}</div>`;
     } else if (s.time_start && s.time_end && s.slot_date) {
-      slotsHtml = `<div class="slot-list"><span class="slot-pill">${escapeHtml(s.slot_date)}<br>${escapeHtml((s.time_start||'').slice(0,5))} - ${escapeHtml((s.time_end||'').slice(0,5))}</span></div>`;
+      slotsHtml = `<div class="slot-list"><span class="slot-pill"><i class="fa-solid fa-clock"></i> ${escapeHtml(s.slot_date)} • ${escapeHtml((s.time_start||'').slice(0,5))} - ${escapeHtml((s.time_end||'').slice(0,5))}</span></div>`;
     }
 
     // Status badge
@@ -494,7 +637,7 @@ function renderSessions(sessions){
       statusLabel = 'Rejected';
     }
 
-    // ===== FIXED BUTTON LOGIC =====
+    // Button logic
     const statusLower = (s.status || '').toLowerCase();
     const isOwner = (s.is_owner === 1 || s.is_owner === '1' || s.is_owner === true);
     const isAdmin = (s.is_admin === 1 || s.is_admin === '1' || s.is_admin === true);
@@ -502,36 +645,29 @@ function renderSessions(sessions){
     let showEdit = false;
     let showCancel = false;
 
-    // Only owner or admin can see buttons
     if (isOwner || isAdmin) {
       if (statusLower === 'pending') {
-        // PENDING: Show both Edit AND Cancel
         showEdit = true;
         showCancel = true;
       } else if (statusLower === 'booked') {
-        // BOOKED (approved): Show only Cancel
         showEdit = false;
         showCancel = true;
       } else if (statusLower === 'rejected') {
-        // REJECTED: Show only Cancel
         showEdit = false;
         showCancel = true;
       } else if (statusLower === 'cancelled') {
-        // CANCELLED: No buttons
         showEdit = false;
         showCancel = false;
       }
     }
 
-    console.log(`Session ${sid}: status=${statusLower}, isOwner=${isOwner}, isAdmin=${isAdmin}, showEdit=${showEdit}, showCancel=${showCancel}`);
-
     // Build action buttons
     let actionParts = [];
     if (showCancel) {
-      actionParts.push(`<button class="btn-cancel" data-session="${escapeHtml(String(s.session_id || s.id || ''))}" data-id="${escapeHtml(String(s.id || s.session_id || ''))}">Cancel</button>`);
+      actionParts.push(`<button class="btn-cancel" data-session="${escapeHtml(String(s.session_id || s.id || ''))}" data-id="${escapeHtml(String(s.id || s.session_id || ''))}"><i class="fa-solid fa-times"></i> Cancel</button>`);
     }
     if (showEdit) {
-      actionParts.push(`<button class="btn-edit" data-session="${escapeHtml(String(s.session_id || s.id || ''))}" data-room="${escapeHtml(String(s.room_id || s.room || ''))}">Edit</button>`);
+      actionParts.push(`<button class="btn-edit" data-session="${escapeHtml(String(s.session_id || s.id || ''))}" data-room="${escapeHtml(String(s.room_id || s.room || ''))}"><i class="fa-solid fa-edit"></i> Edit</button>`);
     }
     const actionHtml = actionParts.length ? actionParts.join('') : '<span class="small">—</span>';
 
@@ -543,9 +679,9 @@ function renderSessions(sessions){
     tr.innerHTML = `
       <td data-label="Session ID">
         <strong>${sidLabel}</strong><br>
-        <span class="small">${escapeHtml(s.created_at || '')}</span>
+        <span class="small"><i class="fa-solid fa-calendar"></i> ${escapeHtml(s.created_at || '')}</span>
       </td>
-      <td data-label="Room">${room}</td>
+      <td data-label="Room"><i class="fa-solid fa-door-open"></i> ${room}</td>
       <td data-label="Dates">${datesDisplay}</td>
       <td data-label="Time Slots">${slotsHtml}</td>
       <td data-label="Status"><span class="${statusClass}">${escapeHtml(statusLabel)}</span></td>
@@ -563,56 +699,52 @@ function renderSessions(sessions){
     });
   });
 
-  // Wire edit buttons (improved: call server to free slots, save payload, then redirect)
-tbody.querySelectorAll('.btn-edit').forEach(btn => {
-  btn.addEventListener('click', async () => {
-    const sessionId = btn.dataset.session || btn.dataset.id;
-    const room = btn.dataset.room || '';
-    if (!sessionId) {
-      alert('Missing session id for edit.');
-      return;
-    }
-
-    if (!confirm('Are you sure you want to edit this booking? This will free your current slots so you can pick new ones.')) return;
-
-    try {
-      btn.disabled = true;
-      btn.textContent = 'Preparing...';
-
-      // Ask backend to free this session and return the freed slots
-      const resp = await postJson({ action: 'start_edit', session_id: sessionId });
-
-      if (!resp || !resp.success) {
-        alert('Could not start edit: ' + (resp && resp.msg ? resp.msg : 'Unknown error'));
-        btn.disabled = false;
-        btn.textContent = 'Edit';
+  // Wire edit buttons
+  tbody.querySelectorAll('.btn-edit').forEach(btn => {
+    btn.addEventListener('click', async () => {
+      const sessionId = btn.dataset.session || btn.dataset.id;
+      const room = btn.dataset.room || '';
+      if (!sessionId) {
+        alert('Missing session id for edit.');
         return;
       }
 
-      // Save payload for timetable to read
-      const payload = {
-        session_id: sessionId,
-        room_id: resp.room_id || resp.room || room || '',
-        slots: resp.slots || [], // expected [{date, time_start, time_end}, ...]
-        created_at: resp.created_at || ''
-      };
-      localStorage.setItem('edit_booking_payload', JSON.stringify(payload));
+      if (!confirm('Are you sure you want to edit this booking? This will free your current slots so you can pick new ones.')) return;
 
-      // Redirect to timetable with a query param so timetable shows edit banner
-      const params = new URLSearchParams();
-      params.set('edit_session', sessionId);
-      if (payload.room_id) params.set('room', payload.room_id);
-      window.location.href = 'timetable.html?' + params.toString();
+      try {
+        btn.disabled = true;
+        btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> Preparing...';
 
-    } catch (err) {
-      console.error('Edit start error', err);
-      alert('Failed to start edit: ' + (err.message || err));
-      btn.disabled = false;
-      btn.textContent = 'Edit';
-    }
+        const resp = await postJson({ action: 'start_edit', session_id: sessionId });
+
+        if (!resp || !resp.success) {
+          alert('Could not start edit: ' + (resp && resp.msg ? resp.msg : 'Unknown error'));
+          btn.disabled = false;
+          btn.innerHTML = '<i class="fa-solid fa-edit"></i> Edit';
+          return;
+        }
+
+        const payload = {
+          session_id: sessionId,
+          room_id: resp.room_id || resp.room || room || '',
+          slots: resp.slots || [],
+          created_at: resp.created_at || ''
+        };
+        localStorage.setItem('edit_booking_payload', JSON.stringify(payload));
+
+        const params = new URLSearchParams();
+        params.set('edit_session', sessionId);
+        if (payload.room_id) params.set('room', payload.room_id);
+        window.location.href = 'timetable.html?' + params.toString();
+
+      } catch (err) {
+        console.error('Edit start error', err);
+        alert('Failed to start edit: ' + (err.message || err));
+        btn.disabled = false;
+        btn.innerHTML = '<i class="fa-solid fa-edit"></i> Edit';
+      }
+    });
   });
-});
-
 }
 
 function postJson(payload){
@@ -637,8 +769,8 @@ function handleCancelButton(btn) {
   if (!confirm('Are you sure you want to cancel this booking?')) return;
 
   btn.disabled = true;
-  const originalText = btn.textContent;
-  btn.textContent = 'Cancelling...';
+  const originalHtml = btn.innerHTML;
+  btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> Cancelling...';
 
   postJson({ action: 'cancel', booking_id: bookingId, reason: 'Cancelled by user' })
     .then(resp => {
@@ -648,13 +780,13 @@ function handleCancelButton(btn) {
       } else {
         alert('Cancel failed: ' + (resp && resp.msg ? resp.msg : 'Unknown error'));
         btn.disabled = false;
-        btn.textContent = originalText;
+        btn.innerHTML = originalHtml;
       }
     })
     .catch(err => {
       alert('Network error: ' + err.message);
       btn.disabled = false;
-      btn.textContent = originalText;
+      btn.innerHTML = originalHtml;
     });
 }
 
