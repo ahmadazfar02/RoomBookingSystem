@@ -22,32 +22,42 @@ $rooms = $conn->query("SELECT room_id, name FROM rooms");
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
-  <title>Room Booking System</title>
+  <title>Report Room Problem - UTM Room Booking</title>
+  <!-- Google Fonts -->
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+  <!-- FontAwesome -->
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
   <style>
-    :root {
-        --accent: #5c6bc0;
-        --accent-dark: #3f51b5;
-        --bg-gradient: linear-gradient(135deg, #7986cb 10%, #B3E5FC 50%, #FF8A80 100%);
+    :root{ 
+        --utm-maroon: #800000;
+        --utm-maroon-light: #a31313;
+        --utm-maroon-dark: #600000;
+        --accent: #800000;
+        --accent-dark: #600000;
+        --bg-light: #f8fafc;
         --card-bg: #ffffff;
-        --text-primary: #1f2937;
-        --text-secondary: #6b7280;
-        --border: #e5e7eb;
+        --text-primary: #1e293b;
+        --text-secondary: #64748b;
+        --border: #e2e8f0;
     }
     
-    * { box-sizing: border-box; margin: 0; padding: 0; }
+    * { 
+        box-sizing: border-box; 
+        margin: 0; 
+        padding: 0; 
+    }
     
     body { 
-        font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-        background: var(--bg-gradient);
+        font-family: 'Inter', sans-serif;
+        background: var(--bg-light);
         min-height: 100vh;
         color: var(--text-primary);
     }
     
     /* Header */
     .main-header {
-        background: rgba(255, 255, 255, 0.98);
-        backdrop-filter: blur(10px);
-        box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
+        background: white;
+        box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
         position: sticky;
         top: 0;
         z-index: 1000;
@@ -60,124 +70,68 @@ $rooms = $conn->query("SELECT room_id, name FROM rooms");
         display: flex;
         justify-content: space-between;
         align-items: center;
+        gap: 20px;
     }
     
-    .logo { height: 72px; }
-    
-    .booking-status-btn {
-        background: linear-gradient(135deg, var(--accent) 0%, var(--accent-dark) 100%);
-        color: white;
-        border: none;
-        padding: 10px 20px;
-        border-radius: 8px;
-        cursor: pointer;
-        font-size: 14px;
-        font-weight: 600;
-        position: relative;
-        transition: all 0.3s ease;
-        box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
-    }
-    
-    .booking-status-btn:hover {
-        transform: translateY(-2px);
-        box-shadow: 0 6px 16px rgba(0, 0, 0, 0.2);
-    }
-    
-
-    .notification-badge {
-        display: none;
-        position: absolute;
-        top: -8px;
-        right: -8px;
-        background: linear-gradient(135deg, #ef4444 0%, #dc2626 100%);
-        color: white;
-        border-radius: 10px;
-        padding: 2px 6px;
-        font-size: 11px;
-        box-shadow: 0 2px 6px rgba(239, 68, 68, 0.4);
-    }
-    
-    .notification-badge.active { display: block; }
-    
-    .main-content {
-        max-width: 1400px;
-        margin: 0 auto;
-        padding: 24px;
-    }
-    
-    .search-container {
-        background: rgba(255, 255, 255, 0.95);
-        backdrop-filter: blur(10px);
-        border-radius: 16px;
-        padding: 24px;
-        margin-bottom: 24px;
-        box-shadow: 0 10px 25px rgba(0, 0, 0, 0.1);
+    .logo-section {
         display: flex;
-        justify-content: space-between;
         align-items: center;
         gap: 16px;
     }
     
-    
-    .dropdown {
-        padding: 10px 14px;
-        border: 2px solid var(--border);
-        border-radius: 8px;
-        font-size: 14px;
-        min-width: 300px;
-        transition: all 0.3s ease;
-        background: white;
+    .logo { 
+        height: 60px; 
     }
     
-    .dropdown:focus {
-        outline: none;
-        border-color: var(--accent);
-        box-shadow: 0 0 0 3px rgba(92, 107, 192, 0.1);
-    }
-    
-    .input[type="text"] {
-        padding: 10px 14px;
-        border: 2px solid var(--border);
-        border-radius: 8px;
-        font-size: 14px;
-        min-width: 300px;
-        transition: all 0.3s ease;
-        background: white;
-    }
-    
-    .input[type="text"]:focus {
-        outline: none;
-        border-color: var(--accent);
-        box-shadow: 0 0 0 3px rgba(92, 107, 192, 0.1);
-    }
-    
-    input[type="date"] {
-        padding: 10px 14px;
-        border: 2px solid var(--border);
-        border-radius: 8px;
-        font-size: 14px;
-        transition: all 0.3s ease;
-        background: white;
-    }
-    
-    input[type="date"]:focus {
-        outline: none;
-        border-color: var(--accent);
-        box-shadow: 0 0 0 3px rgba(92, 107, 192, 0.1);
-    }
-    
-    .nav-controls {
+    .logo-text {
         display: flex;
-        gap: 8px;
+        flex-direction: column;
+    }
+    
+    .logo-text h1 {
+        font-size: 18px;
+        font-weight: 700;
+        color: var(--utm-maroon);
+        margin: 0;
+    }
+    
+    .logo-text p {
+        font-size: 12px;
+        color: var(--text-secondary);
+        margin: 0;
+    }
+    
+    .header-controls {
+        display: flex;
+        align-items: center;
+        gap: 12px;
     }
     
     .btn {
-        padding: 10px 18px;
+        padding: 10px 20px;
+        border: none;
         border-radius: 8px;
-        cursor: pointer;
         font-size: 14px;
         font-weight: 600;
+        cursor: pointer;
         transition: all 0.3s ease;
+        text-decoration: none;
+        display: inline-flex;
+        align-items: center;
+        gap: 8px;
+        font-family: 'Inter', sans-serif;
+    }
+    
+    .btn-secondary {
+        background: var(--utm-maroon);
+        color: white;
+        box-shadow: 0 2px 4px rgba(128, 0, 0, 0.2);
+    }
+    
+    .btn-secondary:hover {
+        background: var(--utm-maroon-light);
+        transform: translateY(-1px);
+        box-shadow: 0 4px 8px rgba(128, 0, 0, 0.3);
     }
     
     .btn-nav {
@@ -187,131 +141,108 @@ $rooms = $conn->query("SELECT room_id, name FROM rooms");
     }
     
     .btn-nav:hover {
-        border-color: var(--accent);
-        color: var(--accent);
-        transform: translateY(-2px);
-        box-shadow: 0 4px 12px rgba(0, 0, 0, 0.12);
-    }
-    
-    .btn-primary {
-        background: linear-gradient(135deg, var(--accent) 0%, var(--accent-dark) 100%);
-        color: white;
-        border: none;
-        box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
-    }
-    
-    .btn-primary:hover {
-        transform: translateY(-2px);
-        box-shadow: 0 6px 16px rgba(0, 0, 0, 0.2);
-    }
-    
-    .btn-disabled {
-        background: #d1d5db;
-        cursor: not-allowed;
-        box-shadow: none;
-    }
-    
-    .btn-disabled:hover {
-        transform: none;
-    }
-    
-    .btn-ghost {
-        background: white;
-        border: 2px solid var(--border);
-    }
-    
-    .btn-ghost:hover {
-        border-color: var(--accent);
-        color: var(--accent);
-    }
-    
-    
-    .legend {
-        display: flex;
-        gap: 20px;
-        margin-bottom: 16px;
-        font-size: 14px;
-        flex-wrap: wrap;
-    }
-    
-    .legend-item {
-        display: flex;
-        align-items: center;
-        gap: 8px;
-        padding: 8px 14px;
-        background: rgba(255, 255, 255, 0.7);
-        border-radius: 8px;
-    }
-    
-    .legend-color {
-        width: 20px;
-        height: 20px;
-        border-radius: 6px;
+        border-color: var(--utm-maroon);
+        color: var(--utm-maroon);
+        transform: translateY(-1px);
         box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
     }
     
-    .legend-available { background: linear-gradient(135deg, #ecfdf5 0%, #d1fae5 100%); }
-    .legend-selected { background: linear-gradient(135deg, #fde68a 0%, #fbbf24 100%); }
-    .legend-pending { background: linear-gradient(135deg, #fef3c7 0%, #fde047 100%); }
-    .legend-booked { background: linear-gradient(135deg, #fecaca 0%, #f87171 100%); }
-    .slot.maintenance {
-        background: linear-gradient(135deg, #fed7aa 0%, #fb923c 100%);
-        cursor: not-allowed;
-        color: #7c2d12;
-    }
-
-    .legend-maintenance { 
-        background: linear-gradient(135deg, #fed7aa 0%, #fb923c 100%); 
+    /* Dropdown Menu */
+    .dropdown-menu {
+        position: relative;
+        display: inline-block;
     }
     
-    .card {
-        background: rgba(255, 255, 255, 0.95);
-        backdrop-filter: blur(10px);
-        border-radius: 16px;
-        padding: 24px;
-        box-shadow: 0 10px 30px rgba(0, 0, 0, 0.15);
+    .dropdown-btn {
+        background: var(--utm-maroon);
+        color: white;
+        box-shadow: 0 2px 4px rgba(128, 0, 0, 0.2);
+        position: relative;
     }
     
-    .card h2 {
-        margin-bottom: 20px;
-        color: var(--accent);
-        font-size: 24px;
+    .dropdown-btn:hover {
+        background: var(--utm-maroon-light);
+        transform: translateY(-1px);
+        box-shadow: 0 4px 8px rgba(128, 0, 0, 0.3);
     }
     
-    /* Main Layout */
-    .main-content {
-        max-width: 1400px;
-        width: 100%;
+    .dropdown-content {
+        display: none;
+        position: absolute;
+        right: 0;
+        background-color: white;
+        min-width: 200px;
+        box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+        border-radius: 8px;
+        overflow: hidden;
+        z-index: 1001;
+        margin-top: 8px;
+    }
+    
+    .dropdown-content a {
+        color: var(--text-primary);
+        padding: 12px 16px;
+        text-decoration: none;
+        display: block;
+        transition: all 0.2s ease;
+        font-size: 14px;
+        font-weight: 500;
+    }
+    
+    .dropdown-content a:hover {
+        background: var(--utm-maroon);
+        color: white;
+    }
+    
+    .dropdown-menu:hover .dropdown-content {
+        display: block;
+    }
+    
+    /* Main Container */
+    .container {
+        max-width: 800px;
         margin: 0 auto;
-        padding: 40px 24px;
-        display: flex;
-        justify-content: center; /* Center the form */
+        padding: 24px;
     }
-
-    /* Card Style */
-    .card {
-        background: rgba(255, 255, 255, 0.95);
-        backdrop-filter: blur(10px);
-        border-radius: 16px;
-        padding: 40px;
-        box-shadow: 0 10px 30px rgba(0, 0, 0, 0.15);
-        width: 100%;
-        max-width: 600px; /* Limit width for readability */
+    
+    /* Page Title Card */
+    .page-title-card {
+        background: white;
+        padding: 24px;
+        border-radius: 12px;
+        box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+        border: 1px solid var(--border);
+        margin-bottom: 20px;
     }
-
-    .card h2 {
-        margin-bottom: 24px;
-        color: var(--accent);
+    
+    .page-title-card h1 {
         font-size: 28px;
         font-weight: 700;
-        text-align: center;
+        color: var(--utm-maroon);
+        margin-bottom: 8px;
+        display: flex;
+        align-items: center;
+        gap: 12px;
     }
-
-    /* Form Elements */
+    
+    .page-title-card p {
+        color: var(--text-secondary);
+        font-size: 14px;
+    }
+    
+    /* Form Card */
+    .form-card {
+        background: white;
+        padding: 32px;
+        border-radius: 12px;
+        box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+        border: 1px solid var(--border);
+    }
+    
     .form-group {
-        margin-bottom: 20px;
+        margin-bottom: 24px;
     }
-
+    
     .form-group label {
         display: block;
         margin-bottom: 8px;
@@ -319,8 +250,7 @@ $rooms = $conn->query("SELECT room_id, name FROM rooms");
         font-size: 14px;
         color: var(--text-primary);
     }
-
-    /* Unified Input Styles */
+    
     .form-control {
         width: 100%;
         padding: 12px 16px;
@@ -329,349 +259,281 @@ $rooms = $conn->query("SELECT room_id, name FROM rooms");
         font-size: 14px;
         background: white;
         transition: all 0.3s ease;
-        font-family: inherit;
+        font-family: 'Inter', sans-serif;
+        color: var(--text-primary);
     }
-
+    
     .form-control:focus {
         outline: none;
-        border-color: var(--accent);
-        box-shadow: 0 0 0 3px rgba(92, 107, 192, 0.1);
+        border-color: var(--utm-maroon);
+        box-shadow: 0 0 0 3px rgba(128, 0, 0, 0.1);
     }
-
+    
     textarea.form-control {
         resize: vertical;
-        min-height: 120px;
-    }
-
-    
-    .cell-title {
-        font-weight: 600;
-        font-size: 12px;
+        min-height: 140px;
     }
     
-    .cell-meta {
-        font-size: 11px;
-        color: var(--text-secondary);
+    select.form-control {
+        cursor: pointer;
+        appearance: none;
+        background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 12 12'%3E%3Cpath fill='%2364748b' d='M6 9L1 4h10z'/%3E%3C/svg%3E");
+        background-repeat: no-repeat;
+        background-position: right 12px center;
+        padding-right: 40px;
     }
     
-    .cell-capacity {
-        font-size: 11px;
-        color: #6b7280;
-        margin-top: 4px;
-    }
-    
-    .card-footer {
+    /* Button Group */
+    .btn-group {
         display: flex;
-        justify-content: space-between;
-        align-items: center;
-        margin-top: 20px;
-        padding-top: 20px;
+        gap: 12px;
+        margin-top: 32px;
+        padding-top: 24px;
         border-top: 1px solid var(--border);
     }
     
-    .footer-info {
-        font-size: 14px;
-        color: var(--text-secondary);
-    }
-    
-    .search-modal {
-        display: none;
-        position: fixed;
-        top: 0;
-        left: 0;
-        right: 0;
-        bottom: 0;
-        background: rgba(0, 0, 0, 0.5);
-        backdrop-filter: blur(4px);
-        z-index: 1000;
-        align-items: center;
-        justify-content: center;
-    }
-    
-    .search-modal.visible {
-        display: flex;
-    }
-    
-    .search-modal-content {
-        background: white;
-        border-radius: 16px;
-        padding: 32px;
-        max-width: 800px;
-        width: 90%;
-        max-height: 90vh;
-        overflow-y: auto;
-        box-shadow: 0 20px 40px rgba(0, 0, 0, 0.2);
-    }
-    
-    .search-modal-content h3 {
-        color: var(--accent);
-        font-size: 24px;
-        margin-bottom: 20px;
-    }
-    
-    .search-form-group {
-        margin-bottom: 16px;
-    }
-    
-    .search-form-group label {
-        display: block;
-        margin-bottom: 8px;
-        font-weight: 600;
-        font-size: 14px;
-        color: var(--text-primary);
-    }
-    
-    .search-form-group input {
-        width: 100%;
-        padding: 12px 14px;
-        border: 2px solid var(--border);
-        border-radius: 8px;
-        font-size: 14px;
-        transition: all 0.3s ease;
-    }
-    
-    .search-form-group input:focus {
-        outline: none;
-        border-color: var(--accent);
-        box-shadow: 0 0 0 3px rgba(92, 107, 192, 0.1);
-    }
-    
-    .search-time-row {
-        display: grid;
-        grid-template-columns: 1fr 1fr;
-        gap: 16px;
-    }
-    
-    .search-modal-actions {
-        display: flex;
-        gap: 12px;
-        margin-top: 24px;
-    }
-    
-    .btn-close,
-    .btn-search {
-        flex: 1;
-        padding: 12px;
-        border-radius: 8px;
-        font-size: 14px;
-        font-weight: 600;
-        cursor: pointer;
-        transition: all 0.3s ease;
-    }
-    
-    .btn-close {
-        background: white;
-        border: 2px solid var(--border);
-        color: var(--text-primary);
-    }
-    
-    .btn-close:hover {
-        border-color: var(--accent);
-        color: var(--accent);
-    }
-    
-    .btn-search {
-        background: linear-gradient(135deg, var(--accent) 0%, var(--accent-dark) 100%);
-        color: white;
-        border: none;
-        box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
-    }
     .btn-report {
         flex: 1;
-        padding: 12px 20px;
+        padding: 12px 24px;
         border-radius: 8px;
         cursor: pointer;
-        font-size: 15px;
+        font-size: 14px;
         font-weight: 600;
         text-align: center;
         transition: all 0.3s ease;
         border: none;
         text-decoration: none;
-        display: inline-block;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        gap: 8px;
+        font-family: 'Inter', sans-serif;
     }
-    .btn-group {
-        display: flex;
-        gap: 12px;
-        margin-top: 30px;
-    }
-    .btn-search:hover {
-        transform: translateY(-2px);
-        box-shadow: 0 6px 16px rgba(0, 0, 0, 0.2);
-    }
+    
     .btn-primary {
-        background: linear-gradient(135deg, var(--accent) 0%, var(--accent-dark) 100%);
+        background: var(--utm-maroon);
         color: white;
-        box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+        box-shadow: 0 2px 4px rgba(128, 0, 0, 0.2);
     }
-
+    
     .btn-primary:hover {
-        transform: translateY(-2px);
-        box-shadow: 0 6px 16px rgba(0, 0, 0, 0.2);
+        background: var(--utm-maroon-light);
+        transform: translateY(-1px);
+        box-shadow: 0 4px 8px rgba(128, 0, 0, 0.3);
     }
+    
     .btn-ghost {
         background: white;
         border: 2px solid var(--border);
         color: var(--text-secondary);
     }
-
+    
     .btn-ghost:hover {
-        border-color: var(--accent);
-        color: var(--accent);
-        background: #f9fafb;
-    }
-    .actions {
-        display: flex;
-        gap: 12px;
-        margin-top: 24px;
+        border-color: var(--utm-maroon);
+        color: var(--utm-maroon);
+        transform: translateY(-1px);
+        box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
     }
     
-    .small {
+    /* Info Box */
+    .info-box {
+        background: #f0f9ff;
+        border: 1px solid #bae6fd;
+        border-radius: 8px;
+        padding: 16px;
+        margin-bottom: 24px;
+        display: flex;
+        gap: 12px;
+        align-items: start;
+    }
+    
+    .info-box i {
+        color: #0284c7;
+        font-size: 18px;
+        margin-top: 2px;
+    }
+    
+    .info-box-content {
+        flex: 1;
+    }
+    
+    .info-box-content strong {
+        display: block;
+        color: #0c4a6e;
+        margin-bottom: 4px;
+        font-size: 14px;
+    }
+    
+    .info-box-content p {
+        color: #075985;
         font-size: 13px;
-        color: var(--text-secondary);
+        margin: 0;
     }
     
     /* Responsive */
-    @media (max-width: 800px) {
-        .search-container {
-            flex-direction: column;
-            align-items: stretch;
+    @media (max-width: 768px) {
+        .header-content {
+            flex-wrap: wrap;
         }
         
-        .nav-controls {
-            flex-direction: column;
+        .header-controls {
+            width: 100%;
+            justify-content: space-between;
         }
         
-        .dropdown {
-            min-width: 100%;
+        .container {
+            padding: 16px;
         }
-    }
-    /*Dropdown for Room Problem*/
-    .dropdownmenu {
-      display: inline-block;
-    }
-    .dropbtn{
-      background: linear-gradient(135deg, var(--accent) 0%, var(--accent-dark) 100%);
-        color: white;
-        border: none;
-        padding: 10px 20px;
-        border-radius: 8px;
-        cursor: pointer;
-        font-size: 14px;
-        font-weight: 600;
-        position: relative;
-        transition: all 0.3s ease;
-        box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
-    }
-    .dropbtn:hover{ 
-      transform: translateY(-2px);
-      box-shadow: 0 6px 16px rgba(0, 0, 0, 0.2);
-    }
-    .dropdownmenu-content {
-        display: none; /* Hidden by default */
-        position: absolute;
-        background-color: #f9f9f9;
-        min-width: 160px;
-        box-shadow: 0px 8px 16px 0px rgba(0,0,0,0.2);
-        z-index: 1;
-      }
-
-    .dropdownmenu-content a {
-        color: black;
-        padding: 12px 16px;
-        text-decoration: none;
-        display: block;
-        border-radius: 8px;
-    }
-    .dropdownmenu-content a:hover {
-        transform: translate(-2px);
-        box-shadow: 0 6px 16px rgba(0, 0, 0, 0.2);
-        background: linear-gradient(135deg, var(--accent) 0%, var(--accent-dark) 100%);
-        color: white;
-    }
-
-/* Show the dropdown menu on hover */
-    .dropdownmenu:hover .dropdownmenu-content {
-      display: block;
+        
+        .form-card {
+            padding: 24px 20px;
+        }
+        
+        .btn-group {
+            flex-direction: column-reverse;
+        }
+        
+        .btn-report {
+            width: 100%;
+        }
+        
+        .page-title-card h1 {
+            font-size: 22px;
+        }
     }
   </style>
 </head>
 <body>
   <header class="main-header">
     <div class="header-content">
-      <img src="assets/images/utmlogo.png" alt="UTM Logo" class="logo">
+      <div class="logo-section">
+        <img src="assets/images/utmlogo.png" alt="UTM Logo" class="logo">
+        <div class="logo-text">
+          <h1>Room Booking System</h1>
+          <p>Universiti Teknologi Malaysia</p>
+        </div>
+      </div>
+      
       <div class="header-controls">
-        <a href="booking_status.html" style="text-decoration: none;">
-          <button class="booking-status-btn">
-            Booking Status
-            <span class="notification-badge" id="notificationBadge">0</span>
-          </button>
+        <a href="booking_status.html" class="btn btn-secondary">
+          <i class="fa-solid fa-calendar-check"></i>
+          Booking Status
         </a>
-        <div class="dropdownmenu">
-        <button class="dropbtn">Room Problem</button>
-        <div class="dropdownmenu-content">
-          <a href="user_report_problem.php">Report Issue</a>
-          <a href="user_problem_status.php">Room Problem Status</a> 
-        </div>
-        </div>
-        <!-- add this where your header controls are -->
-        <a href="auth/logout.php">
-          <button class="btn btn-nav">
-            Logout
+        
+        <div class="dropdown-menu">
+          <button class="btn btn-secondary dropdown-btn">
+            <i class="fa-solid fa-tools"></i>
+            Room Problem
+            <i class="fa-solid fa-chevron-down" style="font-size: 10px;"></i>
           </button>
+          <div class="dropdown-content">
+            <a href="user_report_problem.php">
+              <i class="fa-solid fa-exclamation-circle"></i> Report Issue
+            </a>
+            <a href="user_problem_status.php">
+              <i class="fa-solid fa-list-check"></i> Problem Status
+            </a>
+          </div>
+        </div>
+        
+        <a href="timetable.html" class="btn btn-nav">
+          <i class="fa-solid fa-calendar"></i>
+          Timetable
+        </a>
+        
+        <a href="auth/logout.php" class="btn btn-nav">
+          <i class="fa-solid fa-sign-out-alt"></i>
+          Logout
         </a>
       </div>
     </div>
   </header>
 
-  <main class="main-content">
-        <div class="card">
-            <h2>Report a Room Problem</h2>
-            
-            <form method="POST">
-                
-                <!-- Room Select -->
-                <div class="form-group">
-                    <label>Select Room</label>
-                    <select class="form-control" name="room_id" required>
-                        <option value="" disabled selected>-- Choose a Room --</option>
-                        <?php 
-                        // Reset pointer in case it was used elsewhere
-                        if(isset($rooms) && $rooms->num_rows > 0) {
-                            $rooms->data_seek(0); 
-                            while($r = $rooms->fetch_assoc()): 
-                        ?>
-                            <option value="<?php echo htmlspecialchars($r['room_id']); ?>">
-                                <?php echo htmlspecialchars($r['name']); ?>
-                            </option>
-                        <?php 
-                            endwhile; 
-                        }
-                        ?>
-                    </select>
-                </div>
+  <main class="container">
+    <div class="page-title-card">
+      <h1>
+        <i class="fa-solid fa-exclamation-triangle"></i>
+        Report Room Problem
+      </h1>
+      <p>Help us maintain our facilities by reporting any issues you encounter</p>
+    </div>
 
-                <!-- Issue Title -->
-                <div class="form-group">
-                    <label>Issue Title</label>
-                    <input type="text" class="form-control" name="title" placeholder="e.g. Air Conditioner Leaking" required>
-                </div>
-
-                <!-- Description -->
-                <div class="form-group">
-                    <label>Description</label>
-                    <textarea class="form-control" name="description" placeholder="Describe the issue in detail..." required></textarea>
-                </div>
-
-                <!-- Actions -->
-                <div class="btn-group">
-                    <!-- Note: 'href' works on <a> tags. I wrapped the back button in an <a> tag -->
-                    <a href="timetable.html" class="btn-report btn-ghost">Cancel</a>
-                    <button type="submit" class="btn-report btn-primary">Submit Report</button>
-                </div>
-
-            </form>
+    <div class="form-card">
+      <div class="info-box">
+        <i class="fa-solid fa-info-circle"></i>
+        <div class="info-box-content">
+          <strong>What to report?</strong>
+          <p>Report any maintenance issues, equipment malfunctions, cleanliness concerns, or safety hazards you notice in any room.</p>
         </div>
-    </main>
+      </div>
+
+      <form method="POST">
+        <!-- Room Select -->
+        <div class="form-group">
+          <label>
+            <i class="fa-solid fa-door-open"></i>
+            Select Room
+          </label>
+          <select class="form-control" name="room_id" required>
+            <option value="" disabled selected>-- Choose a Room --</option>
+            <?php 
+            if(isset($rooms) && $rooms->num_rows > 0) {
+                $rooms->data_seek(0); 
+                while($r = $rooms->fetch_assoc()): 
+            ?>
+                <option value="<?php echo htmlspecialchars($r['room_id']); ?>">
+                    <?php echo htmlspecialchars($r['name']); ?>
+                </option>
+            <?php 
+                endwhile; 
+            }
+            ?>
+          </select>
+        </div>
+
+        <!-- Issue Title -->
+        <div class="form-group">
+          <label>
+            <i class="fa-solid fa-heading"></i>
+            Issue Title
+          </label>
+          <input 
+            type="text" 
+            class="form-control" 
+            name="title" 
+            placeholder="e.g., Air Conditioner Leaking" 
+            required
+          >
+        </div>
+
+        <!-- Description -->
+        <div class="form-group">
+          <label>
+            <i class="fa-solid fa-file-lines"></i>
+            Description
+          </label>
+          <textarea 
+            class="form-control" 
+            name="description" 
+            placeholder="Please describe the issue in detail. Include information such as:&#10;- What is the problem?&#10;- When did you notice it?&#10;- Is it affecting room usage?&#10;- Any other relevant details" 
+            required
+          ></textarea>
+        </div>
+
+        <!-- Actions -->
+        <div class="btn-group">
+          <a href="timetable.html" class="btn-report btn-ghost">
+            <i class="fa-solid fa-times"></i>
+            Cancel
+          </a>
+          <button type="submit" class="btn-report btn-primary">
+            <i class="fa-solid fa-paper-plane"></i>
+            Submit Report
+          </button>
+        </div>
+      </form>
+    </div>
+  </main>
 
 </body>
 </html>
