@@ -355,12 +355,13 @@
     
     .timetable {
         width: 100%;
-        border-collapse: separate;
+        border-collapse: collapse;
         border-spacing: 0;
         font-size: 13px;
         border-radius: 8px;
         overflow: hidden;
         border: 1px solid var(--border);
+        box-shadow: 0 1px 3px rgba(0, 0, 0, 0.5);
     }
     
     .timetable th,
@@ -720,39 +721,81 @@
     }
     
     .dropdownmenu {
-        display: inline-block;
         position: relative;
+        display: inline-block;
     }
-    
+
+    .dropbtn {
+        background: var(--utm-maroon);
+        color: white;
+        box-shadow: 0 2px 4px rgba(128, 0, 0, 0.2);
+        padding: 10px 20px;
+        border: none;
+        border-radius: 8px;
+        font-size: 14px;
+        font-weight: 600;
+        cursor: pointer;
+        transition: all 0.3s ease;
+        display: inline-flex;
+        align-items: center;
+        gap: 8px;
+        font-family: 'Inter', sans-serif;
+    }
+
+    .dropbtn:hover {
+        background: var(--utm-maroon-light);
+        transform: translateY(-1px);
+        box-shadow: 0 4px 8px rgba(128, 0, 0, 0.3);
+    }
+
     .dropdownmenu-content {
         display: none;
         position: absolute;
+        right: 0;
+        top: calc(100% + 1px);
         background-color: white;
         min-width: 200px;
-        box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
+        box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
         border-radius: 8px;
-        z-index: 1;
-        border: 1px solid var(--border);
         overflow: hidden;
-        top: 100%;
-        margin-top: 4px;
+        z-index: 1001;
+        border: 1px solid var(--border);
+    }
+
+    .dropdownmenu-content::before {
+        content: '';
+        position: absolute;
+        top: -10px;
+        left: 0;
+        right: 0;
+        height: 10px;
+        background: transparent;
     }
 
     .dropdownmenu-content a {
         color: var(--text-primary);
         padding: 12px 16px;
         text-decoration: none;
-        display: block;
+        display: flex;
+        align-items: center;
+        gap: 8px;
         transition: all 0.2s ease;
         font-size: 14px;
+        font-weight: 500;
     }
-    
+
+    .dropdownmenu-content a i {
+        width: 16px;
+        text-align: center;
+    }
+
     .dropdownmenu-content a:hover {
         background: var(--utm-maroon);
         color: white;
     }
 
-    .dropdownmenu:hover .dropdownmenu-content {
+    .dropdownmenu:hover .dropdownmenu-content,
+    .dropdownmenu-content:hover {
         display: block;
     }
     
@@ -809,6 +852,7 @@
           <button class="dropbtn">
             <i class="fa-solid fa-tools"></i>
             Room Problem
+            <i class="fa-solid fa-chevron-down" style="font-size: 10px;"></i>
           </button>
           <div class="dropdownmenu-content">
             <a href="user_report_problem.php"><i class="fa-solid fa-triangle-exclamation"></i> Report Issue</a>
@@ -1328,6 +1372,7 @@ modalConfirm.addEventListener('click', () => {
   });
 
   modalConfirm.disabled = true;
+  modalConfirm.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> Booking...';
 
   fetch('api/book_slot.php', {
     method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload)
@@ -1335,7 +1380,9 @@ modalConfirm.addEventListener('click', () => {
   .then(r => { if (!r.ok) throw new Error('HTTP error ' + r.status); return r.text(); })
   .then(text => {
     let resp; try { resp = JSON.parse(text); } catch (e) { throw new Error('Invalid JSON response from server'); }
-    modalConfirm.disabled = false; modalBackdrop.style.display = 'none';
+    modalConfirm.disabled = false;
+    modalConfirm.innerHTML = '<i class="fa-solid fa-check"></i> Confirm Booking';
+    modalBackdrop.style.display = 'none';
     if (!resp || !resp.success) { alert('Booking failed: ' + (resp?.msg || 'Unknown error')); loadBookings(); return; }
     if (!Array.isArray(resp.results)) { alert('Booking failed — unexpected server response format.'); loadBookings(); return; }
 
@@ -1364,12 +1411,32 @@ modalConfirm.addEventListener('click', () => {
     });
 
     selectedSlots = []; refreshBookNowState();
-    alert(`Booking completed. Success: ${ok}, Failed: ${fail}`);
+    // Show success card instead of alert
+    const successCard = document.createElement('div');
+    successCard.style.cssText = 'position:fixed;top:50%;left:50%;transform:translate(-50%,-50%);background:white;padding:32px;border-radius:12px;box-shadow:0 20px 25px -5px rgba(0,0,0,0.3);z-index:9999;max-width:400px;text-align:center;';
+    successCard.innerHTML = `
+      <div style="color:#16a34a;font-size:48px;margin-bottom:16px;"><i class="fa-solid fa-circle-check"></i></div>
+      <h3 style="color:#800000;margin-bottom:12px;font-size:24px;">Booking Submitted!</h3>
+      <p style="color:#64748b;margin-bottom:8px;">Successfully booked: <strong>${ok}</strong> slot(s)</p>
+      ${fail > 0 ? `<p style="color:#dc2626;margin-bottom:16px;">Failed: <strong>${fail}</strong> slot(s)</p>` : ''}
+      <p style="color:#64748b;font-size:14px;margin-bottom:20px;">Your booking is pending admin approval.</p>
+      <button onclick="this.parentElement.remove()" style="background:#800000;color:white;border:none;padding:12px 24px;border-radius:8px;cursor:pointer;font-weight:600;font-family:Inter,sans-serif;">Close</button>
+    `;
+    document.body.appendChild(successCard);
+    setTimeout(() => successCard.remove(), 5000);
   })
   .catch(err => {
     modalConfirm.disabled = false; modalBackdrop.style.display = 'none';
     console.error('Booking error', err);
-    alert('Network or server error while booking.');
+    const errorCard = document.createElement('div');
+    errorCard.style.cssText = 'position:fixed;top:50%;left:50%;transform:translate(-50%,-50%);background:white;padding:32px;border-radius:12px;box-shadow:0 20px 25px -5px rgba(0,0,0,0.3);z-index:9999;max-width:400px;text-align:center;';
+    errorCard.innerHTML = `
+      <div style="color:#dc2626;font-size:48px;margin-bottom:16px;"><i class="fa-solid fa-circle-xmark"></i></div>
+      <h3 style="color:#800000;margin-bottom:12px;font-size:24px;">Booking Failed</h3>
+      <p style="color:#64748b;margin-bottom:20px;">Network or server error. Please try again.</p>
+      <button onclick="this.parentElement.remove()" style="background:#800000;color:white;border:none;padding:12px 24px;border-radius:8px;cursor:pointer;font-weight:600;font-family:Inter,sans-serif;">Close</button>
+    `;
+    document.body.appendChild(errorCard);
     document.querySelectorAll('td.slot.pending').forEach(td => {
       td.classList.remove('pending'); td.classList.add('available');
       const titleEl = td.querySelector('.cell-title'); const metaEl  = td.querySelector('.cell-meta');

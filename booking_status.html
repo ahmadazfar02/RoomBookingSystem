@@ -438,6 +438,24 @@
     }
   </style>
 </head>
+<style>
+@keyframes slideIn {
+    from { transform: translateX(400px); opacity: 0; }
+    to { transform: translateX(0); opacity: 1; }
+}
+@keyframes slideOut {
+    from { transform: translateX(0); opacity: 1; }
+    to { transform: translateX(400px); opacity: 0; }
+}
+@keyframes fadeIn {
+    from { opacity: 0; }
+    to { opacity: 1; }
+}
+@keyframes scaleIn {
+    from { transform: scale(0.9); opacity: 0; }
+    to { transform: scale(1); opacity: 1; }
+}
+</style>
 <body>
   <header class="main-header">
     <div class="header-content">
@@ -511,6 +529,99 @@
   </div>
 
 <script>
+// Toast notification function
+function showToast(message, type = 'info', duration = 4000) {
+    let container = document.getElementById('toast-container');
+    if (!container) {
+        container = document.createElement('div');
+        container.id = 'toast-container';
+        container.style.cssText = `
+            position: fixed;
+            top: 20px;
+            right: 20px;
+            z-index: 9999;
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+            max-width: 400px;
+        `;
+        document.body.appendChild(container);
+    }
+
+    const toast = document.createElement('div');
+    const icons = { success: '✓', error: '✕', warning: '⚠', info: 'ℹ' };
+    const colors = {
+        success: { bg: '#10b981', border: '#059669' },
+        error: { bg: '#ef4444', border: '#dc2626' },
+        warning: { bg: '#f59e0b', border: '#d97706' },
+        info: { bg: '#3b82f6', border: '#2563eb' }
+    };
+    const color = colors[type] || colors.info;
+    
+    toast.innerHTML = `
+        <div style="background: ${color.bg}; color: white; padding: 16px 20px; border-radius: 8px;
+            border-left: 4px solid ${color.border}; box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+            display: flex; align-items: center; gap: 12px; min-width: 300px; animation: slideIn 0.3s ease-out;">
+            <span style="font-size: 20px; font-weight: bold; flex-shrink: 0;">${icons[type]}</span>
+            <span style="flex: 1; font-size: 14px; line-height: 1.5;">${message}</span>
+            <button onclick="this.closest('div').parentElement.remove()" style="background: transparent;
+                border: none; color: white; font-size: 20px; cursor: pointer; opacity: 0.7; 
+                padding: 0; width: 24px; height: 24px; flex-shrink: 0;">×</button>
+        </div>
+    `;
+    container.appendChild(toast);
+    
+    if (duration > 0) {
+        setTimeout(() => {
+            toast.firstChild.style.animation = 'slideOut 0.3s ease-in';
+            setTimeout(() => toast.remove(), 300);
+        }, duration);
+    }
+}
+
+// Confirmation modal
+function showConfirm(title, message) {
+    return new Promise((resolve) => {
+        const overlay = document.createElement('div');
+        overlay.style.cssText = `position: fixed; top: 0; left: 0; right: 0; bottom: 0;
+            background: rgba(0,0,0,0.5); display: flex; align-items: center; justify-content: center;
+            z-index: 10000; animation: fadeIn 0.2s;`;
+        
+        overlay.innerHTML = `
+            <div style="background: white; border-radius: 12px; padding: 24px; max-width: 400px; width: 90%;
+                box-shadow: 0 20px 60px rgba(0,0,0,0.3); animation: scaleIn 0.3s;">
+                <h3 style="margin: 0 0 12px 0; font-size: 20px; color: #1f2937; font-weight: 600;">${title}</h3>
+                <p style="margin: 0 0 24px 0; color: #6b7280; font-size: 14px; line-height: 1.5;">${message}</p>
+                <div style="display: flex; gap: 12px; justify-content: flex-end;">
+                    <button id="cancel-modal-btn" style="background: #f3f4f6; color: #374151; border: none; 
+                        padding: 10px 20px; border-radius: 6px; cursor: pointer; font-size: 14px; font-weight: 600;
+                        font-family: 'Inter', sans-serif;">No, Keep It</button>
+                    <button id="confirm-modal-btn" style="background: #ef4444; color: white; border: none; 
+                        padding: 10px 20px; border-radius: 6px; cursor: pointer; font-size: 14px; font-weight: 600;
+                        font-family: 'Inter', sans-serif;">Yes, Cancel</button>
+                </div>
+            </div>
+        `;
+        
+        document.body.appendChild(overlay);
+        
+        overlay.querySelector('#confirm-modal-btn').onclick = () => {
+            overlay.remove();
+            resolve(true);
+        };
+        overlay.querySelector('#cancel-modal-btn').onclick = () => {
+            overlay.remove();
+            resolve(false);
+        };
+        overlay.onclick = (e) => {
+            if (e.target === overlay) {
+                overlay.remove();
+                resolve(false);
+            }
+        };
+    });
+}
+
 function escapeHtml(s){ 
   if(s===0) return '0'; 
   if(!s) return ''; 
@@ -644,6 +755,31 @@ function renderSessions(sessions){
 
     let showEdit = false;
     let showCancel = false;
+    let isPastBooking = false;
+
+    // Check if booking is in the past
+    if (Array.isArray(s.slots) && s.slots.length > 0) {
+      const now = new Date();
+      const today = now.toISOString().split('T')[0]; // YYYY-MM-DD
+      const currentTime = now.getHours() * 60 + now.getMinutes(); // minutes since midnight
+
+      // Get the last slot (latest date/time)
+      const lastSlot = s.slots[s.slots.length - 1];
+      const slotDate = lastSlot.date;
+      const slotTime = lastSlot.time ? lastSlot.time.split('-')[1] : ''; // Get end time
+      
+      if (slotDate < today) {
+        // Date is in the past
+        isPastBooking = true;
+      } else if (slotDate === today && slotTime) {
+        // Same day, check time
+        const [hours, minutes] = slotTime.split(':').map(Number);
+        const slotMinutes = hours * 60 + minutes;
+        if (slotMinutes < currentTime) {
+          isPastBooking = true;
+        }
+      }
+    }
 
     if (isOwner || isAdmin) {
       if (statusLower === 'pending') {
@@ -651,7 +787,8 @@ function renderSessions(sessions){
         showCancel = true;
       } else if (statusLower === 'booked') {
         showEdit = false;
-        showCancel = true;
+        // Only allow cancel if not past booking
+        showCancel = !isPastBooking;
       } else if (statusLower === 'rejected') {
         showEdit = false;
         showCancel = true;
@@ -661,10 +798,16 @@ function renderSessions(sessions){
       }
     }
 
+
     // Build action buttons
     let actionParts = [];
     if (showCancel) {
-      actionParts.push(`<button class="btn-cancel" data-session="${escapeHtml(String(s.session_id || s.id || ''))}" data-id="${escapeHtml(String(s.id || s.session_id || ''))}"><i class="fa-solid fa-times"></i> Cancel</button>`);
+      if (isPastBooking && statusLower === 'booked') {
+        // Show disabled button with message for past bookings
+        actionParts.push(`<button class="btn-cancel" disabled title="Cannot cancel past bookings"><i class="fa-solid fa-times"></i> Past Event</button>`);
+      } else {
+        actionParts.push(`<button class="btn-cancel" data-session="${escapeHtml(String(s.session_id || s.id || ''))}" data-id="${escapeHtml(String(s.id || s.session_id || ''))}"><i class="fa-solid fa-times"></i> Cancel</button>`);
+      }
     }
     if (showEdit) {
       actionParts.push(`<button class="btn-edit" data-session="${escapeHtml(String(s.session_id || s.id || ''))}" data-room="${escapeHtml(String(s.room_id || s.room || ''))}"><i class="fa-solid fa-edit"></i> Edit</button>`);
@@ -759,35 +902,50 @@ function postJson(payload){
   });
 }
 
-function handleCancelButton(btn) {
-  const bookingId = btn.dataset.id || btn.dataset.session;
-  if (!bookingId) {
-    alert('Missing booking id.');
+async function handleCancelButton(btn) {
+  const sessionId = btn.dataset.session || btn.dataset.id;
+  if (!sessionId) {
+    showToast('Missing session ID', 'error');
     return;
   }
 
-  if (!confirm('Are you sure you want to cancel this booking?')) return;
+  // Show confirmation modal
+  const confirmed = await showConfirm(
+    'Cancel Booking Session',
+    `Are you sure you want to cancel all bookings in session ${sessionId}?`
+  );
+  
+  if (!confirmed) return;
 
   btn.disabled = true;
   const originalHtml = btn.innerHTML;
   btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> Cancelling...';
 
-  postJson({ action: 'cancel', booking_id: bookingId, reason: 'Cancelled by user' })
-    .then(resp => {
-      if (resp && resp.success) {
-        alert('Booking cancelled successfully');
-        fetchSessions(currentFilter);
-      } else {
-        alert('Cancel failed: ' + (resp && resp.msg ? resp.msg : 'Unknown error'));
-        btn.disabled = false;
-        btn.innerHTML = originalHtml;
-      }
-    })
-    .catch(err => {
-      alert('Network error: ' + err.message);
+  try {
+    const resp = await postJson({ 
+      action: 'cancel_session', 
+      session_id: sessionId, 
+      reason: 'Cancelled by user' 
+    });
+
+    if (resp && resp.success) {
+      const count = resp.cancelled_count || 1;
+      showToast(
+        resp.msg || `Successfully cancelled ${count} booking(s)`, 
+        'success'
+      );
+      setTimeout(() => fetchSessions(currentFilter), 1500);
+    } else {
+      showToast(resp.msg || 'Failed to cancel booking', 'error');
       btn.disabled = false;
       btn.innerHTML = originalHtml;
-    });
+    }
+  } catch (err) {
+    console.error('Cancel error:', err);
+    showToast('Network error. Please try again.', 'error');
+    btn.disabled = false;
+    btn.innerHTML = originalHtml;
+  }
 }
 
 // Initial load

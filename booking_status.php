@@ -312,35 +312,6 @@ try {
             throw new Exception('DB update failed: '.$conn->error);
         }
 
-        // cancel_slot (legacy) - cancel one slot belonging to logged user
-        if ($action === 'cancel_slot') {
-            $room_id = $data['room'] ?? null;
-            $slot_date = $data['slot_date'] ?? null;
-            $time_start = $data['time_start'] ?? null;
-            $reason = trim($data['reason'] ?? '');
-            if (!$me_id) throw new Exception('Not logged in');
-            if (!$room_id || !$slot_date || !$time_start) throw new Exception('Missing identifiers');
-
-            $q = "SELECT id,status FROM bookings WHERE user_id=? AND room_id=? AND slot_date=? AND time_start=? AND status IN ('pending','booked') ORDER BY id DESC LIMIT 1";
-            $s = $conn->prepare($q);
-            if ($s === false) throw new Exception('DB prepare error: '.$conn->error);
-            $s->bind_param('isss', $me_id, $room_id, $slot_date, $time_start);
-            $s->execute();
-            $r = $s->get_result();
-            if (!$r || $r->num_rows === 0) { $s->close(); throw new Exception('No active booking found for this slot'); }
-            $row = $r->fetch_assoc(); $s->close();
-            $target = intval($row['id']);
-
-            $now = date('Y-m-d H:i:s');
-            $u = $conn->prepare("UPDATE bookings SET status='cancelled', cancelled_by=?, cancelled_at=?, cancel_reason=? WHERE id = ?");
-            if ($u === false) throw new Exception('DB prepare error: '.$conn->error);
-            $u->bind_param('issi', $me_id, $now, $reason, $target);
-            $ok = $u->execute();
-            $u->close();
-            if ($ok) { ob_end_clean(); echo json_encode(['success'=>true,'booking_id'=>$target,'status'=>'cancelled']); exit; }
-            throw new Exception('DB update failed: '.$conn->error);
-        }
-
         // cancel_session: session may be 'single_<id>' or real session_id
         if ($action === 'cancel_session') {
             $session_id = trim($data['session_id'] ?? '');
@@ -366,8 +337,20 @@ try {
                 $u = $conn->prepare("UPDATE bookings SET status='cancelled', cancelled_by=?, cancelled_at=?, cancel_reason=? WHERE id = ?");
                 if ($u === false) throw new Exception('DB prepare error: '.$conn->error);
                 $u->bind_param('issi', $me_id, $now, $reason, $id);
-                $ok = $u->execute(); $u->close();
-                if ($ok) { ob_end_clean(); echo json_encode(['success'=>true,'session_id'=>$session_id,'status'=>'cancelled']); exit; }
+                $ok = $u->execute(); 
+                $cancelled_count = $u->affected_rows;
+                $u->close();
+                if ($ok) { 
+                    ob_end_clean(); 
+                    echo json_encode([
+                        'success'=>true,
+                        'session_id'=>$session_id,
+                        'status'=>'cancelled',
+                        'cancelled_count'=>$cancelled_count,
+                        'msg'=>"Successfully cancelled {$cancelled_count} booking(s)"
+                    ]); 
+                    exit; 
+                }
                 throw new Exception('DB update failed: '.$conn->error);
             }
 
@@ -386,6 +369,7 @@ try {
             }
 
             $now = date('Y-m-d H:i:s');
+            $cancelled_count = 0;
             $upd = $conn->prepare("UPDATE bookings SET status='cancelled', cancelled_by=?, cancelled_at=?, cancel_reason=? WHERE session_id = ? AND status IN ('pending','booked')");
             if ($upd === false) {
                 // fallback: try without audit columns
@@ -393,23 +377,34 @@ try {
                 if ($fb === false) throw new Exception('DB prepare error: '.$conn->error);
                 $fb->bind_param('s', $session_id);
                 $ok = $fb->execute();
+                $cancelled_count = $fb->affected_rows;
                 $fb->close();
             } else {
                 $upd->bind_param('isss', $me_id, $now, $reason, $session_id);
                 $ok = $upd->execute();
+                $cancelled_count = $upd->affected_rows;
                 $upd->close();
             }
 
-            if ($ok) { ob_end_clean(); echo json_encode(['success'=>true,'session_id'=>$session_id,'status'=>'cancelled']); exit; }
+            if ($ok) { 
+                ob_end_clean(); 
+                echo json_encode([
+                    'success'=>true,
+                    'session_id'=>$session_id,
+                    'status'=>'cancelled',
+                    'cancelled_count'=>$cancelled_count,
+                    'msg'=>"Successfully cancelled {$cancelled_count} booking(s)"
+                ]); 
+                exit; 
+            }
             throw new Exception('DB update failed: '.$conn->error);
         }
-
-        throw new Exception('Unknown action: '.$action);
     }
 
     ob_end_clean();
     echo json_encode(['success'=>false,'msg'=>'Unsupported method']);
     exit;
+    
 } catch (Exception $e) {
     $buf = '';
     if (ob_get_length() !== false) $buf = ob_get_clean();
