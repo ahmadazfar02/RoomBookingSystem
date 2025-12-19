@@ -990,6 +990,9 @@
   </div>
 
 <script>
+/* =========================================
+   CONSTANTS & CONFIG
+   ========================================= */
 const TIME_SLOTS = [
   "08:00-08:50","09:00-09:50","10:00-10:50","11:00-11:50",
   "12:00-12:50","13:00-13:50","14:00-14:50","15:00-15:50",
@@ -1002,13 +1005,12 @@ const datePicker = document.getElementById('datePicker');
 const roomTitleEl = document.getElementById('roomTitle');
 const timetableContainer = document.getElementById('timetableContainer');
 const notificationBadge = document.getElementById('notificationBadge');
-
-let startDate = startOfWeekMonday(new Date());
 const roomSelect = document.getElementById('roomSelect');
 const table = document.getElementById('timetableTable');
 const tbody = table.querySelector('tbody');
 const bookNowBtn = document.getElementById('bookNowBtn');
 
+// Modals
 const modalBackdrop = document.getElementById('modalBackdrop');
 const modalInfo = document.getElementById('modalInfo');
 const inputPurpose = document.getElementById('inputPurpose');
@@ -1017,6 +1019,7 @@ const inputTel = document.getElementById('inputTel');
 const modalCancel = document.getElementById('modalCancel');
 const modalConfirm = document.getElementById('modalConfirm');
 
+// Search Elements
 const searchModal = document.getElementById('searchModal');
 const openSearchBtn = document.getElementById('openSearchBtn');
 const btnCloseSearch = document.getElementById('btnCloseSearch');
@@ -1028,10 +1031,14 @@ const searchCapacity = document.getElementById('searchCapacity');
 const searchResultsArea = document.getElementById('searchResultsArea');
 const searchResultsList = document.getElementById('searchResultsList');
 
+let startDate = startOfWeekMonday(new Date());
 let selectedSlots = [];
 let bookingData = [];
 let allRooms = [];
 
+/* =========================================
+   HELPER FUNCTIONS
+   ========================================= */
 function isPastDate(dateStr) {
   if (!dateStr) return false;
   const todayISO = formatISO(new Date());
@@ -1043,6 +1050,11 @@ function formatISO(d){ const yyyy=d.getFullYear(); const mm=String(d.getMonth()+
 function formatReadable(d){ const days=['Sunday','Monday','Tuesday','Wednesday','Thursday','Friday','Saturday']; return `${days[d.getDay()]}`; }
 function startOfWeekMonday(d) { const dd = new Date(d); const offset = (dd.getDay() + 6) % 7; return addDays(dd, -offset); }
 
+/* =========================================
+   CORE LOGIC
+   ========================================= */
+
+// 1. Load Rooms (MUST RETURN PROMISE)
 function loadAllRooms() {
   return fetch('api/get_rooms.php', { cache: 'no-store' })
     .then(r => r.json())
@@ -1134,48 +1146,32 @@ function renderTableSkeleton(){
     });
     tbody.appendChild(tr);
   }
-
   updateWeekTitle();
 }
 
 function loadBookings(){
   const room = roomSelect.value;
-  if (!room) return;
+  if (!room) return Promise.resolve([]); // Corrected to return Promise
   
-  fetch(`api/book_slot.php?room=${encodeURIComponent(room)}`, { cache: 'no-store' })
+  return fetch(`api/book_slot.php?room=${encodeURIComponent(room)}`, { cache: 'no-store' })
     .then(r => {
-      if (!r.ok) {
-        console.error('Fetch failed:', r.status);
-        return [];
-      }
+      if (!r.ok) { console.error('Fetch failed:', r.status); return []; }
       return r.json();
     })
     .then(data => {
       bookingData = data;
       
+      // Reset all cells
       document.querySelectorAll('td.slot').forEach(td=>{
         const slotDate = td.dataset.date;
         if (isPastDate(slotDate)) {
-          td.classList.remove('booked','selected','pending','available','maintenance','recurring');
-          td.classList.add('past');
-          td.removeAttribute('data-booking-id');
-          td.removeAttribute('data-booking-user-id');
-          td.removeAttribute('data-booking-count');
-          const titleEl = td.querySelector('.cell-title');
-          const metaEl = td.querySelector('.cell-meta');
-          const capacityEl = td.querySelector('.cell-capacity');
-          if (titleEl) titleEl.textContent = '';
-          if (metaEl) metaEl.textContent = '';
-          if (capacityEl) capacityEl.textContent = '';
-          return;
+          td.className = 'slot past'; td.style.opacity = '0.6';
+        } else {
+          td.className = 'slot available'; td.style.cursor = '';
         }
-        
-        td.classList.remove('booked','selected','pending','past','maintenance','recurring');
-        td.classList.add('available');
         td.removeAttribute('data-booking-id');
         td.removeAttribute('data-booking-user-id');
         td.removeAttribute('data-booking-count');
-        td.style.cursor = '';
         const titleEl = td.querySelector('.cell-title');
         const metaEl = td.querySelector('.cell-meta');
         const capacityEl = td.querySelector('.cell-capacity');
@@ -1210,8 +1206,7 @@ function loadBookings(){
           td.classList.remove('available','selected','pending','booked','maintenance','recurring');
           
           if (item.status === 'recurring' || item.recurring) {
-            td.classList.add('recurring');
-            td.style.cursor = 'not-allowed';
+            td.classList.add('recurring'); td.style.cursor = 'not-allowed';
           } else if (item.status === 'maintenance') {
             td.classList.add('maintenance');
           } else if (item.status === 'pending') {
@@ -1225,23 +1220,18 @@ function loadBookings(){
           const capacityEl = td.querySelector('.cell-capacity');
           
           if (titleEl) {
-            if (item.status === 'recurring' || item.recurring) {
-              titleEl.textContent = '' + (item.purpose || 'Reserved');
-            } else if (item.status === 'maintenance') {
-              titleEl.textContent = 'Maintenance';
-            } else {
-              titleEl.textContent = item.purpose || item.class_name || (item.status === 'pending' ? 'Pending' : 'Booked');
-            }
+            if (item.status === 'recurring' || item.recurring) titleEl.textContent = '' + (item.purpose || 'Reserved');
+            else if (item.status === 'maintenance') titleEl.textContent = 'Maintenance';
+            else titleEl.textContent = item.purpose || (item.status === 'pending' ? 'Pending' : 'Booked');
           }
           
-          const meta = [item.tel || '', item.description || item.section || '', item.instructor || ''].filter(Boolean).join(' • ');
+          const meta = [item.tel || '', item.description || ''].filter(Boolean).join(' • ');
           if (metaEl) metaEl.textContent = meta;
           
           if (capacityEl && capacity > 0 && !item.recurring) {
             capacityEl.textContent = `${currentCount}/${capacity} booked`;
             if (currentCount >= capacity) {
-              capacityEl.style.color = '#dc2626';
-              capacityEl.style.fontWeight = '700';
+              capacityEl.style.color = '#dc2626'; capacityEl.style.fontWeight = '700';
             }
           }
         }
@@ -1250,41 +1240,26 @@ function loadBookings(){
       selectedSlots = [];
       refreshBookNowState();
     })
-    .catch(err => {
-      console.error('Failed loading bookings', err);
-    });
+    .catch(err => { console.error('Failed loading bookings', err); });
 }
 
 function onCellClick(e){
   const td = e.currentTarget;
-  
-  if (td.classList.contains('booked') || 
-      td.classList.contains('pending') || 
-      td.classList.contains('maintenance') || 
-      td.classList.contains('past') || 
-      td.classList.contains('recurring')) {
-    return;
-  }
+  if (td.classList.contains('booked') || td.classList.contains('pending') || 
+      td.classList.contains('maintenance') || td.classList.contains('past') || 
+      td.classList.contains('recurring')) return;
   
   const date = td.dataset.date;
-  if (isPastDate(date)) {
-    td.classList.add('past');
-    return;
-  }
-  
   const slot = td.dataset.slot;
   const key = `${date}|${slot}`;
   
   if (td.classList.contains('selected')){
-    td.classList.remove('selected');
-    td.classList.add('available');
+    td.classList.remove('selected'); td.classList.add('available');
     selectedSlots = selectedSlots.filter(s => s.date+'|'+s.slot !== key);
   } else {
-    td.classList.remove('available');
-    td.classList.add('selected');
+    td.classList.remove('available'); td.classList.add('selected');
     selectedSlots.push({ date, slot, td });
   }
-  
   refreshBookNowState();
 }
 
@@ -1293,192 +1268,206 @@ function refreshBookNowState(){
   else { bookNowBtn.disabled = true; bookNowBtn.classList.add('btn-disabled'); }
 }
 
+/* =========================================
+   EVENT LISTENERS
+   ========================================= */
 openSearchBtn.addEventListener('click', () => { searchModal.classList.add('visible'); searchResultsArea.classList.remove('visible'); searchResultsList.innerHTML = ''; if (!searchDate.value) searchDate.value = formatISO(new Date()); });
 btnCloseSearch.addEventListener('click', () => { searchModal.classList.remove('visible'); });
 
 btnExecuteSearch.addEventListener('click', () => {
   const date = searchDate.value; const start = searchTimeStart.value; const end = searchTimeEnd.value; const capacity = parseInt(searchCapacity.value || '0', 10);
-  if (!date) { alert('Please select a date'); return; }
-  if (!start || !end) { alert('Please select start and end time'); return; }
+  if (!date || !start || !end) { alert('Please select date and times'); return; }
   if (start >= end) { alert('Start time must be before end time'); return; }
+  
   btnExecuteSearch.disabled = true; btnExecuteSearch.textContent = 'Searching...';
-  searchResultsList.innerHTML = '<p style="text-align:center;padding:20px;color:#64748b;">Searching for available rooms...</p>'; searchResultsArea.classList.add('visible');
+  searchResultsList.innerHTML = '<p style="text-align:center;">Searching...</p>'; searchResultsArea.classList.add('visible');
+  
   const params = new URLSearchParams(); if (capacity > 0) params.append('capacity', capacity);
   params.append('date', date); params.append('start', start); params.append('end', end);
+  
   fetch('api/find_rooms.php?' + params.toString(), { cache: 'no-store' })
-    .then(r => r.text())
-    .then(text => {
-      let json; try { json = JSON.parse(text); } catch (e) { throw new Error('Invalid JSON response from server'); }
+    .then(r => r.json())
+    .then(json => {
       btnExecuteSearch.disabled = false; btnExecuteSearch.textContent = 'Search';
-      if (!json || !json.success || !Array.isArray(json.rooms) || json.rooms.length === 0) {
-        const msg = (json && json.msg) ? json.msg : 'No rooms found matching your criteria';
-        searchResultsList.innerHTML = `<div class="room-card"><div class="room-card-name">No Results</div><div class="room-card-meta">${escapeHtml(msg)}</div></div>`; return;
+      if (!json || !json.success || !json.rooms.length) {
+        searchResultsList.innerHTML = `<div class="room-card"><div class="room-card-name">No Results</div></div>`; return;
       }
       searchResultsList.innerHTML = '';
       json.rooms.forEach(rm => {
-        const roomId = String(rm.room_id || rm.room || rm.code || '');
-        const roomName = rm.name || rm.name_display || roomId; const roomCap = (typeof rm.capacity !== 'undefined' && rm.capacity !== null) ? rm.capacity : '';
         const card = document.createElement('div'); card.className = 'room-card';
-        card.innerHTML = `<div class="room-card-name">${escapeHtml(roomName)}</div>
-          <div class="room-card-meta">ID: ${escapeHtml(roomId)} ${roomCap ? ' • Capacity: ' + escapeHtml(String(roomCap)) : ''}</div>
-          <button class="room-card-btn" data-room-id="${escapeHtml(roomId)}">Select & View Timetable</button>`;
+        card.innerHTML = `<div class="room-card-name">${escapeHtml(rm.name)}</div><div class="room-card-meta">Capacity: ${rm.capacity}</div><button class="room-card-btn" data-id="${rm.room_id}">Select</button>`;
         searchResultsList.appendChild(card);
         card.querySelector('button').addEventListener('click', () => {
-          roomSelect.value = roomId;
+          roomSelect.value = rm.room_id;
           startDate = startOfWeekMonday(new Date(date + 'T00:00:00'));
-          searchModal.classList.remove('visible'); timetableContainer.classList.add('visible'); renderTableSkeleton(); loadBookings();
-          setTimeout(()=> timetableContainer.scrollIntoView({behavior:'smooth', block:'start'}),100);
+          searchModal.classList.remove('visible'); 
+          timetableContainer.classList.add('visible'); 
+          renderTableSkeleton(); 
+          loadBookings();
         });
       });
     })
-    .catch(err => {
-      console.error('Search error', err); btnExecuteSearch.disabled = false; btnExecuteSearch.textContent = 'Search';
-      searchResultsList.innerHTML = `<div class="room-card"><div class="room-card-name">Error</div><div class="room-card-meta">${escapeHtml(String(err.message))}</div></div>`;
+    .catch(err => { 
+        console.error(err); 
+        btnExecuteSearch.disabled = false; 
+        btnExecuteSearch.textContent = 'Search'; 
     });
-});
-
-searchModal.addEventListener('click', (e) => { if (e.target === searchModal) searchModal.classList.remove('visible'); });
-
-bookNowBtn.addEventListener('click', () => {
-  if (selectedSlots.length === 0) { alert('Please select at least one slot to book.'); return; }
-  const summary = selectedSlots.map(s => `${s.date} ${s.slot}`).join('<br>');
-  modalInfo.innerHTML = `<strong>${selectedSlots.length}</strong> slot(s) selected:<br>${summary}<br><small>Room: ${roomSelect.value}</small>`;
-  inputPurpose.value = ''; inputDescription.value = ''; inputTel.value = '';
-  modalBackdrop.style.display = 'flex'; inputPurpose.focus();
-});
-
-modalCancel.addEventListener('click', () => { modalBackdrop.style.display = 'none'; });
-
-modalConfirm.addEventListener('click', () => {
-  if (selectedSlots.length === 0) { modalBackdrop.style.display = 'none'; return; }
-  const purpose = inputPurpose.value.trim(); const tel = inputTel.value.trim();
-  if (!purpose) { alert('Purpose is required.'); inputPurpose.focus(); return; }
-  if (!tel) { alert('Tel. No. is required.'); inputTel.focus(); return; }
-
-  const payload = {
-    room: roomSelect.value,
-    purpose: purpose,
-    description: inputDescription.value.trim(),
-    tel: tel,
-    slots: selectedSlots.map(s => ({ date: s.date, slot: s.slot }))
-  };
-
-  selectedSlots.forEach(s => {
-    const td = s.td;
-    td.classList.remove('selected','available'); td.classList.add('pending');
-    const titleEl = td.querySelector('.cell-title'); const metaEl  = td.querySelector('.cell-meta');
-    if (titleEl) titleEl.textContent = 'Pending';
-    if (metaEl)  metaEl.textContent = payload.tel + (payload.description ? (' • ' + payload.description) : '');
-  });
-
-  modalConfirm.disabled = true;
-  modalConfirm.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> Booking...';
-
-  fetch('api/book_slot.php', {
-    method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload)
-  })
-  .then(r => { if (!r.ok) throw new Error('HTTP error ' + r.status); return r.text(); })
-  .then(text => {
-    let resp; try { resp = JSON.parse(text); } catch (e) { throw new Error('Invalid JSON response from server'); }
-    modalConfirm.disabled = false;
-    modalConfirm.innerHTML = '<i class="fa-solid fa-check"></i> Confirm Booking';
-    modalBackdrop.style.display = 'none';
-    if (!resp || !resp.success) { alert('Booking failed: ' + (resp?.msg || 'Unknown error')); loadBookings(); return; }
-    if (!Array.isArray(resp.results)) { alert('Booking failed — unexpected server response format.'); loadBookings(); return; }
-
-    let ok = 0, fail = 0;
-    resp.results.forEach(res => {
-      const selector = `td.slot[data-date="${res.date}"][data-slot="${res.slot}"]`; const td = document.querySelector(selector);
-      if (!td) return;
-      const titleEl = td.querySelector('.cell-title'); const metaEl  = td.querySelector('.cell-meta');
-      if (res.success) {
-        ok++;
-        if (res.status === 'pending') {
-          td.classList.remove('selected','available','booked'); td.classList.add('pending');
-          if (titleEl) titleEl.textContent = payload.purpose || 'Pending';
-          if (metaEl) metaEl.textContent = payload.tel + (payload.description ? (' • ' + payload.description) : '');
-        } else {
-          td.classList.remove('selected','available','pending'); td.classList.add('booked');
-          if (titleEl) titleEl.textContent = payload.purpose;
-          if (metaEl) metaEl.textContent = payload.tel + (payload.description ? (' • ' + payload.description) : '');
-        }
-      } else {
-        fail++;
-        td.classList.remove('selected','pending','available'); td.classList.add('booked');
-        if (titleEl) titleEl.textContent = 'Booked';
-        if (metaEl) metaEl.textContent = res.msg || '';
-      }
-    });
-
-    selectedSlots = []; refreshBookNowState();
-    // Show success card instead of alert
-    const successCard = document.createElement('div');
-    successCard.style.cssText = 'position:fixed;top:50%;left:50%;transform:translate(-50%,-50%);background:white;padding:32px;border-radius:12px;box-shadow:0 20px 25px -5px rgba(0,0,0,0.3);z-index:9999;max-width:400px;text-align:center;';
-    successCard.innerHTML = `
-      <div style="color:#16a34a;font-size:48px;margin-bottom:16px;"><i class="fa-solid fa-circle-check"></i></div>
-      <h3 style="color:#800000;margin-bottom:12px;font-size:24px;">Booking Submitted!</h3>
-      <p style="color:#64748b;margin-bottom:8px;">Successfully booked: <strong>${ok}</strong> slot(s)</p>
-      ${fail > 0 ? `<p style="color:#dc2626;margin-bottom:16px;">Failed: <strong>${fail}</strong> slot(s)</p>` : ''}
-      <p style="color:#64748b;font-size:14px;margin-bottom:20px;">Your booking is pending admin approval.</p>
-      <button onclick="this.parentElement.remove()" style="background:#800000;color:white;border:none;padding:12px 24px;border-radius:8px;cursor:pointer;font-weight:600;font-family:Inter,sans-serif;">Close</button>
-    `;
-    document.body.appendChild(successCard);
-    setTimeout(() => successCard.remove(), 5000);
-  })
-  .catch(err => {
-    modalConfirm.disabled = false; modalBackdrop.style.display = 'none';
-    console.error('Booking error', err);
-    const errorCard = document.createElement('div');
-    errorCard.style.cssText = 'position:fixed;top:50%;left:50%;transform:translate(-50%,-50%);background:white;padding:32px;border-radius:12px;box-shadow:0 20px 25px -5px rgba(0,0,0,0.3);z-index:9999;max-width:400px;text-align:center;';
-    errorCard.innerHTML = `
-      <div style="color:#dc2626;font-size:48px;margin-bottom:16px;"><i class="fa-solid fa-circle-xmark"></i></div>
-      <h3 style="color:#800000;margin-bottom:12px;font-size:24px;">Booking Failed</h3>
-      <p style="color:#64748b;margin-bottom:20px;">Network or server error. Please try again.</p>
-      <button onclick="this.parentElement.remove()" style="background:#800000;color:white;border:none;padding:12px 24px;border-radius:8px;cursor:pointer;font-weight:600;font-family:Inter,sans-serif;">Close</button>
-    `;
-    document.body.appendChild(errorCard);
-    document.querySelectorAll('td.slot.pending').forEach(td => {
-      td.classList.remove('pending'); td.classList.add('available');
-      const titleEl = td.querySelector('.cell-title'); const metaEl  = td.querySelector('.cell-meta');
-      if (titleEl) titleEl.textContent = ''; if (metaEl) metaEl.textContent = '';
-    });
-    loadBookings();
-  });
-});
-
-document.getElementById('nextWeek').addEventListener('click', () => {
-  if (!roomSelect.value) { alert('Please select a room first.'); return; }
-  startDate = addDays(startDate, 7); renderTableSkeleton(); loadBookings();
-});
-document.getElementById('prevWeek').addEventListener('click', () => {
-  if (!roomSelect.value) { alert('Please select a room first.'); return; }
-  startDate = addDays(startDate, -7); renderTableSkeleton(); loadBookings();
 });
 
 roomSelect.addEventListener('change', () => {
-  const selectedRoom = roomSelect.value;
-  if (!selectedRoom) { timetableContainer.classList.remove('visible'); return; }
-  timetableContainer.classList.add('visible'); renderTableSkeleton();
-  if (datePicker) datePicker.value = formatISO(new Date());
-  loadBookings();
+  if (!roomSelect.value) { timetableContainer.classList.remove('visible'); return; }
+  timetableContainer.classList.add('visible'); renderTableSkeleton(); loadBookings();
 });
 
+document.getElementById('nextWeek').addEventListener('click', () => {
+  if (!roomSelect.value) { alert('Select room'); return; }
+  startDate = addDays(startDate, 7); renderTableSkeleton(); loadBookings();
+});
+document.getElementById('prevWeek').addEventListener('click', () => {
+  if (!roomSelect.value) { alert('Select room'); return; }
+  startDate = addDays(startDate, -7); renderTableSkeleton(); loadBookings();
+});
 datePicker.addEventListener('change', (e) => {
-  if (!roomSelect.value) { alert('Please select a room first.'); datePicker.value = ''; return; }
-  const val = e.target.value; if (!val) return;
-  const picked = new Date(val + 'T00:00:00'); startDate = startOfWeekMonday(picked); renderTableSkeleton(); loadBookings();
+  if (!e.target.value) return;
+  startDate = startOfWeekMonday(new Date(e.target.value + 'T00:00:00')); renderTableSkeleton(); loadBookings();
 });
 
-if (datePicker) datePicker.value = formatISO(startDate);
-if (datePicker) {
-  const todayISO = formatISO(new Date()); datePicker.value = todayISO; datePicker.setAttribute('min', todayISO); startDate = startOfWeekMonday(new Date());
-}
-refreshBookNowState();
-loadNotificationCount();
+bookNowBtn.addEventListener('click', () => {
+  if (selectedSlots.length === 0) return;
+  modalInfo.innerHTML = `<strong>${selectedSlots.length}</strong> slot(s) selected.<br><small>${roomSelect.value}</small>`;
+  inputPurpose.value = ''; inputDescription.value = ''; inputTel.value = '';
+  modalBackdrop.style.display = 'flex';
+});
+modalCancel.addEventListener('click', () => { modalBackdrop.style.display = 'none'; });
 
-loadAllRooms();
+modalConfirm.addEventListener('click', () => {
+  const purpose = inputPurpose.value.trim(); const tel = inputTel.value.trim();
+  if (!purpose || !tel) { alert('Purpose and Tel required'); return; }
+  
+  const payload = {
+    room: roomSelect.value, purpose: purpose, description: inputDescription.value.trim(), tel: tel,
+    slots: selectedSlots.map(s => ({ date: s.date, slot: s.slot }))
+  };
+  
+  modalConfirm.disabled = true; modalConfirm.textContent = 'Booking...';
+  
+  fetch('api/book_slot.php', {
+    method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload)
+  })
+  .then(r => r.json())
+  .then(resp => {
+    modalConfirm.disabled = false; modalConfirm.textContent = 'Confirm Booking'; modalBackdrop.style.display = 'none';
+    if (resp.success) {
+      // Your custom SUCCESS CARD style preserved here
+      const successCard = document.createElement('div');
+      successCard.style.cssText = 'position:fixed;top:50%;left:50%;transform:translate(-50%,-50%);background:white;padding:32px;border-radius:12px;box-shadow:0 20px 25px -5px rgba(0,0,0,0.3);z-index:9999;max-width:400px;text-align:center;';
+      successCard.innerHTML = `
+        <div style="color:#16a34a;font-size:48px;margin-bottom:16px;"><i class="fa-solid fa-circle-check"></i></div>
+        <h3 style="color:#800000;margin-bottom:12px;font-size:24px;">Booking Submitted!</h3>
+        <p style="color:#64748b;margin-bottom:8px;">Successfully booked!</p>
+        <p style="color:#64748b;font-size:14px;margin-bottom:20px;">Your booking is pending admin approval.</p>
+        <button onclick="this.parentElement.remove()" style="background:#800000;color:white;border:none;padding:12px 24px;border-radius:8px;cursor:pointer;font-weight:600;font-family:Inter,sans-serif;">Close</button>
+      `;
+      document.body.appendChild(successCard);
+      setTimeout(() => successCard.remove(), 5000);
+      
+      selectedSlots = []; refreshBookNowState(); loadBookings();
+    } else {
+      alert('Failed: ' + (resp.msg || 'Error')); loadBookings();
+    }
+  })
+  .catch(err => { modalConfirm.disabled = false; alert('Network Error'); });
+});
 
-setInterval(loadNotificationCount, 30000);
+
+/* =========================================
+   INITIALIZATION (WITH EDIT FIX)
+   ========================================= */
+document.addEventListener('DOMContentLoaded', () => {
+  
+  // 1. Wait for Rooms to Load FIRST
+  loadAllRooms().then(() => {
+    
+    // 2. Load Notifications
+    loadNotificationCount();
+    setInterval(loadNotificationCount, 30000);
+
+    // 3. Initialize Date Picker
+    if (datePicker) {
+      datePicker.value = formatISO(startDate);
+      datePicker.min = formatISO(new Date());
+    }
+
+    // 4. CHECK FOR EDIT MODE
+    //    We check this AFTER rooms are loaded so `roomSelect.value` works.
+    const urlParams = new URLSearchParams(window.location.search);
+    const editSession = urlParams.get('edit_session');
+    const roomParam = urlParams.get('room');
+
+    if (editSession && roomParam) {
+      const payloadRaw = localStorage.getItem('edit_booking_payload');
+      
+      if (payloadRaw) {
+        try {
+          const data = JSON.parse(payloadRaw);
+          
+          // A. Set Room (This works now because options exist)
+          roomSelect.value = roomParam;
+          
+          // B. Set Date (Jump to the booking week)
+          if (data.slots && data.slots.length > 0) {
+             // Take the date of the first slot
+             const firstDate = new Date(data.slots[0].date + 'T00:00:00');
+             startDate = startOfWeekMonday(firstDate);
+             if (datePicker) datePicker.value = formatISO(startDate);
+          }
+
+          // C. Show Timetable & Render
+          timetableContainer.classList.add('visible');
+          renderTableSkeleton();
+          
+          // D. Pre-fill Form Data
+          if (data.purpose) inputPurpose.value = data.purpose;
+          if (data.description) inputDescription.value = data.description;
+          if (data.tel) inputTel.value = data.tel;
+
+          // E. Load Bookings, THEN Auto-Select Slots
+          loadBookings().then(() => {
+             console.log("Bookings loaded for edit. Selecting slots...");
+             
+             if (data.slots && Array.isArray(data.slots)) {
+                let foundCount = 0;
+                data.slots.forEach(slot => {
+                   // Ensure selector format matches exactly
+                   const selector = `td.slot[data-date="${slot.date}"][data-slot="${slot.time}"]`;
+                   const td = document.querySelector(selector);
+                   
+                   // Slots should be 'available' because we deleted them in the previous step
+                   if (td && td.classList.contains('available')) {
+                      if (!td.classList.contains('selected')) {
+                         td.click(); // Trigger existing click handler to highlight
+                         foundCount++;
+                      }
+                   }
+                });
+
+                if (foundCount > 0) {
+                   // Clean up storage
+                   localStorage.removeItem('edit_booking_payload');
+                   
+                   // (Optional) Scroll to table
+                   timetableContainer.scrollIntoView({behavior: "smooth"});
+                }
+             }
+          });
+
+        } catch (e) {
+          console.error("Error parsing edit payload", e);
+        }
+      }
+    }
+  });
+});
 </script>
 </body>
 </html>
