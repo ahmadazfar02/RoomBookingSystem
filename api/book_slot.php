@@ -452,7 +452,7 @@ if ($fatalError) {
         $ADMIN_EMAIL = 'superuserutm123@gmail.com';
 
         // common subject (keep consistent for threading)
-        $subject = "Booking Request — Session {$session_id} — Room {$room_id}";
+        $subject = "Booking Request Session {$session_id} Room {$room_id}";
 
         // fetch user info (who created the booking)
         $uStmt = $conn->prepare("SELECT Email, username FROM users WHERE id = ? LIMIT 1");
@@ -479,26 +479,111 @@ if ($fatalError) {
                 . "Review: {$adminLink}\n\n"
                 . MAIL_FROM_NAME;
 
-        // HTML bodies (safe-escaped where interpolated)
-        $userHtml = "
-        <h3>Booking request received</h3>
-        <p>Hi " . htmlspecialchars($userName) . ",</p>
-        <p>Your booking request has been submitted and is now <strong>pending admin approval</strong>.</p>
-        <p><strong>Session:</strong> {$session_id}<br>
-            <strong>Room:</strong> " . htmlspecialchars($room_id) . "<br>
-            <strong>Purpose:</strong> " . htmlspecialchars($purpose) . "</p>
-        <p><a href=\"{$userLink}\">View booking status</a></p>
-        <hr><p style='font-size:12px;color:#666'>This message was sent by " . htmlspecialchars(MAIL_FROM_NAME) . "</p>
-        ";
+        $bookingDate = ''; // e.g., "2025-12-19"
+        $timeSlots = '';   // e.g., "14:00:00 - 14:50:00 | 15:00:00 - 15:50:00"
 
-        $adminHtml = "
-        <h3>New Booking Request</h3>
-        <p><strong>Session:</strong> {$session_id}<br>
-            <strong>Room:</strong> " . htmlspecialchars($room_id) . "<br>
-            <strong>Purpose:</strong> " . htmlspecialchars($purpose) . "</p>
-        <p><a href=\"{$adminLink}\">Review booking request</a></p>
-        <hr><p style='font-size:12px;color:#666'>Delivered by " . htmlspecialchars(MAIL_FROM_NAME) . "</p>
-        ";
+        // If you have multiple slots in $results array, format them
+        if (!empty($results)) {
+            // Get date from first booking
+            $bookingDate = $results[0]['date'] ?? '';
+
+            // Combine all time slots
+            $slots = [];
+            foreach ($results as $booking) {
+                if (isset($booking['slot'])) {
+                    $slots[] = $booking['slot'];
+                }
+            }
+            $timeSlots = implode(' | ', $slots);
+        }
+
+        // HTML bodies (safe-escaped where interpolated) - UPDATED DESIGN
+        $userHtml = '
+        <!DOCTYPE html>
+        <html>
+        <head>
+            <meta charset="UTF-8">
+            <style>
+                body { margin: 0; padding: 0; font-family: Arial, sans-serif; background-color: #f5f5f5; }
+                .container { max-width: 600px; margin: 0 auto; background-color: #ffffff; }
+                .header { background-color: #ffffff; padding: 20px 30px; border-bottom: 1px solid #e0e0e0; }
+                .sender { display: flex; align-items: center; }
+                .avatar { width: 40px; height: 40px; border-radius: 50%; background-color: #90b8d8; display: flex; align-items: center; justify-content: center; margin-right: 12px; }
+                .sender-name { font-weight: 600; font-size: 14px; color: #202124; }
+                .sender-email { font-size: 12px; color: #5f6368; }
+                .body { padding: 40px 30px; }
+                .title { color: #1976d2; font-size: 24px; font-weight: 600; margin: 0 0 30px 0; }
+                .greeting { font-size: 14px; color: #202124; margin-bottom: 20px; }
+                .message { font-size: 14px; color: #202124; margin-bottom: 30px; }
+                .highlight { font-weight: 600; color: #f57c00; }
+                .details { background-color: #f8f9fa; border-left: 4px solid #1976d2; padding: 20px; margin-bottom: 30px; }
+                .details-title { font-weight: 600; font-size: 14px; color: #202124; margin-bottom: 16px; }
+                .detail { font-size: 14px; margin-bottom: 12px; color: #202124; }
+                .label { font-weight: 600; }
+                .signature { font-size: 14px; color: #202124; margin-top: 30px; }
+            </style>
+        </head>
+        <body>
+            <div class="container">
+                <div class="body">
+                    <h1 class="title">Booking Request Received</h1>
+                    <div class="greeting">Dear ' . htmlspecialchars($userName) . ',</div>
+                    <div class="message">Your booking request has been submitted and is now <span class="highlight">pending admin approval</span>.</div>
+                    <div class="details">
+                        <div class="details-title">Booking Details:</div>
+                        <div class="detail"><span class="label">Session:</span> ' . htmlspecialchars($session_id) . '</div>
+                        <div class="detail"><span class="label">Room:</span> ' . htmlspecialchars($room_id) . '</div>
+                        <div class="detail"><span class="label">Date:</span> ' . htmlspecialchars($bookingDate) . '</div>
+                        <div class="detail"><span class="label">Time Slots:</span> ' . htmlspecialchars($timeSlots) . '</div>
+                        <div class="detail"><span class="label">Purpose:</span> ' . htmlspecialchars($purpose) . '</div>
+                    </div>
+                    <div class="signature">Regards,<br>MJIIT Admin Team</div>
+                </div>
+            </div>
+        </body>
+        </html>';
+
+        $adminHtml = '
+        <!DOCTYPE html>
+        <html>
+        <head>
+            <meta charset="UTF-8">
+            <style>
+                body { margin: 0; padding: 0; font-family: Arial, sans-serif; background-color: #f5f5f5; }
+                .container { max-width: 600px; margin: 0 auto; background-color: #ffffff; }
+                .header { background-color: #ffffff; padding: 20px 30px; border-bottom: 1px solid #e0e0e0; }
+                .sender { display: flex; align-items: center; }
+                .avatar { width: 40px; height: 40px; border-radius: 50%; background-color: #90b8d8; display: flex; align-items: center; justify-content: center; margin-right: 12px; }
+                .sender-name { font-weight: 600; font-size: 14px; color: #202124; }
+                .sender-email { font-size: 12px; color: #5f6368; }
+                .body { padding: 40px 30px; }
+                .title { color: #d32f2f; font-size: 24px; font-weight: 600; margin: 0 0 30px 0; }
+                .message { font-size: 14px; color: #202124; margin-bottom: 30px; font-weight: 500; }
+                .details { background-color: #f8f9fa; border-left: 4px solid #d32f2f; padding: 20px; margin-bottom: 30px; }
+                .details-title { font-weight: 600; font-size: 14px; color: #202124; margin-bottom: 16px; }
+                .detail { font-size: 14px; margin-bottom: 12px; color: #202124; }
+                .label { font-weight: 600; }
+                .button { display: inline-block; background-color: #ffff; color: #ffffff; padding: 12px 24px; text-decoration: none; border-radius: 4px; margin: 20px 0; }
+            </style>
+        </head>
+        <body>
+            <div class="container">
+                <div class="body">
+                    <h1 class="title">New Booking Request</h1>
+                    <div class="message">A new booking request requires your review and approval.</div>
+                    <div class="details">
+                        <div class="details-title">Request Details:</div>
+                        <div class="detail"><span class="label">Session:</span> ' . htmlspecialchars($session_id) . '</div>
+                        <div class="detail"><span class="label">Room:</span> ' . htmlspecialchars($room_id) . '</div>
+                        <div class="detail"><span class="label">Date:</span> ' . htmlspecialchars($bookingDate) . '</div>
+                        <div class="detail"><span class="label">Time Slots:</span> ' . htmlspecialchars($timeSlots) . '</div>
+                        <div class="detail"><span class="label">Purpose:</span> ' . htmlspecialchars($purpose) . '</div>
+                    </div>
+                    <a href="' . htmlspecialchars($adminLink) . '" class="button">Review Booking Request</a>
+                </div>
+            </div>
+        </body>
+        </html>';
 
         // record results
         $emailResults = [

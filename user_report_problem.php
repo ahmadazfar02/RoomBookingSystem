@@ -4,6 +4,7 @@ session_start();
 require_once __DIR__ . '/includes/db_connect.php';
 if (!isset($_SESSION['loggedin'])) { header("Location: loginterface.html"); exit; }
 
+$submitSuccess = false;
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $room = $_POST['room_id'];
     $title = $_POST['title'];
@@ -12,7 +13,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     
     $stmt = $conn->prepare("INSERT INTO room_problems (user_id, room_id, title, description) VALUES (?, ?, ?, ?)");
     $stmt->bind_param("isss", $uid, $room, $title, $desc);
-    if ($stmt->execute()) echo "<script>alert('Report submitted successfully!');</script>";
+    if ($stmt->execute()) {
+        $submitSuccess = true;
+    }
 }
 // Fetch Rooms
 $rooms = $conn->query("SELECT room_id, name FROM rooms");
@@ -148,53 +151,82 @@ $rooms = $conn->query("SELECT room_id, name FROM rooms");
     }
     
     /* Dropdown Menu */
-    .dropdown-menu {
+    .dropdownmenu {
         position: relative;
         display: inline-block;
     }
-    
-    .dropdown-btn {
+
+    .dropbtn {
         background: var(--utm-maroon);
         color: white;
         box-shadow: 0 2px 4px rgba(128, 0, 0, 0.2);
-        position: relative;
+        padding: 10px 20px;
+        border: none;
+        border-radius: 8px;
+        font-size: 14px;
+        font-weight: 600;
+        cursor: pointer;
+        transition: all 0.3s ease;
+        display: inline-flex;
+        align-items: center;
+        gap: 8px;
+        font-family: 'Inter', sans-serif;
     }
-    
-    .dropdown-btn:hover {
+
+    .dropbtn:hover {
         background: var(--utm-maroon-light);
         transform: translateY(-1px);
         box-shadow: 0 4px 8px rgba(128, 0, 0, 0.3);
     }
-    
-    .dropdown-content {
+
+    .dropdownmenu-content {
         display: none;
         position: absolute;
         right: 0;
+        top: calc(100% + 1px);
         background-color: white;
         min-width: 200px;
         box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
         border-radius: 8px;
         overflow: hidden;
         z-index: 1001;
-        margin-top: 8px;
+        border: 1px solid var(--border);
     }
-    
-    .dropdown-content a {
+
+    .dropdownmenu-content::before {
+        content: '';
+        position: absolute;
+        top: -10px;
+        left: 0;
+        right: 0;
+        height: 10px;
+        background: transparent;
+    }
+
+    .dropdownmenu-content a {
         color: var(--text-primary);
         padding: 12px 16px;
         text-decoration: none;
-        display: block;
+        display: flex;
+        align-items: center;
+        gap: 8px;
         transition: all 0.2s ease;
         font-size: 14px;
         font-weight: 500;
     }
-    
-    .dropdown-content a:hover {
+
+    .dropdownmenu-content a i {
+        width: 16px;
+        text-align: center;
+    }
+
+    .dropdownmenu-content a:hover {
         background: var(--utm-maroon);
         color: white;
     }
-    
-    .dropdown-menu:hover .dropdown-content {
+
+    .dropdownmenu:hover .dropdownmenu-content,
+    .dropdownmenu-content:hover {
         display: block;
     }
     
@@ -316,10 +348,15 @@ $rooms = $conn->query("SELECT room_id, name FROM rooms");
         box-shadow: 0 2px 4px rgba(128, 0, 0, 0.2);
     }
     
-    .btn-primary:hover {
+    .btn-primary:hover:not(:disabled) {
         background: var(--utm-maroon-light);
         transform: translateY(-1px);
         box-shadow: 0 4px 8px rgba(128, 0, 0, 0.3);
+    }
+    
+    .btn-primary:disabled {
+        opacity: 0.6;
+        cursor: not-allowed;
     }
     
     .btn-ghost {
@@ -369,6 +406,177 @@ $rooms = $conn->query("SELECT room_id, name FROM rooms");
         font-size: 13px;
         margin: 0;
     }
+
+    /* Loading Overlay */
+    .loading-overlay {
+        position: fixed;
+        top: 0;
+        left: 0;
+        width: 100%;
+        height: 100%;
+        background: rgba(0, 0, 0, 0.5);
+        display: none;
+        align-items: center;
+        justify-content: center;
+        z-index: 9999;
+        backdrop-filter: blur(4px);
+    }
+
+    .loading-overlay.active {
+        display: flex;
+    }
+
+    .loading-card {
+        background: white;
+        padding: 40px;
+        border-radius: 16px;
+        text-align: center;
+        max-width: 400px;
+        box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+        animation: slideIn 0.3s ease;
+    }
+
+    @keyframes slideIn {
+        from {
+            opacity: 0;
+            transform: translateY(-20px);
+        }
+        to {
+            opacity: 1;
+            transform: translateY(0);
+        }
+    }
+
+    .spinner {
+        width: 60px;
+        height: 60px;
+        border: 4px solid var(--border);
+        border-top: 4px solid var(--utm-maroon);
+        border-radius: 50%;
+        animation: spin 1s linear infinite;
+        margin: 0 auto 24px;
+    }
+
+    @keyframes spin {
+        0% { transform: rotate(0deg); }
+        100% { transform: rotate(360deg); }
+    }
+
+    .loading-card h3 {
+        color: var(--text-primary);
+        font-size: 20px;
+        margin-bottom: 8px;
+    }
+
+    .loading-card p {
+        color: var(--text-secondary);
+        font-size: 14px;
+    }
+
+    /* Success Card */
+    .success-overlay {
+        position: fixed;
+        top: 0;
+        left: 0;
+        width: 100%;
+        height: 100%;
+        background: rgba(0, 0, 0, 0.5);
+        display: none;
+        align-items: center;
+        justify-content: center;
+        z-index: 9999;
+        backdrop-filter: blur(4px);
+    }
+
+    .success-overlay.active {
+        display: flex;
+    }
+
+    .success-card {
+        background: white;
+        padding: 48px;
+        border-radius: 16px;
+        text-align: center;
+        max-width: 450px;
+        box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+        animation: slideIn 0.3s ease;
+        position: relative;
+    }
+
+    .close-btn {
+        position: absolute;
+        top: 16px;
+        right: 16px;
+        width: 32px;
+        height: 32px;
+        border: none;
+        background: var(--bg-light);
+        border-radius: 8px;
+        cursor: pointer;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        transition: all 0.2s ease;
+        color: var(--text-secondary);
+    }
+
+    .close-btn:hover {
+        background: var(--utm-maroon);
+        color: white;
+        transform: scale(1.1);
+    }
+
+    .success-icon {
+        width: 80px;
+        height: 80px;
+        background: #dcfce7;
+        border-radius: 50%;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        margin: 0 auto 24px;
+        animation: scaleIn 0.5s ease;
+    }
+
+    @keyframes scaleIn {
+        0% {
+            transform: scale(0);
+        }
+        50% {
+            transform: scale(1.1);
+        }
+        100% {
+            transform: scale(1);
+        }
+    }
+
+    .success-icon i {
+        font-size: 40px;
+        color: #16a34a;
+    }
+
+    .success-card h3 {
+        color: var(--text-primary);
+        font-size: 24px;
+        margin-bottom: 12px;
+        font-weight: 700;
+    }
+
+    .success-card p {
+        color: var(--text-secondary);
+        font-size: 15px;
+        margin-bottom: 32px;
+        line-height: 1.6;
+    }
+
+    .success-actions {
+        display: flex;
+        gap: 12px;
+    }
+
+    .success-actions .btn-report {
+        flex: 1;
+    }
     
     /* Responsive */
     @media (max-width: 768px) {
@@ -388,8 +596,13 @@ $rooms = $conn->query("SELECT room_id, name FROM rooms");
         .form-card {
             padding: 24px 20px;
         }
+
+        .loading-card, .success-card {
+            margin: 20px;
+            padding: 32px 24px;
+        }
         
-        .btn-group {
+        .btn-group, .success-actions {
             flex-direction: column-reverse;
         }
         
@@ -404,6 +617,39 @@ $rooms = $conn->query("SELECT room_id, name FROM rooms");
   </style>
 </head>
 <body>
+  <!-- Loading Overlay -->
+  <div class="loading-overlay" id="loadingOverlay">
+    <div class="loading-card">
+      <div class="spinner"></div>
+      <h3>Submitting Report</h3>
+      <p>Please wait while we process your report...</p>
+    </div>
+  </div>
+
+  <!-- Success Overlay -->
+  <div class="success-overlay" id="successOverlay">
+    <div class="success-card">
+      <button class="close-btn" onclick="closeSuccessOverlay()">
+        <i class="fa-solid fa-xmark"></i>
+      </button>
+      <div class="success-icon">
+        <i class="fa-solid fa-check"></i>
+      </div>
+      <h3>Report Submitted Successfully!</h3>
+      <p>Your report has been received. Our maintenance team will review it and take appropriate action. You can track the status of your report anytime.</p>
+      <div class="success-actions">
+        <a href="user_report_problem.php" class="btn-report btn-ghost">
+          <i class="fa-solid fa-plus"></i>
+          Report Another Issue
+        </a>
+        <a href="user_problem_status.php" class="btn-report btn-primary">
+          <i class="fa-solid fa-list-check"></i>
+          View Problem Status
+        </a>
+      </div>
+    </div>
+  </div>
+
   <header class="main-header">
     <div class="header-content">
       <div class="logo-section">
@@ -420,19 +666,15 @@ $rooms = $conn->query("SELECT room_id, name FROM rooms");
           Booking Status
         </a>
         
-        <div class="dropdown-menu">
-          <button class="btn btn-secondary dropdown-btn">
+        <div class="dropdownmenu">
+          <button class="dropbtn">
             <i class="fa-solid fa-tools"></i>
             Room Problem
             <i class="fa-solid fa-chevron-down" style="font-size: 10px;"></i>
           </button>
-          <div class="dropdown-content">
-            <a href="user_report_problem.php">
-              <i class="fa-solid fa-exclamation-circle"></i> Report Issue
-            </a>
-            <a href="user_problem_status.php">
-              <i class="fa-solid fa-list-check"></i> Problem Status
-            </a>
+          <div class="dropdownmenu-content">
+            <a href="user_report_problem.php"><i class="fa-solid fa-triangle-exclamation"></i> Report Issue</a>
+            <a href="user_problem_status.php"><i class="fa-solid fa-list-check"></i> Problem Status</a> 
           </div>
         </div>
         
@@ -467,7 +709,7 @@ $rooms = $conn->query("SELECT room_id, name FROM rooms");
         </div>
       </div>
 
-      <form method="POST">
+      <form method="POST" id="reportForm">
         <!-- Room Select -->
         <div class="form-group">
           <label>
@@ -526,7 +768,7 @@ $rooms = $conn->query("SELECT room_id, name FROM rooms");
             <i class="fa-solid fa-times"></i>
             Cancel
           </a>
-          <button type="submit" class="btn-report btn-primary">
+          <button type="submit" class="btn-report btn-primary" id="submitBtn">
             <i class="fa-solid fa-paper-plane"></i>
             Submit Report
           </button>
@@ -534,6 +776,36 @@ $rooms = $conn->query("SELECT room_id, name FROM rooms");
       </form>
     </div>
   </main>
+
+  <script>
+    // Handle form submission with loading state
+    document.getElementById('reportForm').addEventListener('submit', function(e) {
+      // Show loading overlay
+      document.getElementById('loadingOverlay').classList.add('active');
+      document.getElementById('submitBtn').disabled = true;
+    });
+
+    // Show success overlay if submission was successful
+    <?php if ($submitSuccess): ?>
+    window.addEventListener('load', function() {
+      // Hide loading, show success
+      document.getElementById('loadingOverlay').classList.remove('active');
+      document.getElementById('successOverlay').classList.add('active');
+    });
+    <?php endif; ?>
+
+    // Close success overlay function
+    function closeSuccessOverlay() {
+      document.getElementById('successOverlay').classList.remove('active');
+    }
+
+    // Allow clicking outside the card to close
+    document.getElementById('successOverlay').addEventListener('click', function(e) {
+      if (e.target === this) {
+        closeSuccessOverlay();
+      }
+    });
+  </script>
 
 </body>
 </html>

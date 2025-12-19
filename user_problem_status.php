@@ -170,57 +170,85 @@ $stmt->close();
         box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
     }
     
-    /* Dropdown Menu */
-    .dropdown-menu {
+     /* Dropdown Menu */
+    .dropdownmenu {
         position: relative;
         display: inline-block;
     }
-    
-    .dropdown-btn {
+
+    .dropbtn {
         background: var(--utm-maroon);
         color: white;
         box-shadow: 0 2px 4px rgba(128, 0, 0, 0.2);
-        position: relative;
+        padding: 10px 20px;
+        border: none;
+        border-radius: 8px;
+        font-size: 14px;
+        font-weight: 600;
+        cursor: pointer;
+        transition: all 0.3s ease;
+        display: inline-flex;
+        align-items: center;
+        gap: 8px;
+        font-family: 'Inter', sans-serif;
     }
-    
-    .dropdown-btn:hover {
+
+    .dropbtn:hover {
         background: var(--utm-maroon-light);
         transform: translateY(-1px);
         box-shadow: 0 4px 8px rgba(128, 0, 0, 0.3);
     }
-    
-    .dropdown-content {
+
+    .dropdownmenu-content {
         display: none;
         position: absolute;
         right: 0;
+        top: calc(100% + 1px);
         background-color: white;
         min-width: 200px;
         box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
         border-radius: 8px;
         overflow: hidden;
         z-index: 1001;
-        margin-top: 8px;
+        border: 1px solid var(--border);
     }
-    
-    .dropdown-content a {
+
+    .dropdownmenu-content::before {
+        content: '';
+        position: absolute;
+        top: -10px;
+        left: 0;
+        right: 0;
+        height: 10px;
+        background: transparent;
+    }
+
+    .dropdownmenu-content a {
         color: var(--text-primary);
         padding: 12px 16px;
         text-decoration: none;
-        display: block;
+        display: flex;
+        align-items: center;
+        gap: 8px;
         transition: all 0.2s ease;
         font-size: 14px;
         font-weight: 500;
     }
-    
-    .dropdown-content a:hover {
+
+    .dropdownmenu-content a i {
+        width: 16px;
+        text-align: center;
+    }
+
+    .dropdownmenu-content a:hover {
         background: var(--utm-maroon);
         color: white;
     }
-    
-    .dropdown-menu:hover .dropdown-content {
+
+    .dropdownmenu:hover .dropdownmenu-content,
+    .dropdownmenu-content:hover {
         display: block;
     }
-    
     /* Main Container */
     .container {
         max-width: 1400px;
@@ -557,19 +585,15 @@ $stmt->close();
           Booking Status
         </a>
         
-        <div class="dropdown-menu">
-          <button class="btn btn-secondary dropdown-btn">
+        <div class="dropdownmenu">
+          <button class="dropbtn">
             <i class="fa-solid fa-tools"></i>
             Room Problem
             <i class="fa-solid fa-chevron-down" style="font-size: 10px;"></i>
           </button>
-          <div class="dropdown-content">
-            <a href="user_report_problem.php">
-              <i class="fa-solid fa-exclamation-circle"></i> Report Issue
-            </a>
-            <a href="user_problem_status.php">
-              <i class="fa-solid fa-list-check"></i> Problem Status
-            </a>
+          <div class="dropdownmenu-content">
+            <a href="user_report_problem.php"><i class="fa-solid fa-triangle-exclamation"></i> Report Issue</a>
+            <a href="user_problem_status.php"><i class="fa-solid fa-list-check"></i> Problem Status</a> 
           </div>
         </div>
         
