@@ -357,7 +357,7 @@ if ($stmt = $conn->prepare($sql)) {
                 <a href="manage_users.php" class="btn outline">Reset</a>
               <?php endif; ?>
             </div>
-                  <button onclick="openModal()" class="btn primary" style="display:flex; align-items:center; gap:8px;">
+          <button type="button" onclick="openModal()" class="btn primary" style="display:flex; align-items:center; gap:8px;">
             <span>+</span> Create User
           </button>
       </form>

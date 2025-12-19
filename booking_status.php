@@ -155,134 +155,121 @@ try {
         if (!is_array($data)) throw new Exception('Invalid JSON input');
         $action = $data['action'] ?? '';
 
-        // ---- START_EDIT: free entire session and return its slots ----
+        
+        // START EDIT - prepare edit data
+// START EDIT - prepare edit data
         if ($action === 'start_edit') {
             $session_id = trim($data['session_id'] ?? '');
-            if (!$me_id) throw new Exception('Not logged in');
-            if ($session_id === '') throw new Exception('Missing session_id');
-
-            // handle single_<id> case: return that slot and cancel it
-            if (strpos($session_id, 'single_') === 0) {
-                $id = intval(substr($session_id, 7));
-                if (!$id) throw new Exception('Invalid single id');
-
-                // check permission
-                $stmt = $conn->prepare("SELECT id, user_id, room_id, slot_date, time_start, time_end, status, created_at FROM bookings WHERE id=? LIMIT 1");
-                if ($stmt === false) throw new Exception('DB prepare error: '.$conn->error);
-                $stmt->bind_param('i', $id); $stmt->execute(); $res = $stmt->get_result();
-                if (!$res || $res->num_rows === 0) { $stmt->close(); throw new Exception('Booking not found'); }
-                $row = $res->fetch_assoc(); $stmt->close();
-
-                if (!$isAdmin && intval($row['user_id']) !== $me_id) throw new Exception('Not allowed to edit this booking');
-
-                // build slot payload
-                $slot = [
-                    'booking_id' => (int)$row['id'],
-                    'date' => $row['slot_date'],
-                    'time_start' => substr($row['time_start'],0,5),
-                    'time_end' => substr($row['time_end'],0,5),
-                    'status' => $row['status']
-                ];
-
-                // cancel it (mark cancelled but keep audit reason)
-                $now = date('Y-m-d H:i:s');
-                $reason = 'freed_for_edit:'.$me_id.':'.$now;
-                $u = $conn->prepare("UPDATE bookings SET status='cancelled', cancelled_by=?, cancelled_at=?, cancel_reason=? WHERE id = ?");
-                if ($u === false) throw new Exception('DB prepare error: '.$conn->error);
-                $u->bind_param('issi', $me_id, $now, $reason, $id);
-                $ok = $u->execute(); $u->close();
-
-                if (!$ok) throw new Exception('Failed to free booking for edit: '.$conn->error);
-
-                ob_end_clean();
-                echo json_encode([
-                    'success' => true,
-                    'room_id' => $row['room_id'],
-                    'created_at' => $row['created_at'],
-                    'slots' => [$slot]
-                ]);
+            
+            if (!$session_id) {
+                echo json_encode(['success'=>false,'msg'=>'Missing session_id']);
                 exit;
             }
-
-            // Normal session_id: find all bookings in this session
-            $chk = $conn->prepare("SELECT id, user_id FROM bookings WHERE session_id = ?");
-            if ($chk === false) throw new Exception('DB prepare error: '.$conn->error);
-            $chk->bind_param('s', $session_id); $chk->execute(); $r = $chk->get_result();
-            $owners = [];
-            $bookingIds = [];
-            while ($ro = $r->fetch_assoc()) {
-                $owners[] = intval($ro['user_id']);
-                $bookingIds[] = intval($ro['id']);
+            if (!$me_id) {
+                echo json_encode(['success'=>false,'msg'=>'Not logged in']);
+                exit;
             }
-            $chk->close();
-            if (count($bookingIds) === 0) throw new Exception('Session not found');
-
-            // check permission: admin OR all owners same = me
-            if (!$isAdmin) {
-                $unique = array_unique($owners);
-                if (!(count($unique) === 1 && intval($unique[0]) === $me_id)) throw new Exception('Not allowed to edit this session');
+            
+            // 1. Fetch bookings to verify ownership & get details
+            $stmt = $conn->prepare("SELECT id, user_id, room_id, slot_date, time_start, time_end, purpose, description, tel, status 
+                                    FROM bookings 
+                                    WHERE (session_id = ? OR id = ?) AND status IN ('pending', 'booked')");
+            if (!$stmt) {
+                echo json_encode(['success'=>false,'msg'=>'DB error']);
+                exit;
             }
-
-            // fetch the detailed bookings for the session (date/time)
-            $in = implode(',', array_map('intval', $bookingIds));
-            $q = "SELECT id, room_id, slot_date, time_start, time_end, status, created_at FROM bookings WHERE id IN ($in) ORDER BY slot_date, time_start";
-            $rs = $conn->query($q);
-            if ($rs === false) throw new Exception('DB query error: '.$conn->error);
-
+            
+            $stmt->bind_param('ss', $session_id, $session_id);
+            $stmt->execute();
+            $res = $stmt->get_result();
+            
+            if (!$res || $res->num_rows === 0) {
+                echo json_encode(['success'=>false,'msg'=>'No active bookings found for this session']);
+                exit;
+            }
+            
             $slots = [];
-            $room_id = null;
-            $created_at = null;
-            while ($row = $rs->fetch_assoc()) {
+            $booking_ids = []; // Array to store IDs to clean up logs
+            $room_id = '';
+            $first_row = null;
+            $authorized = false;
+            
+            while ($row = $res->fetch_assoc()) {
+                if (!$first_row) $first_row = $row;
                 $room_id = $row['room_id'];
-                if ($created_at === null) $created_at = $row['created_at'];
+                $booking_ids[] = $row['id']; // Collect ID
+                
+                // Permission Check
+                $isOwner = ($row['user_id'] == $me_id);
+                if ($isAdmin || $isOwner) {
+                    $authorized = true;
+                } else {
+                    if (!$isAdmin) {
+                        $stmt->close();
+                        echo json_encode(['success'=>false,'msg'=>'Not authorized to edit this booking']);
+                        exit;
+                    }
+                }
+                
+                // Format time
+                $time_slot = substr($row['time_start'],0,5) . '-' . substr($row['time_end'],0,5);
+                
                 $slots[] = [
-                    'booking_id' => (int)$row['id'],
+                    'id' => (int)$row['id'],
                     'date' => $row['slot_date'],
-                    'time_start' => substr($row['time_start'],0,5),
-                    'time_end' => substr($row['time_end'],0,5),
-                    'status' => $row['status']
+                    'time' => $time_slot
                 ];
             }
+            $stmt->close();
 
-            // perform transactional update: mark these bookings as cancelled (freed for edit)
+            if (!$authorized) {
+                 echo json_encode(['success'=>false,'msg'=>'Authorization failed.']);
+                 exit;
+            }
+            
+            // 2. CLEANUP & DELETE (Handle Foreign Keys)
             $conn->begin_transaction();
             try {
-                $now = date('Y-m-d H:i:s');
-                $reason = 'freed_for_edit:'.$me_id.':'.$now;
-                // update using session_id (safe) rather than IN list to cover the session
-                $u = $conn->prepare("UPDATE bookings SET status='cancelled', cancelled_by=?, cancelled_at=?, cancel_reason=? WHERE session_id = ? AND status IN ('pending','booked')");
-                if ($u === false) {
-                    // fallback to updating by ids
-                    $ok = true;
-                    foreach ($bookingIds as $bid) {
-                        $fb = $conn->prepare("UPDATE bookings SET status='cancelled', cancelled_by=?, cancelled_at=?, cancel_reason=? WHERE id = ?");
-                        if ($fb === false) throw new Exception('DB prepare error: '.$conn->error);
-                        $fb->bind_param('issi', $me_id, $now, $reason, $bid);
-                        $r = $fb->execute();
-                        $fb->close();
-                        if (!$r) { $ok = false; break; }
-                    }
-                    if (!$ok) throw new Exception('Failed to free some bookings for edit');
-                } else {
-                    $u->bind_param('isss', $me_id, $now, $reason, $session_id);
-                    $ok = $u->execute();
-                    $u->close();
-                    if ($ok === false) throw new Exception('Failed to free bookings for edit: '.$conn->error);
-                }
-                $conn->commit();
-            } catch (Exception $ex) {
-                $conn->rollback();
-                throw $ex;
-            }
+                if (!empty($booking_ids)) {
+                    // Create a comma-separated string of IDs for the query: "1, 2, 3"
+                    $ids_string = implode(',', array_map('intval', $booking_ids));
 
-            ob_end_clean();
-            echo json_encode([
-                'success' => true,
-                'room_id' => $room_id,
-                'created_at' => $created_at,
-                'slots' => $slots
-            ]);
-            exit;
+                    // A. Delete dependent Email Logs
+                    $conn->query("DELETE FROM email_logs WHERE booking_id IN ($ids_string)");
+
+                    // B. Delete dependent Admin Logs (prevent future errors)
+                    $conn->query("DELETE FROM admin_logs WHERE booking_id IN ($ids_string)");
+                    
+                    // C. Also set room_problems booking_id to NULL if you have that link
+                    // $conn->query("UPDATE room_problems SET booking_id = NULL WHERE booking_id IN ($ids_string)");
+                }
+
+                // D. Now safe to delete the bookings
+                $stmtDel = $conn->prepare("DELETE FROM bookings WHERE (session_id = ? OR id = ?) AND status IN ('pending', 'booked')");
+                $stmtDel->bind_param('ss', $session_id, $session_id);
+                $stmtDel->execute();
+                $stmtDel->close();
+
+                $conn->commit();
+                
+                echo json_encode([
+                    'success' => true,
+                    'session_id' => $session_id,
+                    'room_id' => $room_id,
+                    'room' => $room_id,
+                    'slots' => $slots,
+                    'purpose' => $first_row['purpose'],
+                    'description' => $first_row['description'],
+                    'tel' => $first_row['tel'],
+                    'created_at' => date('Y-m-d H:i:s')
+                ]);
+                exit;
+
+            } catch (Exception $e) {
+                $conn->rollback();
+                echo json_encode(['success'=>false, 'msg'=>'Database error during delete: ' . $e->getMessage()]);
+                exit;
+            }
         }
 
         // cancel single booking by id

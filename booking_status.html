@@ -622,6 +622,49 @@ function showConfirm(title, message) {
     });
 }
 
+// Confirmation modal for EDIT action
+function showEditConfirm(title, message) {
+    return new Promise((resolve) => {
+        const overlay = document.createElement('div');
+        overlay.style.cssText = `position: fixed; top: 0; left: 0; right: 0; bottom: 0;
+            background: rgba(0,0,0,0.5); display: flex; align-items: center; justify-content: center;
+            z-index: 10000; animation: fadeIn 0.2s;`;
+        
+        overlay.innerHTML = `
+            <div style="background: white; border-radius: 12px; padding: 24px; max-width: 400px; width: 90%;
+                box-shadow: 0 20px 60px rgba(0,0,0,0.3); animation: scaleIn 0.3s;">
+                <h3 style="margin: 0 0 12px 0; font-size: 20px; color: #1f2937; font-weight: 600;">${title}</h3>
+                <p style="margin: 0 0 24px 0; color: #6b7280; font-size: 14px; line-height: 1.5;">${message}</p>
+                <div style="display: flex; gap: 12px; justify-content: flex-end;">
+                    <button id="cancel-edit-btn" style="background: #f3f4f6; color: #374151; border: none; 
+                        padding: 10px 20px; border-radius: 6px; cursor: pointer; font-size: 14px; font-weight: 600;
+                        font-family: 'Inter', sans-serif;">No, Go Back</button>
+                    <button id="confirm-edit-btn" style="background: #f97316; color: white; border: none; 
+                        padding: 10px 20px; border-radius: 6px; cursor: pointer; font-size: 14px; font-weight: 600;
+                        font-family: 'Inter', sans-serif;">Yes, Edit Booking</button>
+                </div>
+            </div>
+        `;
+        
+        document.body.appendChild(overlay);
+        
+        overlay.querySelector('#confirm-edit-btn').onclick = () => {
+            overlay.remove();
+            resolve(true);
+        };
+        overlay.querySelector('#cancel-edit-btn').onclick = () => {
+            overlay.remove();
+            resolve(false);
+        };
+        overlay.onclick = (e) => {
+            if (e.target === overlay) {
+                overlay.remove();
+                resolve(false);
+            }
+        };
+    });
+}
+
 function escapeHtml(s){ 
   if(s===0) return '0'; 
   if(!s) return ''; 
@@ -852,7 +895,12 @@ function renderSessions(sessions){
         return;
       }
 
-      if (!confirm('Are you sure you want to edit this booking? This will free your current slots so you can pick new ones.')) return;
+      const confirmed = await showEditConfirm(
+        'Edit Booking Session',
+        'Are you sure you want to edit this booking? This will free your current slots so you can pick new ones.'
+      );
+
+      if (!confirmed) return;
 
       try {
         btn.disabled = true;
@@ -909,10 +957,9 @@ async function handleCancelButton(btn) {
     return;
   }
 
-  // Show confirmation modal
-  const confirmed = await showConfirm(
-    'Cancel Booking Session',
-    `Are you sure you want to cancel all bookings in session ${sessionId}?`
+  const confirmed = await showEditConfirm(
+    'Edit Booking Session',
+    'Are you sure you want to edit this booking? This will free your current slots so you can pick new ones.'
   );
   
   if (!confirmed) return;
