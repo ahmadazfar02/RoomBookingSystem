@@ -2,6 +2,10 @@
 
 include __DIR__ . '/../includes/db_connect.php';
 
+// Variable to trigger modal from PHP if server-side validation fails
+$server_error_title = "";
+$server_error_msg = "";
+
 if ($_SERVER["REQUEST_METHOD"] === "POST") {
     $username = trim($_POST["username"]);
     $fullname = trim($_POST["name"]);
@@ -12,63 +16,73 @@ if ($_SERVER["REQUEST_METHOD"] === "POST") {
     $role = $_POST["role"];
 
     // ----------------------------------------------------
-    // SECURITY CHECK 1: Advanced Reserved Username Check
+    // SECURITY CHECK 0: Email Domain Validation (UTM ONLY)
     // ----------------------------------------------------
-    
-    $normalized_username = preg_replace('/[^a-z]/', '', strtolower($username));
-    $forbidden_keywords = ['admin', 'superadmin', 'root', 'system', 'moderator', 'support'];
+    if (!preg_match("/utm\.my$/i", $email)) {
+        $server_error_title = "Restricted Access";
+        $server_error_msg = "Registration is restricted to Universiti Teknologi Malaysia members. Please use an official <b>.utm.my</b> email address.";
+    } 
+    else {
+        // ----------------------------------------------------
+        // SECURITY CHECK 1: Reserved Username Check
+        // ----------------------------------------------------
+        $normalized_username = preg_replace('/[^a-z]/', '', strtolower($username));
+        $forbidden_keywords = ['admin', 'superadmin', 'root', 'system', 'moderator', 'support'];
 
-    foreach ($forbidden_keywords as $keyword) {
-        if (strpos($normalized_username, $keyword) !== false) {
-            echo "<script>alert('This username contains reserved words (like \"$keyword\") and cannot be used.'); window.history.back();</script>";
+        $is_forbidden = false;
+        foreach ($forbidden_keywords as $keyword) {
+            if (strpos($normalized_username, $keyword) !== false) {
+                $is_forbidden = true;
+                break;
+            }
+        }
+
+        if ($is_forbidden) {
+            echo "<script>alert('This username contains reserved words and cannot be used.'); window.history.back();</script>";
             exit();
         }
+
+        // ----------------------------------------------------
+        // SECURITY CHECK 2: Role Validation
+        // ----------------------------------------------------
+        $allowed_roles = ['Student', 'Lecturer', 'Staff'];
+        if (!in_array($role, $allowed_roles)) {
+            echo "<script>alert('Invalid role specified.'); window.history.back();</script>";
+            exit();
+        }
+
+        if ($password !== $confirm_password) {
+            echo "<script>alert('Passwords do not match!'); window.history.back();</script>";
+            exit();
+        }
+
+        // Check for duplicates
+        $check_stmt = $conn->prepare("SELECT id FROM users WHERE username = ? OR Email = ?");
+        $check_stmt->bind_param("ss", $username, $email);
+        $check_stmt->execute();
+        $check_result = $check_stmt->get_result();
+
+        if ($check_result->num_rows > 0) {
+            echo "<script>alert('Username or Email already exists!'); window.history.back();</script>";
+            exit();
+        }
+        $check_stmt->close();
+
+        // Insert User
+        $password_hash = password_hash($password, PASSWORD_BCRYPT);
+        $stmt = $conn->prepare("INSERT INTO users (username, Fullname, Email, password_hash, User_Type, Phone_Number, Created_At, Updated_At)
+                                VALUES (?, ?, ?, ?, ?, ?, NOW(), NOW())");
+        $stmt->bind_param("ssssss", $username, $fullname, $email, $password_hash, $role, $phone_number);
+
+        if ($stmt->execute()) {
+            echo "<script>alert('Registration successful! You can now log in.'); window.location.href='../loginterface.html';</script>";
+        } else {
+            echo "<script>alert('Error: " . addslashes($stmt->error) . "');</script>";
+        }
+
+        $stmt->close();
+        $conn->close();
     }
-
-    // ----------------------------------------------------
-    // SECURITY CHECK 2: Role Validation
-    // ----------------------------------------------------
-    if (strcasecmp($role, 'Admin') == 0) {
-        echo "<script>alert('Invalid role selection. Please choose Student, Lecturer, or Staff.'); window.history.back();</script>";
-        exit();
-    }
-    
-    $allowed_roles = ['Student', 'Lecturer', 'Staff'];
-    if (!in_array($role, $allowed_roles)) {
-        echo "<script>alert('Invalid role specified.'); window.history.back();</script>";
-        exit();
-    }
-
-    if ($password !== $confirm_password) {
-        echo "<script>alert('Passwords do not match!'); window.history.back();</script>";
-        exit();
-    }
-
-    $check_stmt = $conn->prepare("SELECT id FROM users WHERE username = ? OR Email = ?");
-    $check_stmt->bind_param("ss", $username, $email);
-    $check_stmt->execute();
-    $check_result = $check_stmt->get_result();
-
-    if ($check_result->num_rows > 0) {
-        echo "<script>alert('Username or Email already exists!'); window.history.back();</script>";
-        exit();
-    }
-    $check_stmt->close();
-
-    $password_hash = password_hash($password, PASSWORD_BCRYPT);
-
-    $stmt = $conn->prepare("INSERT INTO users (username, Fullname, Email, password_hash, User_Type, Phone_Number, Created_At, Updated_At)
-                            VALUES (?, ?, ?, ?, ?, ?, NOW(), NOW())");
-    $stmt->bind_param("ssssss", $username, $fullname, $email, $password_hash, $role, $phone_number);
-
-    if ($stmt->execute()) {
-        echo "<script>alert('Registration successful! You can now log in.'); window.location.href='../loginterface.html';</script>";
-    } else {
-        echo "<script>alert('Error: " . addslashes($stmt->error) . "');</script>";
-    }
-
-    $stmt->close();
-    $conn->close();
 }
 ?>
 
@@ -78,9 +92,7 @@ if ($_SERVER["REQUEST_METHOD"] === "POST") {
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>UTM Reservation - Register</title>
-    <!-- Google Fonts -->
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600;700&display=swap" rel="stylesheet">
-    <!-- FontAwesome -->
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
     
     <style>
@@ -168,59 +180,64 @@ if ($_SERVER["REQUEST_METHOD"] === "POST") {
             font-weight: 500;
         }
 
-        .input-group i {
-            position: absolute;
-            left: 18px;
-            top: 50%;
-            transform: translateY(-50%);
-            color: #94a3b8;
-            font-size: 16px;
-        }
-
-        .input-group.has-label i {
-            top: calc(50% + 14px);
-        }
-
+        /* ICON + INPUT LAYOUT FIX (minimal changes to structure) */
+        /* Input: keep in normal flow but allow stacking via z-index */
         .input-group input,
         .input-group select {
             width: 100%;
-            padding: 14px 15px 14px 50px;
+            padding: 14px 50px 14px 50px; /* left + right space for icons */
             border: 1px solid #cbd5e1;
             border-radius: 6px;
             font-size: 15px;
             color: var(--text-dark);
             background-color: #ffffff;
             transition: all 0.3s ease;
+            position: relative; /* allows left/right icons to layer above via z-index */
+            z-index: 1;         /* base layer for input */
         }
 
         .input-group input:focus,
         .input-group select:focus {
             outline: none;
             border-color: var(--utm-maroon);
-            box-shadow: 0 0 0 4px rgba(128, 0, 0, 0.1);
+            box-shadow: 0 0 0 4px rgba(128, 0, 0, 0.06);
         }
 
-        .input-group select {
-            cursor: pointer;
+        /* LEFT ICONS (visible but non-interactive) */
+        .input-group i:not(.toggle-password) {
+            position: absolute;
+            left: 18px;
+            top: 50%;
+            transform: translateY(-50%);
+            color: #94a3b8;
+            font-size: 16px;
+            pointer-events: none; /* allow clicks to go to input */
+            z-index: 3;            /* above input */
         }
 
+        /* adjust when label is used (you used has-label earlier) */
+        .input-group.has-label i:not(.toggle-password) {
+            top: calc(50% + 14px);
+        }
+
+        /* RIGHT EYE ICON - must be clickable */
         .toggle-password {
             position: absolute;
-            right: 18px;
+            right: 12px;
             top: 50%;
             transform: translateY(-50%);
             cursor: pointer;
             color: #94a3b8;
             font-size: 16px;
-            transition: color 0.3s ease;
+            padding: 6px;          /* larger tap area */
+            border-radius: 6px;
+            pointer-events: auto;  /* allow clicks */
+            z-index: 4;            /* highest so it receives clicks */
+            background: transparent;
         }
 
         .input-group.has-label .toggle-password {
             top: calc(50% + 14px);
-        }
-
-        .toggle-password:hover {
-            color: #64748b;
         }
 
         .match-indicator {
@@ -282,6 +299,88 @@ if ($_SERVER["REQUEST_METHOD"] === "POST") {
             text-decoration: underline;
         }
 
+        /* --- POPUP CARD STYLES --- */
+        .modal-overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0, 0, 0, 0.6);
+            backdrop-filter: blur(5px);
+            z-index: 1000;
+            display: none;
+            justify-content: center;
+            align-items: center;
+            opacity: 0;
+            transition: opacity 0.3s ease;
+        }
+
+        .modal-overlay.show {
+            display: flex;
+            opacity: 1;
+        }
+
+        .modal-card {
+            background: white;
+            padding: 40px 30px;
+            border-radius: 16px;
+            text-align: center;
+            max-width: 400px;
+            width: 90%;
+            box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.25);
+            transform: scale(0.9);
+            transition: transform 0.3s cubic-bezier(0.34, 1.56, 0.64, 1);
+        }
+
+        .modal-overlay.show .modal-card {
+            transform: scale(1);
+        }
+
+        .modal-icon {
+            width: 70px;
+            height: 70px;
+            background: #fee2e2;
+            color: #dc2626;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            margin: 0 auto 20px;
+            font-size: 32px;
+        }
+
+        .modal-title {
+            color: var(--text-dark);
+            font-size: 20px;
+            font-weight: 700;
+            margin-bottom: 10px;
+        }
+
+        .modal-message {
+            color: var(--text-light);
+            font-size: 15px;
+            line-height: 1.5;
+            margin-bottom: 25px;
+        }
+
+        .modal-btn {
+            background-color: var(--utm-maroon);
+            color: white;
+            border: none;
+            padding: 12px 30px;
+            border-radius: 8px;
+            font-weight: 600;
+            font-size: 15px;
+            cursor: pointer;
+            transition: background 0.2s;
+            width: 100%;
+        }
+
+        .modal-btn:hover {
+            background-color: #600000;
+        }
+
         /* Responsive Design */
         @media (max-width: 768px) {
             .register-wrapper {
@@ -308,6 +407,20 @@ if ($_SERVER["REQUEST_METHOD"] === "POST") {
     </style>
 </head>
 <body>
+
+    <div id="errorModal" class="modal-overlay">
+        <div class="modal-card">
+            <div class="modal-icon">
+                <i class="fa-solid fa-ban"></i>
+            </div>
+            <h3 class="modal-title" id="modalTitle">Registration Failed</h3>
+            <p class="modal-message" id="modalMessage">
+                This account type is not authorized.
+            </p>
+            <button class="modal-btn" onclick="closeModal()">Understood</button>
+        </div>
+    </div>
+
     <div class="register-wrapper">
         <div class="register-header">
             <img src="../assets/images/utm_logo.png" alt="UTM Logo">
@@ -315,7 +428,7 @@ if ($_SERVER["REQUEST_METHOD"] === "POST") {
             <p>Join UTM Room Reservation System</p>
         </div>
 
-        <form method="POST" class="register-body" onsubmit="return validatePassword()">
+        <form method="POST" class="register-body" onsubmit="return validateForm()">
             <div class="form-row">
                 <div class="input-group has-label">
                     <label for="username">Username</label>
@@ -334,7 +447,7 @@ if ($_SERVER["REQUEST_METHOD"] === "POST") {
                 <div class="input-group has-label">
                     <label for="email">Email Address</label>
                     <i class="fa-solid fa-envelope"></i>
-                    <input type="email" id="email" name="email" placeholder="Enter email" required>
+                    <input type="email" id="email" name="email" placeholder="Enter UTM email" required>
                 </div>
 
                 <div class="input-group has-label">
@@ -382,6 +495,34 @@ if ($_SERVER["REQUEST_METHOD"] === "POST") {
     </div>
 
     <script>
+        // Modal Control Functions
+        const modal = document.getElementById('errorModal');
+        const modalTitle = document.getElementById('modalTitle');
+        const modalMessage = document.getElementById('modalMessage');
+
+        function showModal(title, message) {
+            modalTitle.innerText = title;
+            modalMessage.innerHTML = message;
+            modal.classList.add('show');
+        }
+
+        function closeModal() {
+            modal.classList.remove('show');
+        }
+
+        // Close modal if clicked outside
+        modal.addEventListener('click', (e) => {
+            if (e.target === modal) {
+                closeModal();
+            }
+        });
+
+        // Trigger PHP Server-Side Errors
+        <?php if (!empty($server_error_msg)) : ?>
+            showModal("<?php echo $server_error_title; ?>", "<?php echo $server_error_msg; ?>");
+        <?php endif; ?>
+
+        // Password Toggle
         function togglePassword(fieldId, icon) {
             const field = document.getElementById(fieldId);
             if (field.type === "password") {
@@ -411,13 +552,51 @@ if ($_SERVER["REQUEST_METHOD"] === "POST") {
             }
         });
 
-        function validatePassword() {
+        // Main Form Validation
+        function validateForm() {
+            // 1. Check Passwords
             if (password.value !== confirm.value) {
                 alert('Passwords do not match!');
                 return false;
             }
-            return true;
+
+            // 2. Check UTM Email
+            const emailField = document.getElementById('email').value;
+            // Regex: String must end with 'utm.my' (case insensitive)
+            // It allows student@graduate.utm.my, staff@utm.my, etc.
+            const utmEmailRegex = /@.*utm\.my$/i;
+
+            if (!utmEmailRegex.test(emailField)) {
+                showModal(
+                    "Restricted Access", 
+                    "You must use an official <b>.utm.my</b> email address to register (e.g., ali@graduate.utm.my or staff@utm.my)."
+                );
+                return false; // Stop form submission
+            }
+
+            return true; // Allow submission
         }
+
+        // Fallback: attach click handler to .toggle-password if it doesn't have inline onclick
+        // (this prevents double-calls when inline onclick exists)
+        document.addEventListener('DOMContentLoaded', function() {
+            document.querySelectorAll('.toggle-password').forEach(function(icon){
+                if (!icon.getAttribute('onclick')) {
+                    icon.addEventListener('click', function(e){
+                        // find target input id (data-target attribute or nearest input in group)
+                        let target = icon.getAttribute('data-target');
+                        if (!target) {
+                            const wrapper = icon.closest('.input-group');
+                            const input = wrapper ? wrapper.querySelector('input') : null;
+                            if (input && input.id) target = input.id;
+                        }
+                        if (target) {
+                            togglePassword(target, icon);
+                        }
+                    }, {passive: true});
+                }
+            });
+        });
     </script>
 </body>
 </html>
