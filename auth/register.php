@@ -6,6 +6,11 @@ include __DIR__ . '/../includes/db_connect.php';
 $server_error_title = "";
 $server_error_msg = "";
 
+// Variable for success modal
+$server_success_title = "";
+$server_success_msg = "";
+$server_success_redirect = "../loginterface.html"; // where to go after success
+
 if ($_SERVER["REQUEST_METHOD"] === "POST") {
     $username = trim($_POST["username"]);
     $fullname = trim($_POST["name"]);
@@ -75,7 +80,10 @@ if ($_SERVER["REQUEST_METHOD"] === "POST") {
         $stmt->bind_param("ssssss", $username, $fullname, $email, $password_hash, $role, $phone_number);
 
         if ($stmt->execute()) {
-            echo "<script>alert('Registration successful! You can now log in.'); window.location.href='../loginterface.html';</script>";
+            // <-- replace alert() with success modal variables -->
+            $server_success_title = "Registration Successful";
+            $server_success_msg = "Your account has been created successfully. Click the button below to log in.";
+            // do not redirect here — let client-side button handle redirect after user sees modal
         } else {
             echo "<script>alert('Error: " . addslashes($stmt->error) . "');</script>";
         }
@@ -381,6 +389,20 @@ if ($_SERVER["REQUEST_METHOD"] === "POST") {
             background-color: #600000;
         }
 
+        /* SUCCESS VARIANT */
+        .success-icon {
+            width: 70px;
+            height: 70px;
+            background: #ecfdf5;
+            color: #059669;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            margin: 0 auto 20px;
+            font-size: 32px;
+        }
+
         /* Responsive Design */
         @media (max-width: 768px) {
             .register-wrapper {
@@ -408,8 +430,9 @@ if ($_SERVER["REQUEST_METHOD"] === "POST") {
 </head>
 <body>
 
-    <div id="errorModal" class="modal-overlay">
-        <div class="modal-card">
+    <!-- ERROR MODAL -->
+    <div id="errorModal" class="modal-overlay" aria-hidden="true">
+        <div class="modal-card" role="dialog" aria-labelledby="modalTitle" aria-describedby="modalMessage">
             <div class="modal-icon">
                 <i class="fa-solid fa-ban"></i>
             </div>
@@ -418,6 +441,20 @@ if ($_SERVER["REQUEST_METHOD"] === "POST") {
                 This account type is not authorized.
             </p>
             <button class="modal-btn" onclick="closeModal()">Understood</button>
+        </div>
+    </div>
+
+    <!-- SUCCESS MODAL -->
+    <div id="successModal" class="modal-overlay" aria-hidden="true">
+        <div class="modal-card" role="dialog" aria-labelledby="successTitle" aria-describedby="successMessage">
+            <div class="success-icon">
+                <i class="fa-solid fa-circle-check"></i>
+            </div>
+            <h3 class="modal-title" id="successTitle">Success</h3>
+            <p class="modal-message" id="successMessage">
+                Your account has been created.
+            </p>
+            <button class="modal-btn" id="successBtn">Go to Login</button>
         </div>
     </div>
 
@@ -447,7 +484,7 @@ if ($_SERVER["REQUEST_METHOD"] === "POST") {
                 <div class="input-group has-label">
                     <label for="email">Email Address</label>
                     <i class="fa-solid fa-envelope"></i>
-                    <input type="email" id="email" name="email" placeholder="Enter UTM email" required>
+                    <input type="email" id="email" name="email" placeholder="Enter UTM email (e.g. name@utm.my)" required>
                 </div>
 
                 <div class="input-group has-label">
@@ -495,7 +532,7 @@ if ($_SERVER["REQUEST_METHOD"] === "POST") {
     </div>
 
     <script>
-        // Modal Control Functions
+        // Modal Control Functions (error modal)
         const modal = document.getElementById('errorModal');
         const modalTitle = document.getElementById('modalTitle');
         const modalMessage = document.getElementById('modalMessage');
@@ -504,10 +541,35 @@ if ($_SERVER["REQUEST_METHOD"] === "POST") {
             modalTitle.innerText = title;
             modalMessage.innerHTML = message;
             modal.classList.add('show');
+            modal.setAttribute('aria-hidden', 'false');
         }
 
         function closeModal() {
             modal.classList.remove('show');
+            modal.setAttribute('aria-hidden', 'true');
+        }
+
+        // SUCCESS modal functions
+        const successModal = document.getElementById('successModal');
+        const successTitle = document.getElementById('successTitle');
+        const successMessage = document.getElementById('successMessage');
+        const successBtn = document.getElementById('successBtn');
+
+        function showSuccessModal(title, message, redirectUrl = null) {
+            successTitle.innerText = title;
+            successMessage.innerHTML = message;
+            successModal.classList.add('show');
+            successModal.setAttribute('aria-hidden', 'false');
+
+            // set button action
+            successBtn.onclick = function() {
+                if (redirectUrl) {
+                    window.location.href = redirectUrl;
+                } else {
+                    successModal.classList.remove('show');
+                    successModal.setAttribute('aria-hidden', 'true');
+                }
+            };
         }
 
         // Close modal if clicked outside
@@ -516,10 +578,22 @@ if ($_SERVER["REQUEST_METHOD"] === "POST") {
                 closeModal();
             }
         });
+        successModal.addEventListener('click', (e) => {
+            if (e.target === successModal) {
+                successModal.classList.remove('show');
+                successModal.setAttribute('aria-hidden', 'true');
+            }
+        });
 
         // Trigger PHP Server-Side Errors
         <?php if (!empty($server_error_msg)) : ?>
-            showModal("<?php echo $server_error_title; ?>", "<?php echo $server_error_msg; ?>");
+            showModal("<?php echo addslashes($server_error_title); ?>", "<?php echo addslashes($server_error_msg); ?>");
+        <?php endif; ?>
+
+        // Trigger PHP Server-Side Success
+        <?php if (!empty($server_success_msg)) : ?>
+            // show success modal and redirect to login when button clicked
+            showSuccessModal("<?php echo addslashes($server_success_title); ?>", "<?php echo addslashes($server_success_msg); ?>", "<?php echo addslashes($server_success_redirect); ?>");
         <?php endif; ?>
 
         // Password Toggle
@@ -578,7 +652,6 @@ if ($_SERVER["REQUEST_METHOD"] === "POST") {
         }
 
         // Fallback: attach click handler to .toggle-password if it doesn't have inline onclick
-        // (this prevents double-calls when inline onclick exists)
         document.addEventListener('DOMContentLoaded', function() {
             document.querySelectorAll('.toggle-password').forEach(function(icon){
                 if (!icon.getAttribute('onclick')) {
