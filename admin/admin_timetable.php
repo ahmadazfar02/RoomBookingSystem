@@ -1,12 +1,12 @@
 <?php
-// admin_timetable.php - COMPLETE FIXED VERSION
+// admin_timetable.php - COMPLETE FIXED VERSION WITH PROBLEM LINKING
 session_start();
 require_once __DIR__ . '/../includes/db_connect.php';
-require_once __DIR__ . '/../includes/mail_helper.php'; // <--- ADD THIS
+require_once __DIR__ . '/../includes/mail_helper.php';
 
-// --- NEW: Fetch Technicians for Dropdown ---
+// --- Fetch Technicians for Dropdown ---
 $technicians = [];
-$techQuery = $conn->query("SELECT id, Fullname FROM users WHERE User_Type = 'Technician' ORDER BY Fullname ASC");
+$techQuery = $conn->query("SELECT id, Fullname, Email FROM users WHERE User_Type = 'Technician' ORDER BY Fullname ASC");
 if ($techQuery) {
     while ($tech = $techQuery->fetch_assoc()) {
         $technicians[] = $tech;
@@ -74,34 +74,22 @@ if ($_SERVER['REQUEST_METHOD'] === 'GET' && isset($_GET['endpoint'])) {
         json_ok(['rooms'=>$rooms]);
     }
 
-    // ---------- bookings endpoint (REPLACE existing bookings block with this) ----------
     if ($endpoint === 'bookings') {
         $room = $_GET['room'] ?? '';
         $start = $_GET['start'] ?? '';
         $end = $_GET['end'] ?? '';
+        if (!$room || !$start || !$end) json_err('Missing parameters');
 
-        if (!$room || !$start || !$end) json_err('Missing parameters: room/start/end');
-
-        // 1) fetch one-time bookings in range
-        $sql = "SELECT id, ticket, user_id, purpose, description, tel, slot_date, time_start, time_end, status, created_at
+        $sql = "SELECT id, ticket, user_id, purpose, description, tel, technician, slot_date, time_start, time_end, status, tech_status, created_at
                 FROM bookings
-                WHERE room_id = ? AND slot_date BETWEEN ? AND ?
-                AND status NOT IN ('deleted')
+                WHERE room_id = ? AND slot_date BETWEEN ? AND ? AND status NOT IN ('deleted')
                 ORDER BY slot_date, time_start";
         $stmt = $conn->prepare($sql);
-        if (!$stmt) {
-            log_error("bookings prepare failed: " . $conn->error);
-            json_err('DB prepare failed', ['db_error'=>$conn->error]);
-        }
         $stmt->bind_param("sss", $room, $start, $end);
-        if (!$stmt->execute()) {
-            log_error("bookings execute failed: " . $stmt->error);
-            $stmt->close();
-            json_err('DB execute failed', ['db_error'=>$stmt->error]);
-        }
+        $stmt->execute();
         $res = $stmt->get_result();
         $out = [];
-        $existingKeys = []; // to prevent recurring duplicates where one-time exists
+        $existingKeys = [];
 
         while ($r = $res->fetch_assoc()) {
             $slotTime = substr($r['time_start'],0,5) . '-' . substr($r['time_end'],0,5);
@@ -115,16 +103,18 @@ if ($_SERVER['REQUEST_METHOD'] === 'GET' && isset($_GET['endpoint'])) {
                 'purpose' => $r['purpose'],
                 'description' => $r['description'],
                 'tel' => $r['tel'],
+                'technician' => $r['technician'],
                 'slot_date' => $r['slot_date'],
                 'time_start' => substr($r['time_start'],0,5),
                 'time_end' => substr($r['time_end'],0,5),
                 'status' => $r['status'],
+                'tech_status' => $r['tech_status'],
                 'created_at' => $r['created_at'],
             ];
         }
         $stmt->close();
 
-        // 2) find which recurring table actually exists (your DB uses admin_recurring or recurring_bookings etc.)
+        // Recurring bookings logic (keeping your existing code)
         $candidate_tables = ['recurring_bookings','admin_recurring','admin_recurring_bookings'];
         $recurring_table = null;
         foreach ($candidate_tables as $tname) {
@@ -133,31 +123,26 @@ if ($_SERVER['REQUEST_METHOD'] === 'GET' && isset($_GET['endpoint'])) {
         }
 
         if ($recurring_table) {
-            // 3) fetch recurring entries for this room that are active (if column 'status' exists)
             $q = "SELECT id, room_id, day_of_week, time_start, time_end, purpose, description, tel, status FROM `{$recurring_table}` WHERE room_id = ? AND (status IS NULL OR status = 'active')";
             $rstmt = $conn->prepare($q);
             if ($rstmt) {
                 $rstmt->bind_param("s", $room);
                 if ($rstmt->execute()) {
                     $rres = $rstmt->get_result();
-
-                    // iterate days between start and end
                     $periodStart = new DateTime($start);
                     $periodEnd = new DateTime($end);
-                    // include end date (DatePeriod is exclusive of end)
                     $periodEndPlus = clone $periodEnd;
                     $periodEndPlus->modify('+1 day');
                     $period = new DatePeriod($periodStart, new DateInterval('P1D'), $periodEndPlus);
 
                     while ($rr = $rres->fetch_assoc()) {
-                        // normalize day string (ensure format like "Monday")
                         $recDay = $rr['day_of_week'];
                         foreach ($period as $dt) {
                             if ($dt->format('l') !== $recDay) continue;
                             $dateStr = $dt->format('Y-m-d');
                             $slotTime = substr($rr['time_start'],0,5) . '-' . substr($rr['time_end'],0,5);
                             $key = $dateStr . '|' . $slotTime;
-                            if (isset($existingKeys[$key])) continue; // one-time exists -> skip recurring for that date/slot
+                            if (isset($existingKeys[$key])) continue;
                             $out[] = [
                                 'id' => 0,
                                 'ticket' => 'REC-' . $rr['id'],
@@ -175,21 +160,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'GET' && isset($_GET['endpoint'])) {
                             ];
                         }
                     }
-                } else {
-                    log_error("recurring execute failed: " . $rstmt->error);
                 }
                 $rstmt->close();
-            } else {
-                log_error("recurring prepare failed: " . $conn->error . " (tried table {$recurring_table})");
             }
-        } else {
-            // no recurring table found — log for debugging (not fatal)
-            log_error("No recurring table found among candidates: " . implode(',', $candidate_tables));
         }
 
-        // 4) sort combined results by slot_date then time_start for predictable output
         usort($out, function($a, $b){
-            // null-safe compare
             $da = $a['slot_date'] ?? '';
             $db = $b['slot_date'] ?? '';
             if ($da === $db) {
@@ -208,10 +184,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'GET' && isset($_GET['endpoint'])) {
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $raw = file_get_contents('php://input');
     if (empty($raw)) json_err('Empty request');
-
     $data = json_decode($raw, true);
     if (!is_array($data)) json_err('Invalid JSON');
-
     $action = $data['action'] ?? '';
     if (!$action) json_err('Missing action');
 
@@ -221,16 +195,45 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $booking_id = intval($data['booking_id'] ?? 0);
             if (!$booking_id) throw new Exception('Invalid booking_id');
 
-            $stmt = $conn->prepare("DELETE FROM bookings WHERE id = ?");
-            if (!$stmt) throw new Exception('DB prepare failed');
-            $stmt->bind_param("i", $booking_id);
+            // 1. Get Session ID and Linked Problem info
+            $chk = $conn->query("SELECT session_id, linked_problem_id, tech_status FROM bookings WHERE id = $booking_id");
+            $row = $chk->fetch_assoc();
+
+            if (!$row) throw new Exception('Booking not found');
+
+            $session_id = $row['session_id']; 
+            $pid = !empty($row['linked_problem_id']) ? intval($row['linked_problem_id']) : 0;
+
+            // 2. Sync with Room Problems
+            if ($pid > 0) {
+                if ($row['tech_status'] === 'Work Done') {
+                    // Technician finished -> Mark problem Resolved
+                    $conn->query("UPDATE room_problems SET status = 'Resolved', resolved_at = NOW(), admin_notice = 0 WHERE id = $pid");
+                } else {
+                    // Manual delete/cancel -> Reset problem to Pending
+                    $conn->query("UPDATE room_problems SET status = 'Pending', admin_notice = 0 WHERE id = $pid");
+                }
+            }
+
+            // 3. BATCH DELETE (The Fix)
+            if (!empty($session_id)) {
+                // Delete ALL slots in this session (like "Reject" in reservation_request.php)
+                $stmt = $conn->prepare("DELETE FROM bookings WHERE session_id = ?");
+                $stmt->bind_param("s", $session_id);
+            } else {
+                // Fallback for old data
+                $stmt = $conn->prepare("DELETE FROM bookings WHERE id = ?");
+                $stmt->bind_param("i", $booking_id);
+            }
+
             $stmt->execute();
             $stmt->close();
 
-            admin_log($conn, $admin_id, $booking_id, 'delete', 'Deleted via admin_timetable');
+            admin_log($conn, $admin_id, $booking_id, 'delete', "Deleted session via grid");
             $conn->commit();
             json_ok(['msg'=>'Deleted']);
         }
+        
 
         if (in_array($action, ['save','create','update'])) {
             $room_id = $data['room_id'] ?? ($data['room'] ?? '');
@@ -242,97 +245,116 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $status = $data['status'] ?? 'booked';
             $overwrite = !empty($data['overwrite']);
             $provided_booking_id = intval($data['booking_id'] ?? 0);
+            
+            // NEW: Get problem_id from URL if coming from problem report
+            $linked_problem_id = intval($data['problem_id'] ?? 0);
 
             if (!$room_id) throw new Exception('Missing room_id');
             if (!is_array($slots) || count($slots) === 0) throw new Exception('Missing slots');
             if (!$purpose) throw new Exception('Purpose required');
 
             $created = 0; $updated = 0; $skipped = 0; $errors = [];
-            
-            // --- NEW: Array to collect slots for email ---
-            $maintenance_notification_data = []; 
+            $slots_for_email = [];
 
             foreach ($slots as $slot) {
                 $slot_date = $slot['date'] ?? ($slot[0] ?? null);
                 $slot_range = $slot['slot'] ?? ($slot[1] ?? null);
-                if (!$slot_date || !$slot_range) { $errors[] = "Bad slot format"; continue; }
+                if (!$slot_date || !$slot_range) { $errors[] = "Bad slot"; continue; }
 
                 $parts = explode('-', $slot_range);
-                if (count($parts) < 2) { $errors[] = "Bad time range"; continue; }
+                if (count($parts) < 2) { $errors[] = "Bad time"; continue; }
                 $time_start = date('H:i:s', strtotime(trim($parts[0])));
                 $time_end = date('H:i:s', strtotime(trim($parts[1])));
 
-                $success = false; // Flag to track if save worked
+                $success = false;
+                $current_booking_id = null;
 
-                // 1. Update Specific ID
+                // Generate token ONLY if maintenance + technician assigned
+                $tech_token = null;
+                if ($status === 'maintenance' && !empty($technician)) {
+                    $tech_token = bin2hex(random_bytes(32));
+                }
+
+                // UPDATE existing booking
                 if ($provided_booking_id) {
-                    $stmtUpd = $conn->prepare("UPDATE bookings SET purpose=?, description=?, tel=?, technician=?, status=?, updated_at=NOW() WHERE id=?");
-                    $stmtUpd->bind_param("sssssi", $purpose, $description, $tel, $technician, $status, $provided_booking_id);
+                    if ($tech_token) {
+                        $stmtUpd = $conn->prepare("UPDATE bookings SET purpose=?, description=?, tel=?, technician=?, status=?, tech_token=?, tech_status='Pending', linked_problem_id=?, updated_at=NOW() WHERE id=?");
+                        $stmtUpd->bind_param("ssssssii", $purpose, $description, $tel, $technician, $status, $tech_token, $linked_problem_id, $provided_booking_id);
+                    } else {
+                        $stmtUpd = $conn->prepare("UPDATE bookings SET purpose=?, description=?, tel=?, technician=?, status=?, linked_problem_id=?, updated_at=NOW() WHERE id=?");
+                        $stmtUpd->bind_param("sssssii", $purpose, $description, $tel, $technician, $status, $linked_problem_id, $provided_booking_id);
+                    }
                     if ($stmtUpd->execute()) {
-                        $admin_log($conn, $admin_id, $provided_booking_id, 'update', 'Admin updated');
+                        admin_log($conn, $admin_id, $provided_booking_id, 'update', 'Updated maintenance');
                         $updated++;
                         $success = true;
-                    } else {
-                        $errors[] = "Update failed";
+                        $current_booking_id = $provided_booking_id;
                     }
                     $stmtUpd->close();
-                    // Continue loop handling logic below...
                 } 
-                // 2. Check Collision & Overwrite/Insert
+                // INSERT new booking
                 else {
-                    $chk = $conn->prepare("SELECT id FROM bookings WHERE room_id=? AND slot_date=? AND time_start=? AND status NOT IN ('cancelled','rejected') LIMIT 1 FOR UPDATE");
+                    $chk = $conn->prepare("SELECT id FROM bookings WHERE room_id=? AND slot_date=? AND time_start=? AND status NOT IN ('cancelled','rejected') LIMIT 1");
                     $chk->bind_param("sss", $room_id, $slot_date, $time_start);
                     $chk->execute();
                     $resChk = $chk->get_result();
-                    $exists = $resChk->fetch_assoc() ?? null;
+                    $exists = $resChk->fetch_assoc();
                     $chk->close();
 
-                    if ($exists) {
-                        if ($overwrite) {
-                            $eid = intval($exists['id']);
-                            $ust = $conn->prepare("UPDATE bookings SET purpose=?, description=?, tel=?, technician=?, status=?, updated_at=NOW() WHERE id=?");
-                            $ust->bind_param("sssssi", $purpose, $description, $tel, $technician, $status, $eid);
-                            if ($ust->execute()) {
-                                admin_log($conn, $admin_id, $eid, 'update', 'Admin overwrote');
-                                $updated++;
-                                $success = true;
-                            } else {
-                                $errors[] = "Overwrite failed";
-                            }
-                            $ust->close();
+                    if ($exists && $overwrite) {
+                        $eid = intval($exists['id']);
+                        if ($tech_token) {
+                            $ust = $conn->prepare("UPDATE bookings SET purpose=?, description=?, tel=?, technician=?, status=?, tech_token=?, tech_status='Pending', linked_problem_id=?, updated_at=NOW() WHERE id=?");
+                            $ust->bind_param("ssssssii", $purpose, $description, $tel, $technician, $status, $tech_token, $linked_problem_id, $eid);
                         } else {
-                            $skipped++;
+                            $ust = $conn->prepare("UPDATE bookings SET purpose=?, description=?, tel=?, technician=?, status=?, linked_problem_id=?, updated_at=NOW() WHERE id=?");
+                            $ust->bind_param("sssssii", $purpose, $description, $tel, $technician, $status, $linked_problem_id, $eid);
                         }
-                    } else {
+                        if ($ust->execute()) {
+                            $updated++;
+                            $success = true;
+                            $current_booking_id = $eid;
+                        }
+                        $ust->close();
+                    } elseif (!$exists) {
                         $ticket = 'ADM-' . strtoupper(substr(md5(uniqid((string)microtime(true), true)),0,10));
-                        $stmtIns = $conn->prepare("INSERT INTO bookings (ticket, user_id, room_id, purpose, description, tel, technician, slot_date, time_start, time_end, status, created_at, updated_at, active_key, session_id) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NOW(), NOW(), ?, ?)");
                         $active_key = 'ADM' . str_pad(mt_rand(0,99999999), 8, '0', STR_PAD_LEFT);
                         $session_id = $ticket;
-                        $stmtIns->bind_param("sisssssssssss", $ticket, $admin_id, $room_id, $purpose, $description, $tel, $technician, $slot_date, $time_start, $time_end, $status, $active_key, $session_id);
+
+                        if ($tech_token) {
+                            $stmtIns = $conn->prepare("INSERT INTO bookings (ticket, user_id, room_id, purpose, description, tel, technician, slot_date, time_start, time_end, status, tech_token, tech_status, linked_problem_id, created_at, updated_at, active_key, session_id) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'Pending', ?, NOW(), NOW(), ?, ?)");
+                            $stmtIns->bind_param("sisssssssssssss", $ticket, $admin_id, $room_id, $purpose, $description, $tel, $technician, $slot_date, $time_start, $time_end, $status, $tech_token, $linked_problem_id, $active_key, $session_id);
+                        } else {
+                            $stmtIns = $conn->prepare("INSERT INTO bookings (ticket, user_id, room_id, purpose, description, tel, technician, slot_date, time_start, time_end, status, linked_problem_id, created_at, updated_at, active_key, session_id) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NOW(), NOW(), ?, ?)");
+                            $stmtIns->bind_param("sisssssssssiss", $ticket, $admin_id, $room_id, $purpose, $description, $tel, $technician, $slot_date, $time_start, $time_end, $status, $linked_problem_id, $active_key, $session_id);
+                        }
 
                         if ($stmtIns->execute()) {
                             $newid = $stmtIns->insert_id;
                             admin_log($conn, $admin_id, $newid, 'create', "Created ($ticket)");
                             $created++;
                             $success = true;
-                        } else {
-                            $errors[] = "Insert failed";
+                            $current_booking_id = $newid;
                         }
                         $stmtIns->close();
+                    } else {
+                        $skipped++;
                     }
                 }
 
-                // --- NEW: Add to email list if successful and is maintenance ---
-                if ($success && $status === 'maintenance' && !empty($technician)) {
-                    $maintenance_notification_data[] = [
+                // Collect for email
+                if ($success && $status === 'maintenance' && !empty($technician) && $tech_token) {
+                    $slots_for_email[] = [
                         'date' => $slot_date,
-                        'time' => $parts[0] . ' - ' . $parts[1]
+                        'time' => $parts[0] . ' - ' . $parts[1],
+                        'token' => $tech_token,
+                        'booking_id' => $current_booking_id
                     ];
                 }
             }
 
-            // --- NEW: SEND EMAIL ---
-            if (!empty($maintenance_notification_data)) {
+            // ====== SEND EMAIL TO TECHNICIAN ======
+            if (!empty($slots_for_email)) {
                 $stmtTech = $conn->prepare("SELECT Email, Fullname FROM users WHERE Fullname = ? AND User_Type = 'Technician' LIMIT 1");
                 $stmtTech->bind_param("s", $technician);
                 $stmtTech->execute();
@@ -342,39 +364,98 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     $toEmail = $techRow['Email'];
                     $toName = $techRow['Fullname'];
                     
-                    $subject = "🔧 New Maintenance Task Assigned: " . $room_id;
-                    $message = "<h3>New Maintenance Assignment</h3>";
-                    $message .= "<p>Hello <strong>$toName</strong>,</p>";
-                    $message .= "<p>You have been assigned a new maintenance task.</p>";
-                    $message .= "<ul>";
-                    $message .= "<li><strong>Room:</strong> " . htmlspecialchars($room_id) . "</li>";
-                    $message .= "<li><strong>Task:</strong> " . htmlspecialchars($purpose) . "</li>";
-                    if($description) $message .= "<li><strong>Notes:</strong> " . htmlspecialchars($description) . "</li>";
-                    $message .= "</ul>";
+                    $first_slot = $slots_for_email[0];
+                    $token = $first_slot['token'];
                     
-                    $message .= "<table border='1' cellpadding='5' cellspacing='0' style='border-collapse:collapse;'>";
-                    $message .= "<tr style='background:#eee;'><th>Date</th><th>Time Slot</th></tr>";
-                    foreach ($maintenance_notification_data as $row) {
-                        $message .= "<tr><td>{$row['date']}</td><td>{$row['time']}</td></tr>";
+                    // 1. FETCH PRIORITY IF LINKED
+                    $priority = 'Normal'; // Default
+                    $priority_color = '#3b82f6'; // Default Blue
+                    
+                    if ($linked_problem_id > 0) {
+                        $p_query = $conn->query("SELECT priority FROM room_problems WHERE id = $linked_problem_id");
+                        if ($p_row = $p_query->fetch_assoc()) {
+                            $priority = $p_row['priority'];
+                        }
+                    }
+
+                    // 2. SET COLOR BASED ON PRIORITY
+                    switch ($priority) {
+                        case 'Critical': $priority_color = '#dc2626'; break; // Red
+                        case 'High':     $priority_color = '#ea580c'; break; // Orange
+                        case 'Low':      $priority_color = '#6b7280'; break; // Gray
+                        default:         $priority_color = '#2563eb'; break; // Blue (Normal)
+                    }
+
+                    // BUILD LINK
+                    $protocol = (isset($_SERVER['HTTPS']) && $_SERVER['HTTPS'] === 'on') ? "https" : "http";
+                    $host = $_SERVER['HTTP_HOST'];
+                    $script_dir = dirname($_SERVER['PHP_SELF']);
+                    $completion_link = $protocol . "://" . $host . $script_dir . "/technician_task.php?token=" . $token;
+                    
+                    $subject = "[" . strtoupper($priority) . "] Maintenance: " . $room_id;
+                    
+                    // 3. UPDATED EMAIL HTML
+                    $message = "<div style='font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; border: 1px solid #e5e7eb; border-radius: 8px; overflow: hidden;'>";
+                    
+                    // Header with Priority Color
+                    $message .= "<div style='background: {$priority_color}; padding: 20px; text-align: center;'>";
+                    $message .= "<h2 style='color: white; margin: 0;'>Maintenance Assignment</h2>";
+                    $message .= "<div style='color: white; font-weight: bold; margin-top: 5px; text-transform: uppercase; font-size: 14px; letter-spacing: 1px;'>Priority: {$priority}</div>";
+                    $message .= "</div>";
+
+                    $message .= "<div style='padding: 24px;'>";
+                    $message .= "<p>Hello <strong>" . htmlspecialchars($toName) . "</strong>,</p>";
+                    $message .= "<p>You have been assigned a new task. Please review the details below:</p>";
+                    
+                    $message .= "<div style='background: #f9fafb; padding: 16px; border-radius: 8px; margin: 20px 0; border-left: 4px solid {$priority_color};'>";
+                    $message .= "<p style='margin: 5px 0;'><strong>Room:</strong> " . htmlspecialchars($room_id) . "</p>";
+                    $message .= "<p style='margin: 5px 0;'><strong>Task:</strong> " . htmlspecialchars($purpose) . "</p>";
+                    if ($description) {
+                        $message .= "<p style='margin: 5px 0;'><strong>Notes:</strong> " . nl2br(htmlspecialchars($description)) . "</p>";
+                    }
+                    $message .= "</div>";
+                    
+                    $message .= "<table style='width: 100%; border-collapse: collapse; margin-bottom: 24px;'>";
+                    $message .= "<tr style='background: #f3f4f6;'><th style='padding: 10px; text-align: left; border-bottom: 2px solid #e5e7eb;'>Date</th><th style='padding: 10px; text-align: left; border-bottom: 2px solid #e5e7eb;'>Time Slot</th></tr>";
+                    foreach ($slots_for_email as $s) {
+                        $message .= "<tr><td style='padding: 10px; border-bottom: 1px solid #e5e7eb;'>" . $s['date'] . "</td><td style='padding: 10px; border-bottom: 1px solid #e5e7eb;'>" . $s['time'] . "</td></tr>";
                     }
                     $message .= "</table>";
+                    
+                    $message .= "<div style='text-align: center; margin-top: 30px;'>";
+                    $message .= "<a href='" . $completion_link . "' style='background-color: #059669; color: white; padding: 14px 30px; text-decoration: none; border-radius: 6px; font-weight: bold; font-size: 16px;'>✓ Mark as Completed</a>";
+                    $message .= "<p style='margin-top: 15px; font-size: 12px; color: #6b7280;'>Click this button only when the work is finished.</p>";
+                    $message .= "</div>";
+                    
+                    $message .= "</div></div>"; // Close padding and container
 
-                    // Use your mail function
-                    send_mail($toEmail, $toName, $subject, $message);
+                    // Send & Log
+                    $email_sent = send_mail($toEmail, $toName, $subject, $message);
+                    
+                    if ($email_sent) {
+                        insert_email_log($conn, $first_slot['booking_id'], $toEmail, 'technician', $subject, null, null, 'sent');
+                    } else {
+                        insert_email_log($conn, $first_slot['booking_id'], $toEmail, 'technician', $subject, null, null, 'failed', 'Mail send failed');
+                    }
                 }
                 $stmtTech->close();
             }
 
+            // NEW: Update problem status if linked
+            if ($linked_problem_id > 0) {
+                $conn->query("UPDATE room_problems SET status = 'In Progress' WHERE id = {$linked_problem_id}");
+            }
+
             $conn->commit();
-            json_ok(['created'=>$created,'updated'=>$updated,'skipped'=>$skipped,'errors'=>$errors]);
+            json_ok(['created'=>$created, 'updated'=>$updated, 'skipped'=>$skipped, 'errors'=>$errors]);
         }
 
         throw new Exception('Unknown action');
 
     } catch (Exception $ex) {
         $conn->rollback();
-        log_error("Error: ".$ex->getMessage());
-        json_err('Error: '.$ex->getMessage());
+        log_error("Error: " . $ex->getMessage());
+        json_err('Error: ' . $ex->getMessage());
     }
 }
 ?>
@@ -883,10 +964,37 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     box-shadow: 0 0 0 3px var(--primary-light);
   }
   
-  td.booked { 
-    background: linear-gradient(135deg, #fee2e2 0%, #fecaca 100%);
-    color: var(--danger);
-    font-weight: 600;
+/* ... keep your existing root variables ... */
+
+/* FIX: Add 'approved' to match 'booked' style */
+  td.booked, td.approved { 
+      background: linear-gradient(135deg, #fee2e2 0%, #fecaca 100%);
+      color: var(--danger);
+      font-weight: 600;
+  }
+
+  /* Ensure maintenance looks distinct */
+  td.maintenance { 
+      background: linear-gradient(135deg, #fff7ed 0%, #ffedd5 100%);
+      color: #c2410c; /* Orange-dark */
+      font-weight: 700;
+      border: 1px solid #fdba74;
+  }
+
+  /* Green style for Completed Work */
+  td.maintenance-done { 
+      background: linear-gradient(135deg, #dcfce7 0%, #bbf7d0 100%) !important;
+      color: #166534 !important;
+      border: 2px solid #22c55e !important;
+      font-weight: 700;
+  }
+
+  /* Ensure recurring looks distinct */
+  td.recurring { 
+      background: linear-gradient(135deg, #e0e7ff 0%, #c7d2fe 100%);
+      color: var(--purple);
+      font-weight: 700;
+      border-left: 4px solid var(--purple);
   }
   
   td.pending { 
@@ -894,20 +1002,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     color: #92400e;
     font-weight: 600;
   }
-  
-  td.maintenance { 
-    background: linear-gradient(135deg, #fed7aa 0%, #fdba74 100%);
-    color: #9a3412;
-    font-weight: 600;
-  }
-  
-  td.recurring { 
-    background: linear-gradient(135deg, #e0e7ff 0%, #c7d2fe 100%);
-    color: var(--purple);
-    font-weight: 700;
-    border-left: 4px solid var(--purple);
-  }
-  
+    
   td.past { 
     background: linear-gradient(135deg, var(--gray-100) 0%, var(--gray-200) 100%);
     color: var(--gray-600);
@@ -1294,7 +1389,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
           <select id="modalStatus" class="form-select">
             <option value="booked">Booked</option>
             <option value="pending">Pending</option>
-            <option value="maintenance">Maintenance</option>
+            <!--<option value="maintenance">Maintenance</option>-->
           </select>
         </div>
 
@@ -1482,7 +1577,7 @@ function renderGrid() {
     const table = document.createElement('table');
     table.className = 'grid';
 
-    // ... (Your existing table header generation code is fine here) ...
+   
     const thead = document.createElement('thead');
     const headRow = document.createElement('tr');
     const cornerTh = document.createElement('th');
@@ -1497,7 +1592,7 @@ function renderGrid() {
     });
     thead.appendChild(headRow);
     table.appendChild(thead);
-    // ...
+
 
     const tbody = document.createElement('tbody');
     for (let i = 0; i < 7; i++) {
@@ -1514,12 +1609,12 @@ function renderGrid() {
             td.className = 'slot available';
             td.dataset.date = iso;
             td.dataset.slot = ts;
-
-            const [start] = ts.split('-');
-            const slotDateTime = new Date(iso + 'T' + start + ':00');
-            if (slotDateTime < new Date()) {
+ 
+            const todayIso = new Date().toISOString().slice(0,10);
+            if (iso < todayIso) {
                 td.classList.add('past');
             }
+
 
             td.addEventListener('click', () => {
                 if (td.classList.contains('past')) return;
@@ -1530,7 +1625,7 @@ function renderGrid() {
                 } else if (td.classList.contains('available')) {
                     td.classList.add('selected');
                     selectedCells.set(key, {date: iso, slot: ts, td});
-                } else {
+                } else if (td.classList.contains('booked') || td.classList.contains('pending') || td.classList.contains('maintenance')) {
                     openEditForCell(iso, ts, td);
                 }
                 updateSelectedCount();
@@ -1547,58 +1642,116 @@ function renderGrid() {
 
     // FETCH BOOKINGS
     fetch(`admin_timetable.php?endpoint=bookings&room=${encodeURIComponent(room)}&start=${monday}&end=${endDate}`, { cache: 'no-store' })
-    .then(r => r.json())
+    .then(r => {
+        if (!r.ok) throw new Error('HTTP ' + r.status);
+        return r.json();
+    })
     .then(json => {
-        if (!json.success) return alert(json.msg);
+        if (!json.success) {
+            console.error('Load bookings error', json);
+            alert('Failed to load bookings: ' + (json.msg || 'unknown'));
+            return;
+        }
 
         json.bookings.forEach(b => {
-            // ... (Your existing booking rendering logic) ...
             if (!b.slot_date || !b.time_start) return;
-            const slotTime = b.time_start.slice(0,5) + '-' + b.time_end.slice(0,5);
-            const key = b.slot_date + '|' + slotTime;
-            bookingsIndex[key] = b;
 
-            const td = document.querySelector(`td.slot[data-date="${b.slot_date}"][data-slot="${slotTime}"]`);
+            // FIX: Match slot by START TIME only (More robust)
+            // Backend might send 09:00:00 as end time, but slot is 08:00-08:50
+            const dbStart = b.time_start.slice(0,5); // "08:00"
+            
+            // Find the time slot string that STARTS with this time
+            const targetSlot = TIME_SLOTS.find(ts => ts.startsWith(dbStart));
+            
+            if (!targetSlot) return; // Time not found in grid
+
+            const selector = `td.slot[data-date="${b.slot_date}"][data-slot="${targetSlot}"]`;
+            const td = document.querySelector(selector);
+            
             if (!td) return;
 
-            td.classList.remove('available','selected');
+            const key = b.slot_date + '|' + targetSlot;
+            bookingsIndex[key] = b;
+
+
+            // Reset cell
+            td.classList.remove('available', 'selected', 'pending', 'booked', 'approved', 'maintenance', 'recurring');
+            td.innerHTML = ''; // Clear previous content
+
+            // 1. Handle Recurring
             if (b.recurring) {
                 td.classList.add('recurring');
-                td.innerHTML = `<div class="cell-content"><strong>${escapeHtml(b.purpose)}</strong></div>`;
+                td.innerHTML = `<div class="cell-content"><strong>${escapeHtml(b.purpose || 'Recurring')}</strong></div>`;
+                td.dataset.recurringId = b.recurring_id || '';
+                td.title = 'Recurring slot';
+                td.addEventListener('dblclick', () => alert('This is a recurring booking'));
                 return;
             }
 
-            td.classList.add(b.status || 'booked');
+            // 2. Handle Status Classes
+            let cssClass = 'booked'; 
+            const status = (b.status || '').toLowerCase();
             
-            // <--- NEW: Display Technician Name if exists
-            let content = `<strong>${escapeHtml(b.purpose)}</strong>`;
-            if (b.status === 'maintenance' && b.technician) {
-                 content += `<br>👷 ${escapeHtml(b.technician)}`;
-            } else if (b.tel) {
-                 content += `<br>📞 ${escapeHtml(b.tel)}`;
+            if (status === 'maintenance') {
+                // CHECK IF DONE
+                if (b.tech_status === 'Work Done') {
+                    cssClass = 'maintenance-done';
+                } else {
+                    cssClass = 'maintenance';
+                }
             }
+            else if (status === 'pending') cssClass = 'pending';
+            else if (status === 'approved' || status === 'booked') cssClass = 'booked'; 
+            
+            td.classList.add(cssClass);
+
+            // 3. Build Cell Content
+            let content = `<div class="cell-title">${escapeHtml(b.purpose || 'Booked')}</div>`;
+            
+            if (status === 'maintenance') {
+                 // SHOW CHECKMARK
+                 if (b.tech_status === 'Work Done') {
+                     content += `<div style="font-size:11px; margin-bottom:2px;">✅ <strong>WORK DONE</strong></div>`;
+                 }
+                 if (b.technician) {
+                     content += `<div class="cell-meta">👷 ${escapeHtml(b.technician)}</div>`;
+                 }
+            } 
+            else if (b.tel) {
+                 content += `<div class="cell-meta">📞 ${escapeHtml(b.tel)}</div>`;
+            }
+            
             td.innerHTML = `<div class="cell-content">${content}</div>`;
 
-            // Delete button logic...
+            // 4. Add Delete Button (Admin Feature)
             td.dataset.bookingId = b.id;
             if (!td.querySelector('.delete-btn')) {
                 const del = document.createElement('button');
-                del.className = 'btn btn-danger btn-sm delete-btn';
+                del.className = 'delete-btn';
                 del.innerHTML = '✕';
+                del.title = 'Delete Booking';
                 del.addEventListener('click', (ev) => {
                     ev.stopPropagation();
-                    if (!confirm('Delete?')) return;
+                    if (!confirm('Permanently delete this booking?')) return;
                     deleteBooking(b.id);
                 });
                 td.appendChild(del);
             }
-            td.addEventListener('dblclick', () => openEditForCell(b.slot_date, slotTime, td));
-        });
 
-        // <--- NEW: AUTO-HIGHLIGHT LOGIC (THIS IS WHAT YOU MISSED)
+            // Enable Edit on Double Click
+            td.addEventListener('dblclick', () => openEditForCell(b.slot_date, targetSlot, td));
+        });
+        // <--- ADD THIS LINE HERE:
         checkAndHighlightReport();
+    })
+
+    
+    .catch(err => {
+        console.error('Failed loading bookings', err);
     });
 }
+
+
 
 // <--- NEW: Function to check URL and Highlight Slot
 function checkAndHighlightReport() {
@@ -1612,15 +1765,23 @@ function checkAndHighlightReport() {
         
         if (targetSlot) {
             const cell = document.querySelector(`td.slot[data-date="${pDate}"][data-slot="${targetSlot}"]`);
+            
+            // Fix: ensure cell exists and is actually available
             if (cell && !cell.classList.contains('past') && cell.classList.contains('available')) {
                 
-                // 1. Visual Highlight (Add CSS class)
-                cell.style.border = "3px dashed #dc2626"; // Simple inline style for visual
-                cell.innerHTML += '<div style="background:red; color:white; font-size:9px; position:absolute; top:-10px; left:0;">REPORTED</div>';
+                // 1. Visual Highlight
+                cell.classList.add('reported-slot'); // Use the CSS class you added earlier
+                if (!cell.querySelector('.reported-label')) {
+                    cell.innerHTML += '<div class="reported-label">REPORTED</div>';
+                }
 
-                // 2. Auto-Select
+
+                // 2. Auto-Select so the user can just click "Save"
                 if (!cell.classList.contains('selected')) {
-                    cell.click(); 
+                    cell.classList.add('selected');
+                    const key = pDate + '|' + targetSlot;
+                    selectedCells.set(key, { date: pDate, slot: targetSlot, td: cell });
+                    updateSelectedCount();
                 }
                 
                 // 3. Scroll to it
@@ -1634,18 +1795,35 @@ function openEditForCell(date, slot, td) {
     const key = date+'|'+slot;
     const b = bookingsIndex[key];
     if (!b) return;
+
     modalPurpose.value = b.purpose || '';
     modalDesc.value = b.description || '';
     modalTel.value = b.tel || '';
     modalStatus.value = b.status || 'booked';
     
-    // <--- NEW: Handle Edit Mode for Maintenance
+    // Reset Button State
+    modalSaveBtn.textContent = "Save Booking";
+    modalSaveBtn.className = "btn-custom btn-success-custom";
+    modalSaveBtn.dataset.actionType = "save";
+    modalSaveBtn.dataset.bookingId = b.id;
+
     if (b.status === 'maintenance') {
         technicianField.style.display = 'block';
         modalTech.value = b.technician || '';
+        
+        // IF WORK IS DONE -> SHOW "VERIFY & CLEAR"
+        if (b.tech_status === 'Work Done') {
+            document.querySelector('.modal-title').textContent = "✅ Verify Completed Work";
+            modalSaveBtn.textContent = "✓ Verify & Clear Slot";
+            modalSaveBtn.className = "btn-custom btn-success-custom"; // Keep green or make distinct
+            modalSaveBtn.dataset.actionType = "verify_clear"; // Flag for click handler
+        } else {
+            document.querySelector('.modal-title').textContent = "Update Maintenance";
+        }
     } else {
         technicianField.style.display = 'none';
         modalTech.value = '';
+        document.querySelector('.modal-title').textContent = "Update Booking";
     }
 
     selectedCount.textContent = '1 (editing)';
@@ -1654,22 +1832,36 @@ function openEditForCell(date, slot, td) {
     createModal.show();
 }
 
-// Update Save Logic to include Technician
+
 modalSaveBtn.addEventListener('click', ()=>{
+
+    if (modalSaveBtn.dataset.actionType === "verify_clear") {
+        if (!confirm("Confirm that work is done?\n\nThis will mark the problem as RESOLVED and remove this slot from the timetable.")) {
+            return;
+        }
+        // Reuse delete function (which now handles the status update on server)
+        deleteBooking(modalSaveBtn.dataset.bookingId);
+        createModal.hide();
+        return; 
+    }
+
+    const urlParams = new URLSearchParams(window.location.search);
+    const maintenanceId = urlParams.get('maintenance'); // Get problem ID from URL
+    
     const room = roomSelect.value;
     if (!room) return alert('Choose a room');
     if (selectedCells.size === 0) return alert('Select at least one slot');
     
-    // <--- NEW: Include Technician in payload
     const payload = {
         action: 'save',
         room_id: room,
         purpose: modalPurpose.value.trim(),
         description: modalDesc.value.trim(),
         tel: modalTel.value.trim(),
-        technician: modalTech.value.trim(), // <--- Added
+        technician: modalTech.value.trim(),
         status: modalStatus.value,
         overwrite: overwriteChk.checked ? 1 : 0,
+        problem_id: maintenanceId ? parseInt(maintenanceId) : 0, // PASS PROBLEM ID
         slots: Array.from(selectedCells.values()).map(o => ({date: o.date, slot: o.slot}))
     };
 
@@ -1687,23 +1879,44 @@ modalSaveBtn.addEventListener('click', ()=>{
             renderGrid();
             clearSelection();
             
-            // Clean URL after successful save so refresh doesn't highlight again
+            // Clean URL after save
             window.history.replaceState({}, document.title, window.location.pathname);
             
+            alert('Maintenance scheduled successfully! Technician has been notified via email.');
         } else {
             alert('Save failed: ' + (js.msg || ''));
         }
     })
     .catch(err=>{ 
         modalSaveBtn.disabled = false; 
-        console.error(err); 
+        console.error(err);
+        alert('Error saving. Check console.');
     });
 });
 
 function updateSelectedCount() { selectedCount.textContent = selectedCells.size; }
 function escapeHtml(s){ if(!s) return ''; return String(s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
 function clearSelection() { selectedCells.forEach(o=> { o.td.classList.remove('selected'); o.td.style.border = ""; }); selectedCells.clear(); updateSelectedCount(); }
-function deleteBooking(id) { /* Your existing delete logic */ }
+
+function deleteBooking(id) {
+    if (!confirm('Are you sure you want to delete this booking?')) return;
+
+    fetch('admin_timetable.php', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action: 'delete', booking_id: id })
+    })
+    .then(r => r.json())
+    .then(data => {
+        if (data.success) {
+            renderGrid();
+        } else {
+            alert('Failed to delete: ' + (data.msg || 'Unknown error'));
+        }
+    })
+    .catch(err => console.error('Delete error:', err));
+}
+
 
 
 // <--- UPDATED INITIALIZATION
