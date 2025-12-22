@@ -10,23 +10,70 @@ if (!isset($_SESSION["loggedin"]) || $_SESSION["loggedin"] !== true) {
 
 $user_id = $_SESSION['id'];
 
-// Fetch the user's past problem reports
+// --- PAGINATION & FILTERING SETTINGS ---
+$limit = 5; // Reports per page
+$page = isset($_GET['page']) && is_numeric($_GET['page']) ? (int)$_GET['page'] : 1;
+if ($page < 1) $page = 1;
+$offset = ($page - 1) * $limit;
+
+// Get Filter (pending, in-progress, resolved, all)
+$filter = isset($_GET['filter']) ? $_GET['filter'] : 'all';
+
+// Build WHERE Clause based on filter
+$whereSQL = "WHERE rp.user_id = ?";
+$params = [$user_id];
+$types = "i";
+
+if ($filter !== 'all') {
+    // Map URL slug to Database Value
+    $dbStatus = '';
+    switch($filter) {
+        case 'pending': $dbStatus = 'Pending'; break;
+        case 'in-progress': $dbStatus = 'In Progress'; break;
+        case 'resolved': $dbStatus = 'Resolved'; break;
+        default: $filter = 'all'; // Reset if invalid
+    }
+    
+    if ($filter !== 'all') {
+        $whereSQL .= " AND rp.status = ?";
+        $params[] = $dbStatus;
+        $types .= "s";
+    }
+}
+
+// 1. Get Total Count (for pagination numbers)
+$countSql = "SELECT COUNT(*) as total FROM room_problems rp $whereSQL";
+$stmt = $conn->prepare($countSql);
+$stmt->bind_param($types, ...$params);
+$stmt->execute();
+$total_result = $stmt->get_result()->fetch_assoc();
+$total_records = $total_result['total'];
+$total_pages = ceil($total_records / $limit);
+$stmt->close();
+
+// 2. Get Actual Data (with Limit & Offset)
 $sql = "
-SELECT 
-    rp.id, 
-    rp.title, 
-    rp.description, 
-    rp.created_at, 
-    rp.status, 
-    r.name AS room_name
-FROM room_problems rp
-JOIN rooms r ON rp.room_id = r.room_id
-WHERE rp.user_id = ?
-ORDER BY rp.created_at DESC
+    SELECT 
+        rp.id, 
+        rp.title, 
+        rp.description, 
+        rp.created_at, 
+        rp.status, 
+        r.name AS room_name
+    FROM room_problems rp
+    JOIN rooms r ON rp.room_id = r.room_id
+    $whereSQL
+    ORDER BY rp.created_at DESC
+    LIMIT ? OFFSET ?
 ";
 
+// Add limit/offset params
+$params[] = $limit;
+$params[] = $offset;
+$types .= "ii";
+
 $stmt = $conn->prepare($sql);
-$stmt->bind_param("i", $user_id);
+$stmt->bind_param($types, ...$params);
 $stmt->execute();
 $reports_result = $stmt->get_result();
 
@@ -43,32 +90,20 @@ $stmt->close();
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Room Problem Status - UTM Room Booking</title>
-  <!-- Google Fonts -->
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
-  <!-- FontAwesome -->
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
   <style>
     :root{ 
         --utm-maroon: #800000;
         --utm-maroon-light: #a31313;
         --utm-maroon-dark: #600000;
-        --accent: #800000;
-        --accent-dark: #600000;
         --bg-light: #f8fafc;
-        --card-bg: #ffffff;
         --text-primary: #1e293b;
         --text-secondary: #64748b;
         --border: #e2e8f0;
-        --pending: #f59e0b;
-        --resolved: #16a34a;
-        --in-progress: #3b82f6;
     }
     
-    * { 
-        box-sizing: border-box; 
-        margin: 0; 
-        padding: 0; 
-    }
+    * { box-sizing: border-box; margin: 0; padding: 0; }
     
     body { 
         font-family: 'Inter', sans-serif;
@@ -77,494 +112,150 @@ $stmt->close();
         color: var(--text-primary);
     }
     
-    /* Header */
+    /* Header (Kept Same) */
     .main-header {
         background: white;
         box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
-        position: sticky;
-        top: 0;
-        z-index: 1000;
+        position: sticky; top: 0; z-index: 1000;
     }
-    
     .header-content {
-        max-width: 1400px;
-        margin: 0 auto;
-        padding: 16px 24px;
-        display: flex;
-        justify-content: space-between;
-        align-items: center;
-        gap: 20px;
+        max-width: 1400px; margin: 0 auto; padding: 16px 24px;
+        display: flex; justify-content: space-between; align-items: center; gap: 20px;
     }
+    .logo-section { display: flex; align-items: center; gap: 16px; }
+    .logo { height: 60px; }
+    .logo-text h1 { font-size: 18px; font-weight: 700; color: var(--utm-maroon); margin: 0; }
+    .logo-text p { font-size: 12px; color: var(--text-secondary); margin: 0; }
     
-    .logo-section {
-        display: flex;
-        align-items: center;
-        gap: 16px;
-    }
-    
-    .logo { 
-        height: 60px; 
-    }
-    
-    .logo-text {
-        display: flex;
-        flex-direction: column;
-    }
-    
-    .logo-text h1 {
-        font-size: 18px;
-        font-weight: 700;
-        color: var(--utm-maroon);
-        margin: 0;
-    }
-    
-    .logo-text p {
-        font-size: 12px;
-        color: var(--text-secondary);
-        margin: 0;
-    }
-    
-    .header-controls {
-        display: flex;
-        align-items: center;
-        gap: 12px;
-    }
-    
+    .header-controls { display: flex; align-items: center; gap: 12px; }
     .btn {
-        padding: 10px 20px;
-        border: none;
-        border-radius: 8px;
-        font-size: 14px;
-        font-weight: 600;
-        cursor: pointer;
-        transition: all 0.3s ease;
-        text-decoration: none;
-        display: inline-flex;
-        align-items: center;
-        gap: 8px;
-        font-family: 'Inter', sans-serif;
+        padding: 10px 20px; border: none; border-radius: 8px; font-size: 14px; font-weight: 600;
+        cursor: pointer; transition: all 0.3s ease; text-decoration: none; display: inline-flex;
+        align-items: center; gap: 8px; font-family: 'Inter', sans-serif;
     }
+    .btn-secondary { background: var(--utm-maroon); color: white; box-shadow: 0 2px 4px rgba(128, 0, 0, 0.2); }
+    .btn-secondary:hover { background: var(--utm-maroon-light); transform: translateY(-1px); }
+    .btn-nav { background: white; border: 2px solid var(--border); color: var(--text-primary); }
+    .btn-nav:hover { border-color: var(--utm-maroon); color: var(--utm-maroon); transform: translateY(-1px); }
+
+    /* Dropdown (Kept Same) */
+    .dropdownmenu { position: relative; display: inline-block; }
+    .dropbtn { background: var(--utm-maroon); color: white; padding: 10px 20px; border-radius: 8px; font-weight: 600; font-size: 14px; border: none; cursor: pointer; display: flex; align-items: center; gap: 8px; }
+    .dropdownmenu-content { display: none; position: absolute; right: 0; top: 100%; background: white; min-width: 200px; box-shadow: 0 4px 12px rgba(0,0,0,0.15); border-radius: 8px; border: 1px solid var(--border); z-index: 1001; }
+    .dropdownmenu:hover .dropdownmenu-content { display: block; }
+    .dropdownmenu-content a { padding: 12px 16px; text-decoration: none; display: flex; align-items: center; gap: 8px; color: var(--text-primary); font-size: 14px; }
+    .dropdownmenu-content a:hover { background: var(--utm-maroon); color: white; }
+
+    /* Container */
+    .container { max-width: 1400px; margin: 0 auto; padding: 24px; }
     
-    .btn-secondary {
-        background: var(--utm-maroon);
-        color: white;
-        box-shadow: 0 2px 4px rgba(128, 0, 0, 0.2);
-    }
-    
-    .btn-secondary:hover {
-        background: var(--utm-maroon-light);
-        transform: translateY(-1px);
-        box-shadow: 0 4px 8px rgba(128, 0, 0, 0.3);
-    }
-    
-    .btn-nav {
-        background: white;
-        border: 2px solid var(--border);
-        color: var(--text-primary);
-    }
-    
-    .btn-nav:hover {
-        border-color: var(--utm-maroon);
-        color: var(--utm-maroon);
-        transform: translateY(-1px);
-        box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
-    }
-    
-     /* Dropdown Menu */
-    .dropdownmenu {
-        position: relative;
-        display: inline-block;
-    }
-
-    .dropbtn {
-        background: var(--utm-maroon);
-        color: white;
-        box-shadow: 0 2px 4px rgba(128, 0, 0, 0.2);
-        padding: 10px 20px;
-        border: none;
-        border-radius: 8px;
-        font-size: 14px;
-        font-weight: 600;
-        cursor: pointer;
-        transition: all 0.3s ease;
-        display: inline-flex;
-        align-items: center;
-        gap: 8px;
-        font-family: 'Inter', sans-serif;
-    }
-
-    .dropbtn:hover {
-        background: var(--utm-maroon-light);
-        transform: translateY(-1px);
-        box-shadow: 0 4px 8px rgba(128, 0, 0, 0.3);
-    }
-
-    .dropdownmenu-content {
-        display: none;
-        position: absolute;
-        right: 0;
-        top: calc(100% + 1px);
-        background-color: white;
-        min-width: 200px;
-        box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
-        border-radius: 8px;
-        overflow: hidden;
-        z-index: 1001;
-        border: 1px solid var(--border);
-    }
-
-    .dropdownmenu-content::before {
-        content: '';
-        position: absolute;
-        top: -10px;
-        left: 0;
-        right: 0;
-        height: 10px;
-        background: transparent;
-    }
-
-    .dropdownmenu-content a {
-        color: var(--text-primary);
-        padding: 12px 16px;
-        text-decoration: none;
-        display: flex;
-        align-items: center;
-        gap: 8px;
-        transition: all 0.2s ease;
-        font-size: 14px;
-        font-weight: 500;
-    }
-
-    .dropdownmenu-content a i {
-        width: 16px;
-        text-align: center;
-    }
-
-    .dropdownmenu-content a:hover {
-        background: var(--utm-maroon);
-        color: white;
-    }
-
-    .dropdownmenu:hover .dropdownmenu-content,
-    .dropdownmenu-content:hover {
-        display: block;
-    }
-    /* Main Container */
-    .container {
-        max-width: 1400px;
-        margin: 0 auto;
-        padding: 24px;
-    }
-    
-    /* Page Title Card */
     .page-title-card {
-        background: white;
-        padding: 24px;
-        border-radius: 12px;
-        box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
-        border: 1px solid var(--border);
-        margin-bottom: 20px;
+        background: white; padding: 24px; border-radius: 12px;
+        box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1); border: 1px solid var(--border); margin-bottom: 20px;
     }
-    
-    .page-title-card h1 {
-        font-size: 28px;
-        font-weight: 700;
-        color: var(--utm-maroon);
-        margin-bottom: 8px;
-        display: flex;
-        align-items: center;
-        gap: 12px;
-    }
-    
-    .page-title-card p {
-        color: var(--text-secondary);
-        font-size: 14px;
-    }
-    
-    /* Filters Card */
+    .page-title-card h1 { font-size: 28px; font-weight: 700; color: var(--utm-maroon); margin-bottom: 8px; display: flex; align-items: center; gap: 12px; }
+    .page-title-card p { color: var(--text-secondary); font-size: 14px; }
+
+    /* Filters */
     .filters-card {
-        background: white;
-        padding: 20px 24px;
-        border-radius: 12px;
-        box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
-        border: 1px solid var(--border);
-        margin-bottom: 20px;
+        background: white; padding: 20px 24px; border-radius: 12px;
+        box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1); border: 1px solid var(--border); margin-bottom: 20px;
     }
+    .filters { display: flex; gap: 12px; align-items: center; flex-wrap: wrap; }
     
-    .filters {
+    /* Changed from button to a tag for PHP navigation */
+    .filter-link {
+        padding: 10px 20px; border-radius: 8px; border: 1px solid var(--border);
+        background: white; color: var(--text-primary); cursor: pointer; font-size: 14px;
+        font-weight: 600; transition: all 0.3s ease; text-decoration: none;
+        display: inline-flex; align-items: center; gap: 8px;
+    }
+    .filter-link:hover { border-color: var(--utm-maroon); color: var(--utm-maroon); transform: translateY(-1px); }
+    .filter-link.active { background: var(--utm-maroon); color: white; border-color: var(--utm-maroon); }
+    
+    .status-count { margin-left: auto; font-size: 14px; color: var(--text-secondary); font-weight: 600; padding: 8px 16px; background: var(--bg-light); border-radius: 8px; }
+
+    /* Reports */
+    .reports-container { display: grid; gap: 16px; }
+    .report-card { background: white; border-radius: 12px; box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1); border: 1px solid var(--border); overflow: hidden; transition: all 0.3s ease; }
+    .report-card:hover { box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1); transform: translateY(-2px); }
+    
+    .report-header { display: flex; justify-content: space-between; padding: 20px 24px; border-bottom: 1px solid var(--border); background: #fafafa; }
+    .report-title { font-size: 18px; font-weight: 700; color: var(--utm-maroon); margin-bottom: 8px; display: flex; align-items: center; gap: 8px; }
+    .report-meta { display: flex; gap: 16px; font-size: 13px; color: var(--text-secondary); }
+    .report-meta-item { display: flex; align-items: center; gap: 6px; }
+    
+    .status-badge { padding: 8px 16px; border-radius: 8px; font-weight: 600; font-size: 13px; display: inline-flex; align-items: center; gap: 6px; white-space: nowrap; }
+    .status-pending { color: #92400e; background: #fef3c7; border: 1px solid #fde68a; }
+    .status-resolved { color: #065f46; background: #d1fae5; border: 1px solid #a7f3d0; }
+    .status-in-progress { color: #1e40af; background: #dbeafe; border: 1px solid #bfdbfe; }
+    
+    .report-body { padding: 20px 24px; }
+    .report-description { color: var(--text-primary); font-size: 14px; line-height: 1.6; }
+    .report-footer { padding: 16px 24px; background: #fafafa; border-top: 1px solid var(--border); display: flex; justify-content: space-between; font-size: 13px; color: var(--text-secondary); }
+    .report-date { display: flex; align-items: center; gap: 6px; }
+
+    /* Empty State */
+    .empty-state { background: white; padding: 60px 24px; border-radius: 12px; box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1); border: 1px solid var(--border); text-align: center; }
+    .empty-state i { font-size: 64px; color: var(--border); margin-bottom: 20px; }
+    .empty-state h3 { font-size: 20px; margin-bottom: 8px; }
+    .empty-state p { color: var(--text-secondary); font-size: 14px; margin-bottom: 24px; }
+
+    /* Action Buttons Box */
+    .bottom-actions { background: white; padding: 24px; border-radius: 12px; box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1); border: 1px solid var(--border); margin-top: 20px; display: flex; gap: 12px; }
+    .btn-back { flex: 1; padding: 12px; border-radius: 8px; font-weight: 600; text-align: center; text-decoration: none; border: 2px solid var(--border); color: var(--text-primary); display: flex; justify-content: center; align-items: center; gap: 8px; font-size: 14px; }
+    .btn-back:hover { border-color: var(--utm-maroon); color: var(--utm-maroon); background: white; }
+
+    /* PAGINATION STYLES */
+    .pagination-container {
+        margin-top: 24px;
         display: flex;
-        gap: 12px;
-        align-items: center;
-        flex-wrap: wrap;
-    }
-    
-    .filter-btn {
-        padding: 10px 20px;
-        border-radius: 8px;
-        border: 1px solid var(--border);
-        background: white;
-        color: var(--text-primary);
-        cursor: pointer;
-        font-size: 14px;
-        font-weight: 600;
-        transition: all 0.3s ease;
-        font-family: 'Inter', sans-serif;
-    }
-    
-    .filter-btn:hover {
-        border-color: var(--utm-maroon);
-        color: var(--utm-maroon);
-        transform: translateY(-1px);
-        box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
-    }
-    
-    .filter-btn.active {
-        background: var(--utm-maroon);
-        color: white;
-        border-color: var(--utm-maroon);
-        box-shadow: 0 2px 4px rgba(128, 0, 0, 0.2);
-    }
-    
-    .status-count {
-        margin-left: auto;
-        font-size: 14px;
-        color: var(--text-secondary);
-        font-weight: 600;
-        padding: 8px 16px;
-        background: var(--bg-light);
-        border-radius: 8px;
-    }
-    
-    /* Report List */
-    .reports-container {
-        display: grid;
-        gap: 16px;
-    }
-    
-    .report-card {
-        background: white;
-        border-radius: 12px;
-        box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
-        border: 1px solid var(--border);
-        overflow: hidden;
-        transition: all 0.3s ease;
-    }
-    
-    .report-card:hover {
-        box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
-        transform: translateY(-2px);
-    }
-    
-    .report-header {
-        display: flex;
-        justify-content: space-between;
-        align-items: start;
-        padding: 20px 24px;
-        border-bottom: 1px solid var(--border);
-        background: #fafafa;
-    }
-    
-    .report-info {
-        flex: 1;
-    }
-    
-    .report-title {
-        font-size: 18px;
-        font-weight: 700;
-        color: var(--utm-maroon);
-        margin-bottom: 8px;
-        display: flex;
+        justify-content: center;
         align-items: center;
         gap: 8px;
     }
-    
-    .report-meta {
-        display: flex;
-        gap: 16px;
-        flex-wrap: wrap;
-        font-size: 13px;
-        color: var(--text-secondary);
-    }
-    
-    .report-meta-item {
-        display: flex;
-        align-items: center;
-        gap: 6px;
-    }
-    
-    .report-meta-item i {
-        font-size: 12px;
-    }
-    
-    /* Status Badges */
-    .status-badge {
-        padding: 8px 16px;
-        border-radius: 8px;
-        font-weight: 600;
-        font-size: 13px;
-        display: inline-flex;
-        align-items: center;
-        gap: 6px;
-        white-space: nowrap;
-    }
-    
-    .status-pending {
-        color: #92400e;
-        background: #fef3c7;
-        border: 1px solid #fde68a;
-    }
-    
-    .status-resolved {
-        color: #065f46;
-        background: #d1fae5;
-        border: 1px solid #a7f3d0;
-    }
-    
-    .status-in-progress {
-        color: #1e40af;
-        background: #dbeafe;
-        border: 1px solid #bfdbfe;
-    }
-    
-    .report-body {
-        padding: 20px 24px;
-    }
-    
-    .report-description {
-        color: var(--text-primary);
-        font-size: 14px;
-        line-height: 1.6;
-        margin: 0;
-    }
-    
-    .report-footer {
-        padding: 16px 24px;
-        background: #fafafa;
-        border-top: 1px solid var(--border);
-        display: flex;
-        justify-content: space-between;
-        align-items: center;
-        font-size: 13px;
-        color: var(--text-secondary);
-    }
-    
-    .report-date {
-        display: flex;
-        align-items: center;
-        gap: 6px;
-    }
-    
-    .report-id {
-        font-family: 'Courier New', monospace;
-        background: #f1f5f9;
-        padding: 4px 8px;
-        border-radius: 4px;
-        font-size: 12px;
-    }
-    
-    /* Empty State */
-    .empty-state {
-        background: white;
-        padding: 60px 24px;
-        border-radius: 12px;
-        box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
-        border: 1px solid var(--border);
-        text-align: center;
-    }
-    
-    .empty-state i {
-        font-size: 64px;
-        color: var(--border);
-        margin-bottom: 20px;
-    }
-    
-    .empty-state h3 {
-        font-size: 20px;
-        color: var(--text-primary);
-        margin-bottom: 8px;
-    }
-    
-    .empty-state p {
-        color: var(--text-secondary);
-        font-size: 14px;
-        margin-bottom: 24px;
-    }
-    
-    /* Action Buttons */
-    .action-buttons {
-        display: flex;
-        gap: 12px;
-        margin-top: 24px;
-        padding-top: 24px;
-        border-top: 1px solid var(--border);
-    }
-    
-    .btn-back {
-        flex: 1;
-        padding: 12px 24px;
-        border-radius: 8px;
-        cursor: pointer;
-        font-size: 14px;
-        font-weight: 600;
-        text-align: center;
-        transition: all 0.3s ease;
-        text-decoration: none;
+    .page-link {
         display: inline-flex;
         align-items: center;
         justify-content: center;
-        gap: 8px;
-        font-family: 'Inter', sans-serif;
+        width: 40px;
+        height: 40px;
+        border-radius: 8px;
+        border: 1px solid var(--border);
         background: white;
-        border: 2px solid var(--border);
         color: var(--text-primary);
+        text-decoration: none;
+        font-weight: 600;
+        font-size: 14px;
+        transition: all 0.2s ease;
     }
-    
-    .btn-back:hover {
+    .page-link:hover:not(.disabled) {
         border-color: var(--utm-maroon);
         color: var(--utm-maroon);
-        transform: translateY(-1px);
-        box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+        background: #fff5f5;
     }
-    
-    /* Responsive */
+    .page-link.active {
+        background: var(--utm-maroon);
+        color: white;
+        border-color: var(--utm-maroon);
+    }
+    .page-link.disabled {
+        opacity: 0.5;
+        cursor: not-allowed;
+        background: var(--bg-light);
+    }
+    .page-info {
+        margin: 0 12px;
+        color: var(--text-secondary);
+        font-size: 14px;
+    }
+
     @media (max-width: 768px) {
-        .header-content {
-            flex-wrap: wrap;
-        }
-        
-        .header-controls {
-            width: 100%;
-            justify-content: space-between;
-        }
-        
-        .container {
-            padding: 16px;
-        }
-        
-        .filters {
-            justify-content: center;
-        }
-        
-        .status-count {
-            margin-left: 0;
-            width: 100%;
-            text-align: center;
-        }
-        
-        .report-header {
-            flex-direction: column;
-            gap: 12px;
-        }
-        
-        .report-footer {
-            flex-direction: column;
-            gap: 8px;
-            align-items: flex-start;
-        }
-        
-        .page-title-card h1 {
-            font-size: 22px;
-        }
+        .header-content { flex-wrap: wrap; }
+        .header-controls { width: 100%; justify-content: space-between; }
+        .container { padding: 16px; }
+        .filters { justify-content: center; }
+        .status-count { margin-left: 0; width: 100%; text-align: center; }
     }
   </style>
 </head>
@@ -621,32 +312,29 @@ $stmt->close();
 
     <div class="filters-card">
       <div class="filters" aria-label="Problem filters">
-        <button class="filter-btn active" onclick="filterReports('all')">
-          <i class="fa-solid fa-list"></i>
-          All Reports
-        </button>
-        <button class="filter-btn" onclick="filterReports('pending')">
-          <i class="fa-solid fa-clock"></i>
-          Pending
-        </button>
-        <button class="filter-btn" onclick="filterReports('in-progress')">
-          <i class="fa-solid fa-spinner"></i>
-          In Progress
-        </button>
-        <button class="filter-btn" onclick="filterReports('resolved')">
-          <i class="fa-solid fa-check-circle"></i>
-          Resolved
-        </button>
-        <div class="status-count" id="statusCount">
-          <?php echo count($reports); ?> report<?php echo count($reports) !== 1 ? 's' : ''; ?>
+        <a href="?filter=all" class="filter-link <?php echo $filter=='all'?'active':'';?>">
+          <i class="fa-solid fa-list"></i> All Reports
+        </a>
+        <a href="?filter=pending" class="filter-link <?php echo $filter=='pending'?'active':'';?>">
+          <i class="fa-solid fa-clock"></i> Pending
+        </a>
+        <a href="?filter=in-progress" class="filter-link <?php echo $filter=='in-progress'?'active':'';?>">
+          <i class="fa-solid fa-spinner"></i> In Progress
+        </a>
+        <a href="?filter=resolved" class="filter-link <?php echo $filter=='resolved'?'active':'';?>">
+          <i class="fa-solid fa-check-circle"></i> Resolved
+        </a>
+        
+        <div class="status-count">
+          Showing <?php echo count($reports); ?> of <?php echo $total_records; ?> report<?php echo $total_records !== 1 ? 's' : ''; ?>
         </div>
       </div>
     </div>
 
-    <div class="reports-container" id="reportsContainer">
+    <div class="reports-container">
       <?php if (!empty($reports)): ?>
         <?php foreach ($reports as $report): ?>
-          <div class="report-card" data-status="<?php echo strtolower($report['status']); ?>">
+          <div class="report-card">
             <div class="report-header">
               <div class="report-info">
                 <h3 class="report-title">
@@ -660,20 +348,16 @@ $stmt->close();
                   </span>
                   <span class="report-meta-item">
                     <i class="fa-solid fa-hashtag"></i>
-                    ID: <span class="report-id"><?php echo str_pad($report['id'], 4, '0', STR_PAD_LEFT); ?></span>
+                    ID: <span style="font-family:monospace; background:#f1f5f9; padding:2px 6px; border-radius:4px;"><?php echo str_pad($report['id'], 4, '0', STR_PAD_LEFT); ?></span>
                   </span>
                 </div>
               </div>
               <span class="status-badge status-<?php echo strtolower(str_replace(' ', '-', $report['status'])); ?>">
                 <?php 
-                  $status = strtolower($report['status']);
-                  if ($status === 'pending') {
-                      echo '<i class="fa-solid fa-clock"></i>';
-                  } elseif ($status === 'resolved') {
-                      echo '<i class="fa-solid fa-check-circle"></i>';
-                  } elseif ($status === 'in-progress' || $status === 'in progress') {
-                      echo '<i class="fa-solid fa-spinner"></i>';
-                  }
+                  $statusStr = strtolower($report['status']);
+                  if ($statusStr === 'pending') echo '<i class="fa-solid fa-clock"></i>';
+                  elseif ($statusStr === 'resolved') echo '<i class="fa-solid fa-check-circle"></i>';
+                  elseif ($statusStr === 'in progress') echo '<i class="fa-solid fa-spinner"></i>';
                   echo ucfirst(htmlspecialchars($report['status'])); 
                 ?>
               </span>
@@ -700,19 +384,41 @@ $stmt->close();
       <?php else: ?>
         <div class="empty-state">
           <i class="fa-solid fa-inbox"></i>
-          <h3>No Reports Yet</h3>
-          <p>You haven't reported any room problems yet.</p>
-          <a href="user_report_problem.php" class="btn btn-secondary">
-            <i class="fa-solid fa-plus"></i>
-            Report a Problem
-          </a>
+          <h3>No Reports Found</h3>
+          <p>You have no reports under this category.</p>
+          <?php if($filter !== 'all'): ?>
+             <a href="?filter=all" class="btn btn-secondary" style="display:inline-flex; width:auto;">View All</a>
+          <?php else: ?>
+             <a href="user_report_problem.php" class="btn btn-secondary" style="display:inline-flex; width:auto;">
+               <i class="fa-solid fa-plus"></i> Report a Problem
+             </a>
+          <?php endif; ?>
         </div>
       <?php endif; ?>
     </div>
 
-    <?php if (!empty($reports)): ?>
-    <div style="background: white; padding: 24px; border-radius: 12px; box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1); border: 1px solid var(--border); margin-top: 20px;">
-      <div class="action-buttons">
+    <?php if ($total_pages > 1): ?>
+    <div class="pagination-container">
+        <a href="?page=<?php echo max(1, $page - 1); ?>&filter=<?php echo $filter; ?>" 
+           class="page-link <?php echo ($page <= 1) ? 'disabled' : ''; ?>">
+           <i class="fa-solid fa-chevron-left"></i>
+        </a>
+
+        <?php for ($i = 1; $i <= $total_pages; $i++): ?>
+            <a href="?page=<?php echo $i; ?>&filter=<?php echo $filter; ?>" 
+               class="page-link <?php echo ($i === $page) ? 'active' : ''; ?>">
+               <?php echo $i; ?>
+            </a>
+        <?php endfor; ?>
+
+        <a href="?page=<?php echo min($total_pages, $page + 1); ?>&filter=<?php echo $filter; ?>" 
+           class="page-link <?php echo ($page >= $total_pages) ? 'disabled' : ''; ?>">
+           <i class="fa-solid fa-chevron-right"></i>
+        </a>
+    </div>
+    <?php endif; ?>
+
+    <div class="bottom-actions">
         <a href="timetable.html" class="btn-back">
           <i class="fa-solid fa-arrow-left"></i>
           Back to Timetable
@@ -721,36 +427,8 @@ $stmt->close();
           <i class="fa-solid fa-plus"></i>
           Report New Problem
         </a>
-      </div>
     </div>
-    <?php endif; ?>
+
   </div>
-
-  <script>
-    function filterReports(status) {
-      const cards = document.querySelectorAll('.report-card');
-      const filterBtns = document.querySelectorAll('.filter-btn');
-      const statusCount = document.getElementById('statusCount');
-      
-      // Update active button
-      filterBtns.forEach(btn => btn.classList.remove('active'));
-      event.target.closest('.filter-btn').classList.add('active');
-      
-      let visibleCount = 0;
-      
-      cards.forEach(card => {
-        const cardStatus = card.dataset.status.replace(' ', '-');
-        if (status === 'all' || cardStatus === status) {
-          card.style.display = 'block';
-          visibleCount++;
-        } else {
-          card.style.display = 'none';
-        }
-      });
-      
-      statusCount.textContent = `${visibleCount} report${visibleCount !== 1 ? 's' : ''}`;
-    }
-  </script>
-
 </body>
 </html>
