@@ -423,7 +423,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     $message .= "</table>";
                     
                     $message .= "<div style='text-align: center; margin-top: 30px;'>";
-                    $message .= "<a href='" . $completion_link . "' style='background-color: #059669; color: white; padding: 14px 30px; text-decoration: none; border-radius: 6px; font-weight: bold; font-size: 16px;'>✓ Mark as Completed</a>";
+                    $message .= "<a href='" . $completion_link . "' style='background-color: #059669; color: white; padding: 14px 30px; text-decoration: none; border-radius: 6px; font-weight: bold; font-size: 16px;'>Mark as Completed</a>";
                     $message .= "<p style='margin-top: 15px; font-size: 12px; color: #6b7280;'>Click this button only when the work is finished.</p>";
                     $message .= "</div>";
                     
@@ -1389,7 +1389,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
           <select id="modalStatus" class="form-select">
             <option value="booked">Booked</option>
             <option value="pending">Pending</option>
-            <!--<option value="maintenance">Maintenance</option>-->
+            <option value="maintenance" hidden>Maintenance</option>
           </select>
         </div>
 
