@@ -456,32 +456,45 @@ async function openTimetable(roomId, roomName, reqDate, reqTimeStr) {
                 for (const b of data.bookings) {
                     if (b.slot_date !== isoDate) continue;
                     
-                    const bookStart = b.time_start; // "08:00"
-                    const bookEnd = b.time_end;     // "08:50"
+                    // --- FIX 1: IGNORE CANCELLED/REJECTED ---
+                    if (['cancelled', 'rejected', 'deleted'].includes(b.status)) continue;
+
+                    const bookStart = b.time_start;
+                    const bookEnd = b.time_end;
                     
                     // Check if slot overlaps with booking
                     if (slotStart >= bookStart && slotStart < bookEnd) {
-                        isOccupied = true;
                         
-                        // Check for conflict with request
-                        if (isRequested) {
-                            statusClass = 'conflict';
-                            content = '<div class="cell-content"><strong>⚠️ CONFLICT</strong></div>';
-                        } else {
-                            // Regular booking display
-                            if (b.recurring) {
-                                statusClass = 'recurring';
-                                content = `<div class="cell-content"><strong>Recurring</strong><br>${escapeHtml(b.purpose || '')}</div>`;
+                        // --- FIX 2: ONLY "HARD" BOOKINGS CAUSE CONFLICTS ---
+                        // We only set isOccupied if the status is 'booked', 'approved', or 'maintenance'.
+                        // We IGNORE 'pending' here because 'isRequested' (above) already handles the visual for pending requests.
+                        const isHardBooking = ['booked', 'approved', 'maintenance'].includes(b.status) || b.recurring;
+
+                        if (isHardBooking) {
+                            isOccupied = true;
+
+                            // Check for conflict with request
+                            if (isRequested) {
+                                statusClass = 'conflict';
+                                content = '<div class="cell-content"><strong>⚠️ CONFLICT</strong></div>';
                             } else {
-                                statusClass = b.status || 'booked';
-                                let displayText = escapeHtml(b.purpose || 'Occupied');
-                                if (b.status === 'maintenance') {
-                                    displayText = '🔧 ' + displayText;
+                                // Regular booking display
+                                if (b.recurring) {
+                                    statusClass = 'recurring';
+                                    content = `<div class="cell-content"><strong>Recurring</strong><br>${escapeHtml(b.purpose || '')}</div>`;
+                                } else {
+                                    statusClass = b.status || 'booked';
+                                    let displayText = escapeHtml(b.purpose || 'Occupied');
+                                    if (b.status === 'maintenance') {
+                                        displayText = '🔧 ' + displayText;
+                                    }
+                                    content = `<div class="cell-content"><strong>${displayText}</strong></div>`;
                                 }
-                                content = `<div class="cell-content"><strong>${displayText}</strong></div>`;
                             }
                         }
-                        break;
+                        // If it is 'pending', we do nothing. 
+                        // The 'isRequested' logic above already drew the Blue Dashed box for us.
+                        break; 
                     }
                 }
 

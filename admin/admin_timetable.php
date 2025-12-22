@@ -1835,23 +1835,27 @@ function openEditForCell(date, slot, td) {
 
 modalSaveBtn.addEventListener('click', ()=>{
 
+    // 1. Handle "Verify & Clear" Action (Green Button)
     if (modalSaveBtn.dataset.actionType === "verify_clear") {
         if (!confirm("Confirm that work is done?\n\nThis will mark the problem as RESOLVED and remove this slot from the timetable.")) {
             return;
         }
-        // Reuse delete function (which now handles the status update on server)
         deleteBooking(modalSaveBtn.dataset.bookingId);
         createModal.hide();
         return; 
     }
 
+    // 2. Prepare Payload for "Save" Action
     const urlParams = new URLSearchParams(window.location.search);
-    const maintenanceId = urlParams.get('maintenance'); // Get problem ID from URL
+    const maintenanceId = urlParams.get('maintenance'); 
     
     const room = roomSelect.value;
     if (!room) return alert('Choose a room');
     if (selectedCells.size === 0) return alert('Select at least one slot');
     
+    // Capture the selected status
+    const selectedStatus = modalStatus.value; // 'booked', 'pending', or 'maintenance'
+
     const payload = {
         action: 'save',
         room_id: room,
@@ -1859,9 +1863,9 @@ modalSaveBtn.addEventListener('click', ()=>{
         description: modalDesc.value.trim(),
         tel: modalTel.value.trim(),
         technician: modalTech.value.trim(),
-        status: modalStatus.value,
+        status: selectedStatus,
         overwrite: overwriteChk.checked ? 1 : 0,
-        problem_id: maintenanceId ? parseInt(maintenanceId) : 0, // PASS PROBLEM ID
+        problem_id: maintenanceId ? parseInt(maintenanceId) : 0,
         slots: Array.from(selectedCells.values()).map(o => ({date: o.date, slot: o.slot}))
     };
 
@@ -1882,7 +1886,14 @@ modalSaveBtn.addEventListener('click', ()=>{
             // Clean URL after save
             window.history.replaceState({}, document.title, window.location.pathname);
             
-            alert('Maintenance scheduled successfully! Technician has been notified via email.');
+            // --- FIX: SHOW RELEVANT MESSAGE ---
+            if (selectedStatus === 'maintenance') {
+                alert('Maintenance scheduled successfully! Technician has been notified via email.');
+            } else {
+                alert('Booking saved successfully!');
+            }
+            // ----------------------------------
+            
         } else {
             alert('Save failed: ' + (js.msg || ''));
         }

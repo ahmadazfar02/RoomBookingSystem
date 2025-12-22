@@ -529,8 +529,9 @@
   </div>
 
 <script>
+  
 // Toast notification function
-function showToast(message, type = 'info', duration = 4000) {
+function showToast(message, type = 'info', duration = 3000) { // Default 3 seconds
     let container = document.getElementById('toast-container');
     if (!container) {
         container = document.createElement('div');
@@ -558,6 +559,7 @@ function showToast(message, type = 'info', duration = 4000) {
     };
     const color = colors[type] || colors.info;
     
+    // Note: .firstElementChild is used below to safely ignore whitespace text nodes
     toast.innerHTML = `
         <div style="background: ${color.bg}; color: white; padding: 16px 20px; border-radius: 8px;
             border-left: 4px solid ${color.border}; box-shadow: 0 4px 12px rgba(0,0,0,0.15);
@@ -573,8 +575,13 @@ function showToast(message, type = 'info', duration = 4000) {
     
     if (duration > 0) {
         setTimeout(() => {
-            toast.firstChild.style.animation = 'slideOut 0.3s ease-in';
-            setTimeout(() => toast.remove(), 300);
+            // FIX: Use firstElementChild to target the DIV, not the text node
+            if (toast.firstElementChild) {
+                toast.firstElementChild.style.animation = 'slideOut 0.3s ease-in';
+                setTimeout(() => toast.remove(), 280); // Wait for animation to finish
+            } else {
+                toast.remove();
+            }
         }, duration);
     }
 }
@@ -951,15 +958,18 @@ function postJson(payload){
 }
 
 async function handleCancelButton(btn) {
+
   const sessionId = btn.dataset.session || btn.dataset.id;
+
   if (!sessionId) {
     showToast('Missing session ID', 'error');
     return;
   }
 
-  const confirmed = await showEditConfirm(
-    'Edit Booking Session',
-    'Are you sure you want to edit this booking? This will free your current slots so you can pick new ones.'
+  // FIX: Use showConfirm (Cancel style) instead of showEditConfirm
+  const confirmed = await showConfirm(
+    'Cancel Booking Session',
+    'Are you sure you want to cancel this booking? This action cannot be undone.'
   );
   
   if (!confirmed) return;
