@@ -208,6 +208,8 @@ while($r = $rooms_result->fetch_assoc()){
           <li><a href="manage_users.php">Manage Users</a></li>
       <?php endif; ?>
       <li><a href="admin_logbook.php">Logbook</a></li>
+      <li><a href="generate_reports.php">Generate Reports</a></li>
+      <li><a href="admin_problems.php">Room Problems</a></li>
     </ul>
     <div class="sidebar-profile">
       <div class="profile-icon"><?php echo strtoupper(substr($admin_name,0,1)); ?></div>
