@@ -1,5 +1,5 @@
 <?php
-// admin_timetable.php - COMPLETE FIXED VERSION WITH PROBLEM LINKING
+// admin_timetable.php - REDESIGNED & FIXED VERSION
 session_start();
 require_once __DIR__ . '/../includes/db_connect.php';
 require_once __DIR__ . '/../includes/mail_helper.php';
@@ -13,10 +13,6 @@ if ($techQuery) {
     }
 }
 
-function log_error($msg) {
-    error_log($msg);
-    @file_put_contents(__DIR__ . '/admin_timetable_error.log', "[".date('Y-m-d H:i:s')."] ".$msg.PHP_EOL, FILE_APPEND);
-}
 
 $admin_id = $_SESSION['User_ID'] ?? $_SESSION['id'] ?? null;
 $user_type = $_SESSION['User_Type'] ?? null;
@@ -26,7 +22,21 @@ $admin_name = $_SESSION['Fullname'] ?? 'Admin';
 $admin_email = $_SESSION['Email'] ?? 'Admin';
 $username = $_SESSION['username'] ?? 'superadmin';
 
-if (!$admin_id || strcasecmp(trim($user_type ?? ''), 'Admin') !== 0) {
+// --- FIXED ACCESS CONTROL ---
+$uType = trim($user_type ?? '');
+
+// 1. DEFINE ROLES (Required for Sidebar Logic)
+$isTechAdmin  = (strcasecmp($uType, 'Technical Admin') === 0);
+$isSuperAdmin = (strcasecmp($uType, 'SuperAdmin') === 0 || strtolower($username) === 'superadmin');
+
+// 2. CHECK ACCESS
+$allowed = (
+    strcasecmp($uType, 'Admin') === 0 || 
+    $isTechAdmin || 
+    $isSuperAdmin
+);
+
+if (!$admin_id || !$allowed) {
     if ($is_ajax) {
         header('Content-Type: application/json; charset=utf-8');
         echo json_encode(['success'=>false, 'msg'=>'Not authorized']);
@@ -114,7 +124,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'GET' && isset($_GET['endpoint'])) {
         }
         $stmt->close();
 
-        // Recurring bookings logic (keeping your existing code)
+        // Recurring bookings logic
         $candidate_tables = ['recurring_bookings','admin_recurring','admin_recurring_bookings'];
         $recurring_table = null;
         foreach ($candidate_tables as $tname) {
@@ -215,13 +225,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 }
             }
 
-            // 3. BATCH DELETE (The Fix)
+            // 3. BATCH DELETE
             if (!empty($session_id)) {
-                // Delete ALL slots in this session (like "Reject" in reservation_request.php)
                 $stmt = $conn->prepare("DELETE FROM bookings WHERE session_id = ?");
                 $stmt->bind_param("s", $session_id);
             } else {
-                // Fallback for old data
                 $stmt = $conn->prepare("DELETE FROM bookings WHERE id = ?");
                 $stmt->bind_param("i", $booking_id);
             }
@@ -234,7 +242,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             json_ok(['msg'=>'Deleted']);
         }
         
-
         if (in_array($action, ['save','create','update'])) {
             $room_id = $data['room_id'] ?? ($data['room'] ?? '');
             $slots = $data['slots'] ?? [];
@@ -245,8 +252,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $status = $data['status'] ?? 'booked';
             $overwrite = !empty($data['overwrite']);
             $provided_booking_id = intval($data['booking_id'] ?? 0);
-            
-            // NEW: Get problem_id from URL if coming from problem report
             $linked_problem_id = intval($data['problem_id'] ?? 0);
 
             if (!$room_id) throw new Exception('Missing room_id');
@@ -275,7 +280,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     $tech_token = bin2hex(random_bytes(32));
                 }
 
-                // UPDATE existing booking
+                // UPDATE existing
                 if ($provided_booking_id) {
                     if ($tech_token) {
                         $stmtUpd = $conn->prepare("UPDATE bookings SET purpose=?, description=?, tel=?, technician=?, status=?, tech_token=?, tech_status='Pending', linked_problem_id=?, updated_at=NOW() WHERE id=?");
@@ -292,7 +297,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     }
                     $stmtUpd->close();
                 } 
-                // INSERT new booking
+                // INSERT new
                 else {
                     $chk = $conn->prepare("SELECT id FROM bookings WHERE room_id=? AND slot_date=? AND time_start=? AND status NOT IN ('cancelled','rejected') LIMIT 1");
                     $chk->bind_param("sss", $room_id, $slot_date, $time_start);
@@ -342,7 +347,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     }
                 }
 
-                // Collect for email
                 if ($success && $status === 'maintenance' && !empty($technician) && $tech_token) {
                     $slots_for_email[] = [
                         'date' => $slot_date,
@@ -353,7 +357,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 }
             }
 
-            // ====== SEND EMAIL TO TECHNICIAN ======
+            // EMAIL TECHNICIAN
             if (!empty($slots_for_email)) {
                 $stmtTech = $conn->prepare("SELECT Email, Fullname FROM users WHERE Fullname = ? AND User_Type = 'Technician' LIMIT 1");
                 $stmtTech->bind_param("s", $technician);
@@ -367,26 +371,19 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     $first_slot = $slots_for_email[0];
                     $token = $first_slot['token'];
                     
-                    // 1. FETCH PRIORITY IF LINKED
-                    $priority = 'Normal'; // Default
-                    $priority_color = '#3b82f6'; // Default Blue
-                    
+                    $priority = 'Normal'; $priority_color = '#3b82f6';
                     if ($linked_problem_id > 0) {
                         $p_query = $conn->query("SELECT priority FROM room_problems WHERE id = $linked_problem_id");
-                        if ($p_row = $p_query->fetch_assoc()) {
-                            $priority = $p_row['priority'];
-                        }
+                        if ($p_row = $p_query->fetch_assoc()) $priority = $p_row['priority'];
                     }
 
-                    // 2. SET COLOR BASED ON PRIORITY
                     switch ($priority) {
-                        case 'Critical': $priority_color = '#dc2626'; break; // Red
-                        case 'High':     $priority_color = '#ea580c'; break; // Orange
-                        case 'Low':      $priority_color = '#6b7280'; break; // Gray
-                        default:         $priority_color = '#2563eb'; break; // Blue (Normal)
+                        case 'Critical': $priority_color = '#dc2626'; break;
+                        case 'High':     $priority_color = '#ea580c'; break;
+                        case 'Low':      $priority_color = '#6b7280'; break;
+                        default:         $priority_color = '#2563eb'; break;
                     }
 
-                    // BUILD LINK
                     $protocol = (isset($_SERVER['HTTPS']) && $_SERVER['HTTPS'] === 'on') ? "https" : "http";
                     $host = $_SERVER['HTTP_HOST'];
                     $script_dir = dirname($_SERVER['PHP_SELF']);
@@ -394,54 +391,37 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     
                     $subject = "[" . strtoupper($priority) . "] Maintenance: " . $room_id;
                     
-                    // 3. UPDATED EMAIL HTML
                     $message = "<div style='font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; border: 1px solid #e5e7eb; border-radius: 8px; overflow: hidden;'>";
-                    
-                    // Header with Priority Color
                     $message .= "<div style='background: {$priority_color}; padding: 20px; text-align: center;'>";
                     $message .= "<h2 style='color: white; margin: 0;'>Maintenance Assignment</h2>";
                     $message .= "<div style='color: white; font-weight: bold; margin-top: 5px; text-transform: uppercase; font-size: 14px; letter-spacing: 1px;'>Priority: {$priority}</div>";
                     $message .= "</div>";
-
                     $message .= "<div style='padding: 24px;'>";
                     $message .= "<p>Hello <strong>" . htmlspecialchars($toName) . "</strong>,</p>";
                     $message .= "<p>You have been assigned a new task. Please review the details below:</p>";
-                    
                     $message .= "<div style='background: #f9fafb; padding: 16px; border-radius: 8px; margin: 20px 0; border-left: 4px solid {$priority_color};'>";
                     $message .= "<p style='margin: 5px 0;'><strong>Room:</strong> " . htmlspecialchars($room_id) . "</p>";
                     $message .= "<p style='margin: 5px 0;'><strong>Task:</strong> " . htmlspecialchars($purpose) . "</p>";
-                    if ($description) {
-                        $message .= "<p style='margin: 5px 0;'><strong>Notes:</strong> " . nl2br(htmlspecialchars($description)) . "</p>";
-                    }
+                    if ($description) $message .= "<p style='margin: 5px 0;'><strong>Notes:</strong> " . nl2br(htmlspecialchars($description)) . "</p>";
                     $message .= "</div>";
-                    
                     $message .= "<table style='width: 100%; border-collapse: collapse; margin-bottom: 24px;'>";
                     $message .= "<tr style='background: #f3f4f6;'><th style='padding: 10px; text-align: left; border-bottom: 2px solid #e5e7eb;'>Date</th><th style='padding: 10px; text-align: left; border-bottom: 2px solid #e5e7eb;'>Time Slot</th></tr>";
                     foreach ($slots_for_email as $s) {
                         $message .= "<tr><td style='padding: 10px; border-bottom: 1px solid #e5e7eb;'>" . $s['date'] . "</td><td style='padding: 10px; border-bottom: 1px solid #e5e7eb;'>" . $s['time'] . "</td></tr>";
                     }
                     $message .= "</table>";
-                    
                     $message .= "<div style='text-align: center; margin-top: 30px;'>";
                     $message .= "<a href='" . $completion_link . "' style='background-color: #059669; color: white; padding: 14px 30px; text-decoration: none; border-radius: 6px; font-weight: bold; font-size: 16px;'>Mark as Completed</a>";
                     $message .= "<p style='margin-top: 15px; font-size: 12px; color: #6b7280;'>Click this button only when the work is finished.</p>";
-                    $message .= "</div>";
-                    
-                    $message .= "</div></div>"; // Close padding and container
+                    $message .= "</div></div></div>";
 
-                    // Send & Log
                     $email_sent = send_mail($toEmail, $toName, $subject, $message);
-                    
-                    if ($email_sent) {
-                        insert_email_log($conn, $first_slot['booking_id'], $toEmail, 'technician', $subject, null, null, 'sent');
-                    } else {
-                        insert_email_log($conn, $first_slot['booking_id'], $toEmail, 'technician', $subject, null, null, 'failed', 'Mail send failed');
-                    }
+                    if ($email_sent) insert_email_log($conn, $first_slot['booking_id'], $toEmail, 'technician', $subject, null, null, 'sent');
+                    else insert_email_log($conn, $first_slot['booking_id'], $toEmail, 'technician', $subject, null, null, 'failed', 'Mail send failed');
                 }
                 $stmtTech->close();
             }
 
-            // NEW: Update problem status if linked
             if ($linked_problem_id > 0) {
                 $conn->query("UPDATE room_problems SET status = 'In Progress' WHERE id = {$linked_problem_id}");
             }
@@ -449,7 +429,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $conn->commit();
             json_ok(['created'=>$created, 'updated'=>$updated, 'skipped'=>$skipped, 'errors'=>$errors]);
         }
-
         throw new Exception('Unknown action');
 
     } catch (Exception $ex) {
@@ -464,968 +443,404 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<title>Admin Timetable Management</title>
-<link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
-<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+<title>Regular Timetable - UTM Admin</title>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
 <style>
-  :root {
-    --primary: #2563eb;
-    --primary-dark: #1d4ed8;
-    --primary-light: #dbeafe;
-    --success: #059669;
-    --success-light: #d1fae5;
-    --warning: #f59e0b;
-    --warning-light: #fef3c7;
-    --danger: #dc2626;
-    --danger-light: #fee2e2;
-    --info: #0891b2;
-    --info-light: #cffafe;
-    --purple: #7c3aed;
-    --purple-light: #ede9fe;
-    --gray-50: #f9fafb;
-    --gray-100: #f3f4f6;
-    --gray-200: #e5e7eb;
-    --gray-300: #d1d5db;
-    --gray-600: #4b5563;
-    --gray-700: #374151;
-    --gray-800: #1f2937;
-    --shadow-sm: 0 1px 2px 0 rgba(0, 0, 0, 0.05);
-    --shadow: 0 1px 3px 0 rgba(0, 0, 0, 0.1);
-    --shadow-md: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
-    --shadow-lg: 0 10px 15px -3px rgba(0, 0, 0, 0.1);
-  }
-  
-  * { box-sizing: border-box; margin: 0; padding: 0; }
-  
-  body { 
-    font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
-    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-    display: flex;
+:root { 
+    --utm-maroon: #800000;
+    --utm-maroon-light: #a31313;
+    --utm-maroon-dark: #600000;
+    --bg-light: #f9fafb;
+    --card-bg: #ffffff;
+    --text-primary: #1e293b;
+    --text-secondary: #64748b;
+    --border: #e2e8f0;
+    
+    --sidebar-width: 260px;
+    --sidebar-bg: #800000;
+    --sidebar-text: #e2e8f0;
+    --sidebar-hover: #991b1b;
+    --sidebar-active: #ffffff;
+    --sidebar-active-text: #800000;
+
+    --nav-height: 70px;
+}
+
+* { box-sizing: border-box; margin: 0; padding: 0; }
+
+body { 
+    font-family: 'Inter', sans-serif;
+    background: var(--bg-light);
     min-height: 100vh;
-    padding: 0;
-    margin: 0;
-  }
+    color: var(--text-primary);
+}
 
-  /* Navigation Bar */
-  .nav-bar {
-    background: white;
-    padding: 16px 24px;
-    box-shadow: var(--shadow-md);
-    position: fixed;
-    top: 0;
-    left: 0;
-    right: 0;
-    z-index: 1000;
+/* NAVBAR */
+.nav-bar {
+  position: fixed; top: 0; left: 0; right: 0;
+  height: var(--nav-height);
+  background: white;
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 0 24px;
+  box-shadow: var(--shadow-sm);
+  z-index: 1000;
+  border-bottom: 1px solid var(--border);
+}
+
+.nav-left { display: flex; align-items: center; gap: 16px; }
+.nav-logo { height: 50px; }
+.nav-title h1 { font-size: 16px; font-weight: 700; color: var(--utm-maroon); margin: 0; }
+.nav-title p { font-size: 11px; color: var(--text-secondary); margin: 0; }
+
+.btn-logout { 
+    text-decoration: none; color: var(--text-secondary); font-size: 13px; font-weight: 500;
+    padding: 8px 12px; border-radius: 6px; transition: 0.2s;
+}
+.btn-logout:hover { background: #fef2f2; color: var(--utm-maroon); }
+
+/* LAYOUT */
+.layout {
     display: flex;
-    align-items: center;
-    justify-content: flex-start;
-    height: 80px;
-  }
-  
-  .nav-bar img {
-    height: 50px; 
-    width: auto;
-  }
+    margin-top: var(--nav-height);
+    min-height: calc(100vh - var(--nav-height));
+}
 
-  /* --- LAYOUT CONTAINER (Margin to clear fixed nav) --- */
-  .layout-container {
-    width: 100%;
-    max-width: 2300px;   /* allow up to 2000px */
-    padding: 24px;
-    gap: 24px;
-    margin: 100px auto 0; /* keep centered and below fixed navbar */
-    display: flex;
-    align-items: flex-start;
-  }
+/* SIDEBAR */
+.sidebar {
+  width: 260px;
+  background: white;
+  border-right: 1px solid var(--border);
+  padding: 24px;
+  flex-shrink: 0;
+  position: sticky;
+  top: var(--nav-height);
+  height: calc(100vh - var(--nav-height));
+  display: flex; flex-direction: column;
+}
 
-  
-  /* Sidebar - Modified to be Sticky */
-  .sidebar {
-    width: 260px;
-    background: white;
-    border-radius: 12px;
-    padding: 20px;
-    box-shadow: var(--shadow-lg);
-    z-index: 100;
-    flex-shrink: 0;
-    
-    /* Sticky Magic (Adjusted for tighter layout) */
-    position: sticky;
-    top: 100px; /* Sticks slightly below the main layout padding (80px nav + 24px padding = 104px) */
+.sidebar-title {
+  font-size: 11px; font-weight: 700; text-transform: uppercase;
+  color: var(--text-secondary); letter-spacing: 0.5px;
+  margin-bottom: 16px;
+}
 
-  }
-  
-  .sidebar-title {
-    font-size: 14px;
-    font-weight: 700;
-    text-transform: uppercase;
-    letter-spacing: 0.5px;
-    color: var(--gray-600);
-    margin-bottom: 16px;
-    padding-bottom: 12px;
-    border-bottom: 2px solid var(--gray-200);
-  }
-  
-  /* Margin for secondary titles */
-  .sidebar-title.mt-4 { margin-top: 24px; }
-  
-  .sidebar-menu {
-    list-style: none;
-    padding: 0;
-    margin: 0;
-  }
-  
-  .sidebar-menu li {
-    margin-bottom: 8px;
-  }
-  
-  .sidebar-menu a {
-    display: flex;
-    align-items: center;
-    gap: 12px;
-    padding: 12px 16px;
-    border-radius: 8px;
-    text-decoration: none;
-    color: var(--gray-700);
-    font-size: 14px;
-    font-weight: 500;
-    transition: all 0.2s;
-  }
-  
-  .sidebar-menu a:hover {
-    background: var(--gray-100);
-    color: var(--primary);
-  }
-  
-  .sidebar-menu a.active {
-    background: var(--primary-light);
-    color: var(--primary);
-    font-weight: 600;
-  }
+.sidebar-menu { list-style: none; flex: 1; padding: 0; }
+.sidebar-menu li { margin-bottom: 4px; }
+.sidebar-menu a {
+  display: flex; align-items: center; gap: 12px;
+  padding: 10px 12px;
+  border-radius: 6px;
+  text-decoration: none;
+  color: var(--text-primary);
+  font-size: 14px; font-weight: 500;
+  transition: all 0.2s;
+}
+.sidebar-menu a:hover { background: var(--bg-light); color: var(--utm-maroon); }
+.sidebar-menu a.active { background: #fef2f2; color: var(--utm-maroon); font-weight: 600; }
+.sidebar-menu a i { width: 20px; text-align: center; }
 
-  /* Sidebar Profile Styles */
-  .sidebar-profile {
-    margin-top: auto; /* Pushes to bottom */
-    padding-top: 20px;
-    border-top: 1px solid var(--gray-200);
-    display: flex;
-    align-items: center;
-    gap: 12px;
-  }
-  
-  .profile-icon {
-     width: 36px; 
-     height: 36px; 
-     background: var(--primary-light); 
-     border-radius: 50%; 
-     display: flex; 
-     align-items: center; 
-     justify-content: center; 
-     color: var(--primary); 
-     font-weight: 700;
-  }
-  
-  .profile-info { font-size: 13px; }
-  .profile-name { font-weight: 600; color: var(--gray-800); margin-bottom: 2px; }
-  .profile-email { font-size: 11px; color: var(--gray-600); }
-  
-  /* Main Content Area */
-  .main-wrapper {
-    flex: 1; /* Takes remaining width */
-    min-width: 0; /* Prevents overflow issues */
-  }
+.sidebar-profile {
+  margin-top: auto; padding-top: 16px;
+  border-top: 1px solid var(--border);
+  display: flex; align-items: center; gap: 12px;
+}
+.profile-icon {
+  width: 36px; height: 36px;
+  background: #f3f4f6; color: var(--utm-maroon);
+  border-radius: 50%;
+  display: flex; align-items: center; justify-content: center;
+  font-weight: 700;
+}
+.profile-info { font-size: 13px; overflow: hidden; }
+.profile-name { font-weight: 600; white-space: nowrap; text-overflow: ellipsis; }
+.profile-email { font-size: 11px; color: var(--text-secondary); white-space: nowrap; text-overflow: ellipsis; }
 
-  /* --- END SIDEBAR / LAYOUT STYLES --- */
-  
-  /* Header Card */
-  .header-card {
-    background: white;
-    border-radius: 12px;
-    padding: 24px 32px;
-    margin-bottom: 24px;
-    box-shadow: var(--shadow-md);
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-  }
-  
-  .header-title {
-    display: flex;
-    align-items: center;
-    gap: 12px;
-  }
-  
-  .header-title h1 {
-    font-size: 24px;
-    font-weight: 700;
-    color: var(--gray-800);
-    margin: 0;
-  }
+/* MAIN CONTENT */
+.main-content {
+    flex: 1; padding: 32px; min-width: 0;
+}
+.page-header { margin-bottom: 24px; }
+.page-title h2 { font-size: 24px; font-weight: 700; color: var(--utm-maroon); margin: 0; }
+.page-title p { color: var(--text-secondary); font-size: 14px; margin: 4px 0 0 0; }
 
-  
-  .header-badge {
-    background: var(--primary-light);
-    color: var(--primary);
-    padding: 4px 12px;
-    border-radius: 20px;
-    font-size: 12px;
-    font-weight: 600;
-    text-transform: uppercase;
-    letter-spacing: 0.5px;
-  }
+/* CARDS & CONTROLS */
+.card { background: white; border-radius: 12px; box-shadow: 0 1px 2px rgba(0,0,0,0.05); border: 1px solid var(--border); padding: 24px; margin-bottom: 24px; }
 
-  .header-subtitle {
-    font-size: 14px;
-    color: var(--gray-600);
-    margin-top: 4px;
-  }
+.control-group { margin-bottom: 20px; }
+.control-label { display: block; font-size: 12px; font-weight: 700; color: var(--text-secondary); text-transform: uppercase; margin-bottom: 8px; }
 
-  
-  /* Main Container */
-  .main-container {
-    background: white;
-    border-radius: 12px;
-    padding: 32px;
-    box-shadow: var(--shadow-lg);
-  }
-  
-  /* Control Panel */
-  .control-panel {
-    background: var(--gray-50);
-    border: 1px solid var(--gray-200);
-    border-radius: 10px;
-    padding: 24px;
-    margin-bottom: 24px;
-  }
-  
-  .control-section {
-    margin-bottom: 20px;
-  }
-  
-  .control-section:last-child {
-    margin-bottom: 0;
-  }
-  
-  .control-label {
-    font-size: 13px;
-    font-weight: 600;
-    color: var(--gray-700);
-    text-transform: uppercase;
-    letter-spacing: 0.5px;
-    margin-bottom: 8px;
-    display: block;
-  }
-  
-  /* Room Selector */
-  .room-selector {
-    width: 100%;
-    padding: 12px 16px;
-    border: 2px solid var(--gray-300);
-    border-radius: 8px;
-    font-size: 14px;
-    font-weight: 500;
-    color: var(--gray-800);
-    background: white;
-    transition: all 0.2s;
-    cursor: pointer;
-  }
-  
-  .room-selector:focus {
-    outline: none;
-    border-color: var(--primary);
-    box-shadow: 0 0 0 3px var(--primary-light);
-  }
-  
-  .room-selector option {
-    padding: 8px;
-  }
-  
-  /* Week Navigation */
-  .week-nav-container {
-    display: flex;
-    gap: 12px;
-    align-items: center;
-    flex-wrap: wrap;
-  }
-  
-  .week-display-box {
-    flex: 1;
-    min-width: 250px;
-    background: linear-gradient(135deg, var(--primary) 0%, var(--primary-dark) 100%);
-    color: white;
-    padding: 14px 20px;
-    border-radius: 8px;
-    text-align: center;
-    font-weight: 600;
-    font-size: 15px;
-    box-shadow: var(--shadow);
-  }
-  
-  .date-picker-group {
-    display: flex;
-    gap: 8px;
-    align-items: center;
-  }
-  
-  .date-picker {
-    padding: 10px 14px;
-    border: 2px solid var(--gray-300);
-    border-radius: 8px;
-    font-size: 14px;
-    font-weight: 500;
-    transition: all 0.2s;
-  }
-  
-  .date-picker:focus {
-    outline: none;
-    border-color: var(--primary);
-    box-shadow: 0 0 0 3px var(--primary-light);
-  }
-  
-  /* Action Bar */
-  .action-bar {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    padding: 16px 20px;
-    background: var(--gray-50);
-    border: 1px solid var(--gray-200);
-    border-radius: 10px;
-    margin-bottom: 20px;
-  }
-  
-  .action-buttons {
-    display: flex;
-    gap: 10px;
-    flex-wrap: wrap;
-  }
-  
-  .action-toggle {
-    display: flex;
-    align-items: center;
-    gap: 8px;
-    padding: 8px 16px;
-    background: white;
-    border: 1px solid var(--gray-300);
-    border-radius: 8px;
-    font-size: 13px;
-    font-weight: 500;
-    color: var(--gray-700);
-  }
-  
-  .action-toggle input[type="checkbox"] {
-    width: 18px;
-    height: 18px;
-    cursor: pointer;
-  }
-  
-  /* Buttons */
-  .btn-custom {
-    padding: 10px 20px;
-    border: none;
-    border-radius: 8px;
-    font-size: 14px;
-    font-weight: 600;
-    cursor: pointer;
-    transition: all 0.2s;
-    display: inline-flex;
-    align-items: center;
-    gap: 8px;
-    text-decoration: none;
-    box-shadow: var(--shadow-sm);
-  }
-  
-  .btn-primary-custom {
-    background: linear-gradient(135deg, var(--primary) 0%, var(--primary-dark) 100%);
-    color: white;
-  }
-  
-  .btn-primary-custom:hover {
-    transform: translateY(-2px);
-    box-shadow: var(--shadow-md);
-  }
-  
-  .btn-success-custom {
-    background: linear-gradient(135deg, var(--success) 0%, #047857 100%);
-    color: white;
-  }
-  
-  .btn-success-custom:hover {
-    transform: translateY(-2px);
-    box-shadow: var(--shadow-md);
-  }
-  
-  .btn-outline-custom {
-    background: white;
-    color: var(--gray-700);
-    border: 2px solid var(--gray-300);
-  }
-  
-  .btn-outline-custom:hover {
-    background: var(--gray-50);
-    border-color: var(--gray-400);
-  }
-  
-  .btn-secondary-custom {
-    background: var(--gray-200);
-    color: var(--gray-700);
-  }
-  
-  .btn-secondary-custom:hover {
-    background: var(--gray-300);
-  }
-  
-  .btn-icon {
-    width: 40px;
-    height: 40px;
-    padding: 0;
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-  }
-  
-  /* Grid Table */
-  .grid-container {
-    overflow-x: auto;
-    border-radius: 10px;
-    border: 1px solid var(--gray-200);
-    box-shadow: var(--shadow);
-  }
-  
-  table.grid { 
-    border-collapse: collapse; 
-    width: 100%;
-    background: white;
-  }
-  
-  table.grid th, 
-  table.grid td { 
-    border: 1px solid var(--gray-200);
-    padding: 12px 8px;
-    text-align: center;
-    vertical-align: middle;
-  }
-  
-  table.grid th { 
-    background: linear-gradient(180deg, var(--gray-100) 0%, var(--gray-50) 100%);
-    font-weight: 700;
-    font-size: 12px;
-    text-transform: uppercase;
-    letter-spacing: 0.5px;
-    color: var(--gray-700);
-    position: sticky;
-    top: 0;
-    z-index: 10;
-  }
-  
-  table.grid td.time-col { 
-    background: linear-gradient(180deg, #f0f9ff 0%, #e0f2fe 100%);
-    font-weight: 700;
-    font-size: 13px;
-    min-width: 120px;
-    color: var(--primary-dark);
-    position: sticky;
-    left: 0;
-    z-index: 5;
-  }
+.room-selector { width: 100%; padding: 10px; border: 1px solid var(--border); border-radius: 8px; font-size: 14px; outline: none; }
+.room-selector:focus { border-color: var(--utm-maroon); }
 
-  /* Sticky Top-Left Corner Cell */
-  table.grid thead tr th:first-child {
-    position: sticky;
-    left: 0;
-    top: 0;
-    z-index: 15; /* Higher than time-col and standard headers */
-    background: #f3f4f6;
-  }
-  
-  /* Slot Cells */
-  td.slot { 
-    cursor: pointer;
-    user-select: none;
-    position: relative;
-    height: 75px;
-    min-width: 140px;
-    transition: all 0.2s;
-  }
-  
-  td.slot:hover:not(.past) { 
-    transform: scale(1.02);
-    box-shadow: inset 0 0 0 2px var(--primary);
-    z-index: 2;
-  }
-  
-  td.available { 
-    background: linear-gradient(135deg, #f0fdf4 0%, #dcfce7 100%);
-  }
-  
-  td.selected { 
-    background: linear-gradient(135deg, #dbeafe 0%, #93c5fd 100%);
-    border: 2px solid var(--primary);
-    box-shadow: 0 0 0 3px var(--primary-light);
-  }
-  
-/* ... keep your existing root variables ... */
+.week-nav { display: flex; gap: 12px; align-items: center; }
+.week-display { flex: 1; background: var(--utm-maroon); color: white; padding: 10px; border-radius: 8px; text-align: center; font-weight: 600; font-size: 14px; }
+.btn { padding: 10px 16px; border-radius: 8px; border: 1px solid var(--border); background: white; color: var(--text-primary); font-weight: 600; cursor: pointer; font-size: 13px; transition: 0.2s; }
+.btn:hover { border-color: var(--utm-maroon); color: var(--utm-maroon); }
+.btn-primary { background: var(--utm-maroon); color: white; border-color: var(--utm-maroon); }
+.btn-primary:hover { background: var(--utm-maroon-light); color: white; border-color: var(--utm-maroon-light); }
 
-/* FIX: Add 'approved' to match 'booked' style */
-  td.booked, td.approved { 
-      background: linear-gradient(135deg, #fee2e2 0%, #fecaca 100%);
-      color: var(--danger);
-      font-weight: 600;
-  }
+.action-bar { display: flex; justify-content: space-between; align-items: center; margin-top: 20px; margin-bottom: 20px; }
+.toggle-group { display: flex; align-items: center; gap: 8px; font-size: 13px; }
 
-  /* Ensure maintenance looks distinct */
-  td.maintenance { 
-      background: linear-gradient(135deg, #fff7ed 0%, #ffedd5 100%);
-      color: #c2410c; /* Orange-dark */
-      font-weight: 700;
-      border: 1px solid #fdba74;
-  }
+/* LEGEND */
+.legend { display: flex; gap: 16px; flex-wrap: wrap; margin-bottom: 16px; padding: 12px; background: #f8fafc; border-radius: 8px; border: 1px solid var(--border); }
+.legend-item { display: flex; align-items: center; gap: 6px; font-size: 12px; font-weight: 500; }
+.dot { width: 12px; height: 12px; border-radius: 3px; }
 
-  /* Green style for Completed Work */
-  td.maintenance-done { 
-      background: linear-gradient(135deg, #dcfce7 0%, #bbf7d0 100%) !important;
-      color: #166534 !important;
-      border: 2px solid #22c55e !important;
-      font-weight: 700;
-  }
+/* GRID */
+.grid-wrap { overflow-x: auto; border: 1px solid var(--border); border-radius: 8px; }
+table.grid { width: 100%; border-collapse: collapse; min-width: 1200px; }
+table.grid th, table.grid td { border: 1px solid var(--border); padding: 8px; text-align: center; font-size: 12px; vertical-align: middle; }
+table.grid th { background: #f8fafc; color: var(--text-secondary); font-weight: 600; text-transform: uppercase; font-size: 11px; position: sticky; top: 0; z-index: 10; }
+table.grid td.time-col { background: #fdfdfd; position: sticky; left: 0; z-index: 5; font-weight: 600; color: var(--utm-maroon); min-width: 100px; text-align: left; padding-left: 12px; }
 
-  /* Ensure recurring looks distinct */
-  td.recurring { 
-      background: linear-gradient(135deg, #e0e7ff 0%, #c7d2fe 100%);
-      color: var(--purple);
-      font-weight: 700;
-      border-left: 4px solid var(--purple);
-  }
-  
-  td.pending { 
-    background: linear-gradient(135deg, #fef3c7 0%, #fde68a 100%);
-    color: #92400e;
-    font-weight: 600;
-  }
-    
-  td.past { 
-    background: linear-gradient(135deg, var(--gray-100) 0%, var(--gray-200) 100%);
-    color: var(--gray-600);
-    cursor: not-allowed;
-    opacity: 0.6;
-  }
-  
-  /* Cell Content */
-  .day-head { 
-    font-weight: 700;
-    font-size: 14px;
-    color: var(--gray-800);
-  }
-  
-  .day-name { 
-    font-size: 12px;
-    color: var(--gray-600);
-    margin-top: 2px;
-  }
-  
-  .cell-content { 
-    font-size: 11px;
-    word-wrap: break-word;
-    line-height: 1.3;
-  }
-  
-  .cell-title {
-    font-weight: 700;
-    font-size: 12px;
-    margin-bottom: 4px;
-  }
-  
-  .cell-meta {
-    font-size: 10px;
-    opacity: 0.8;
-  }
-  
-  /* Delete Button */
-  .delete-btn { 
-    position: absolute;
-    right: 4px;
-    top: 4px;
-    width: 24px;
-    height: 24px;
-    border-radius: 50%;
-    background: var(--danger);
-    color: white;
-    border: 2px solid white;
-    font-size: 12px;
-    font-weight: 700;
-    display: none;
-    align-items: center;
-    justify-content: center;
-    cursor: pointer;
-    box-shadow: var(--shadow);
-    transition: all 0.2s;
-  }
-  
-  .delete-btn:hover {
-    background: #b91c1c;
-    transform: scale(1.1);
-  }
-  
-  td.slot:hover .delete-btn { 
-    display: flex;
-  }
-  
-  /* Legend */
-  .legend {
-    display: flex;
-    gap: 16px;
-    flex-wrap: wrap;
-    padding: 16px 20px;
-    background: white;
-    border: 1px solid var(--gray-200);
-    border-radius: 10px;
-    margin-bottom: 20px;
-  }
-  
-  .legend-item {
-    display: flex;
-    align-items: center;
-    gap: 8px;
-    font-size: 13px;
-    font-weight: 500;
-    color: var(--gray-700);
-  }
-  
-  .legend-color {
-    width: 20px;
-    height: 20px;
-    border-radius: 4px;
-    border: 1px solid var(--gray-300);
-  }
-  
-  .legend-available { background: linear-gradient(135deg, #f0fdf4 0%, #dcfce7 100%); }
-  .legend-selected { background: linear-gradient(135deg, #dbeafe 0%, #93c5fd 100%); }
-  .legend-pending { background: linear-gradient(135deg, #fef3c7 0%, #fde68a 100%); }
-  .legend-booked { background: linear-gradient(135deg, #fee2e2 0%, #fecaca 100%); }
-  .legend-maintenance { background: linear-gradient(135deg, #fed7aa 0%, #fdba74 100%); }
-  .legend-recurring { background: linear-gradient(135deg, #e0e7ff 0%, #c7d2fe 100%); }
-  
-  /* Modal Improvements */
-  .modal-content {
-    border-radius: 12px;
-    border: none;
-    box-shadow: var(--shadow-lg);
-  }
-  
-  .modal-header {
-    background: linear-gradient(135deg, var(--primary) 0%, var(--primary-dark) 100%);
-    color: white;
-    border-radius: 12px 12px 0 0;
-    padding: 20px 24px;
-  }
-  
-  .modal-title {
-    font-weight: 700;
-    font-size: 18px;
-  }
-  
-  .modal-body {
-    padding: 24px;
-  }
-  
-  .modal-footer {
-    padding: 16px 24px;
-    background: var(--gray-50);
-    border-radius: 0 0 12px 12px;
-  }
-  
-  .form-label {
-    font-weight: 600;
-    font-size: 13px;
-    color: var(--gray-700);
-    margin-bottom: 6px;
-  }
-  
-  .form-control, .form-select {
-    border: 2px solid var(--gray-300);
-    border-radius: 8px;
-    padding: 10px 14px;
-    font-size: 14px;
-    transition: all 0.2s;
-  }
-  
-  .form-control:focus, .form-select:focus {
-    outline: none;
-    border-color: var(--primary);
-    box-shadow: 0 0 0 3px var(--primary-light);
-  }
+/* SLOT STYLES */
+.slot { height: 60px; min-width: 120px; cursor: pointer; transition: 0.2s; position: relative; }
+.slot:hover:not(.past) { transform: scale(1.02); z-index: 2; box-shadow: 0 0 0 2px var(--utm-maroon); }
+.slot.available { background: #fff; }
+.slot.selected { background: #dbeafe; border: 2px solid #2563eb; }
+.slot.booked { background: #fee2e2; color: #991b1b; font-weight: 600; }
+.slot.pending { background: #fef3c7; color: #92400e; font-weight: 600; }
+.slot.maintenance { background: #ffedd5; color: #9a3412; font-weight: 700; border: 1px solid #fdba74; }
+.slot.maintenance-done { background: #dcfce7 !important; color: #166534 !important; border: 2px solid #16a34a !important; }
+.slot.recurring { background: #e0e7ff; color: #4338ca; border-left: 3px solid #4338ca; }
+.slot.past { background: #f3f4f6; color: #9ca3af; cursor: not-allowed; }
 
-    /* Highlighting for Reported Slots */
-  @keyframes pulse-red {
-    0% { box-shadow: inset 0 0 0 2px rgba(220, 38, 38, 0.8); }
-    50% { box-shadow: inset 0 0 0 6px rgba(220, 38, 38, 0.2); }
-    100% { box-shadow: inset 0 0 0 2px rgba(220, 38, 38, 0.8); }
-  }
+/* REPORTED SLOT HIGHLIGHT */
+@keyframes pulse-red { 0% { box-shadow: inset 0 0 0 2px rgba(220, 38, 38, 0.8); } 50% { box-shadow: inset 0 0 0 6px rgba(220, 38, 38, 0.2); } 100% { box-shadow: inset 0 0 0 2px rgba(220, 38, 38, 0.8); } }
+.reported-slot { animation: pulse-red 1.5s infinite; border: 2px dashed #dc2626 !important; }
+.reported-label { position: absolute; top: -8px; left: 50%; transform: translateX(-50%); background: #dc2626; color: white; font-size: 9px; padding: 2px 6px; border-radius: 4px; font-weight: bold; z-index: 10; white-space: nowrap; }
 
-  .reported-slot {
-    animation: pulse-red 1.5s infinite;
-    border: 2px dashed #dc2626 !important;
-    position: relative;
-  }
+.cell-content { font-size: 11px; line-height: 1.3; }
+.cell-meta { font-size: 10px; opacity: 0.8; margin-top: 2px; }
+.delete-btn { position: absolute; top: 2px; right: 2px; background: #dc2626; color: white; width: 20px; height: 20px; border-radius: 50%; font-size: 10px; border: none; cursor: pointer; display: none; align-items: center; justify-content: center; }
+.slot:hover .delete-btn { display: flex; }
 
-  .reported-label {
-    position: absolute; 
-    top: -10px; 
-    left: 50%; 
-    transform: translateX(-50%);
-    background: #dc2626; 
-    color: white; 
-    font-size: 9px; 
-    padding: 2px 6px; 
-    border-radius: 4px; 
-    font-weight: bold; 
-    z-index: 10; 
-    white-space: nowrap;
-  }
-  
-  /* Responsive */
-  @media (max-width: 1200px) {
-    .sidebar {
-      display: none; /* Hide sidebar on smaller screens */
-    }
-    .layout-container {
-      display: block; /* Make the layout container linear */
-    }
-    .main-wrapper {
-      padding: 0 24px; /* Add horizontal padding back to main content */
-    }
-  }
+/* MODAL */
+.modal { position: fixed; inset: 0; background: rgba(0,0,0,0.5); display: none; align-items: center; justify-content: center; z-index: 2000; backdrop-filter: blur(2px); }
+.modal.show { display: flex; }
+.modal-content { background: white; width: 95%; max-width: 500px; border-radius: 12px; box-shadow: 0 20px 25px -5px rgba(0,0,0,0.1); padding: 24px; }
+.modal-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; border-bottom: 1px solid var(--border); padding-bottom: 16px; }
+.modal-header h3 { margin: 0; font-size: 18px; color: var(--utm-maroon); font-weight: 700; }
+.btn-close { background: none; border: none; font-size: 24px; color: var(--text-secondary); cursor: pointer; }
+.form-group { margin-bottom: 16px; }
+.form-label { display: block; font-size: 13px; font-weight: 600; margin-bottom: 6px; color: var(--text-primary); }
+.form-control, .form-select { width: 100%; padding: 10px; border: 1px solid var(--border); border-radius: 8px; font-size: 14px; outline: none; }
+.form-control:focus { border-color: var(--utm-maroon); }
+.tech-box { background: #fff7ed; padding: 12px; border: 1px solid #fdba74; border-radius: 8px; margin-bottom: 16px; display: none; }
+.modal-footer { display: flex; justify-content: flex-end; gap: 8px; margin-top: 24px; padding-top: 16px; border-top: 1px solid var(--border); }
 
-  @media (max-width: 768px) {
-    .header-card { flex-direction: column; gap: 16px; }
-    .header-actions { justify-content: center; width: 100%; }
-    .main-container { padding: 20px; }
-    .control-panel { padding: 16px; }
-    .week-nav-container { flex-direction: column; }
-    .action-bar { flex-direction: column; align-items: stretch; }
-    .action-buttons { justify-content: stretch; }
-    .btn-custom { width: 100%; justify-content: center; }
-  }
+/* --- TOAST NOTIFICATIONS (Pop-ups) --- */
+#toast-container {
+    position: fixed; top: 90px; right: 24px; z-index: 9999; /* Below nav */
+    display: flex; flex-direction: column; gap: 10px; pointer-events: none;
+}
+.toast-msg {
+    min-width: 300px; background: white; padding: 16px; border-radius: 8px;
+    box-shadow: 0 4px 12px rgba(0,0,0,0.15); display: flex; align-items: center; gap: 12px;
+    border-left: 4px solid #3b82f6; animation: slideIn 0.3s ease-out; pointer-events: auto;
+}
+.toast-msg.success { border-left-color: #10b981; }
+.toast-msg.error { border-left-color: #ef4444; }
+.toast-msg.info { border-left-color: #3b82f6; }
+
+.toast-icon { font-size: 18px; display: flex; align-items: center; }
+.toast-content { font-size: 14px; font-weight: 500; color: #1f2937; flex: 1; }
+
+@keyframes slideIn { from { transform: translateX(100%); opacity: 0; } to { transform: translateX(0); opacity: 1; } }
+@keyframes fadeOut { from { opacity: 1; } to { opacity: 0; } }
+
+@media (max-width: 1024px) { .sidebar { display: none; } .main-content { margin-left: 0; } }
 </style>
 </head>
 <body>
 
-<!-- Navigation Bar -->
 <nav class="nav-bar">
-  <img src="../assets/images/utmlogo.png" alt="UTM Logo" />
+    <div class="nav-left">
+        <img class="nav-logo" src="../assets/images/utmlogo.png" alt="UTM Logo">
+        <div class="nav-title">
+            <h1>Room Booking System</h1>
+            <p>Admin Timetable</p>
+        </div>
+    </div>
+    <a href="../auth/logout.php" class="btn-logout"><i class="fa-solid fa-right-from-bracket"></i> Logout</a>
 </nav>
 
-<!-- Layout Container (Flexbox Wrapper) -->
-<div class="layout-container">
-
-  <!-- Sidebar (Sticky) -->
-  <aside class="sidebar">
-    <div class="sidebar-title">Main Menu</div>
-    <ul class="sidebar-menu">
-      <li><a href="index-admin.php">Dashboard</a></li>
-      <li><a href="reservation_request.php">Reservation Request</a></li>
-      <li><a href="admin_timetable.php" class="active">Regular Timetable</a></li>
-      <li><a href="admin_recurring.php">Recurring Timetable</a></li>
-      <?php if ($username === 'superadmin'): ?>
-          <li><a href="manage_users.php">Manage Users</a></li>
-      <?php endif; ?>
-      <li><a href="admin_logbook.php">Logbook</a></li>
-      <li><a href="generate_reports.php">Generate Reports</a></li>
-      <li><a href="admin_problems.php">Room Problems</a></li>
-    </ul>
-
-    <div class="sidebar-profile">
-      <div class="profile-icon"><?php echo strtoupper(substr($admin_name,0,1)); ?></div>
-      <div class="profile-info">
-        <div class="profile-name"> <?php echo htmlspecialchars($admin_name); ?></div>
-        <div class="profile-email"><?php echo htmlspecialchars($admin_email); ?></div>
-      </div>
-    </div>
-  </aside>
-
-  <!-- Main Content Wrapper -->
-  <div class="main-wrapper">
-
-    <!-- Header (Modified from container-fluid content) -->
-    <div class="header-card">
-      <div class="header-title">
-        <div>
-          <h1>Timetable Management</h1>
-          <div class="header-subtitle">Managing Weekly Timetable</div>
-        </div>
-        <span class="header-badge">Admin</span>
-      </div>
-    </div>
-
-    <!-- Main Content -->
-    <div class="main-container">
-      
-      <!-- Control Panel -->
-      <div class="control-panel">
-        <div class="row g-4">
-          
-          <!-- Room Selection -->
-          <div class="col-md-4">
-            <div class="control-section">
-              <label class="control-label">🏢 Select Room</label>
-              <select id="roomSelect" class="room-selector" size="5">
-                  <!-- PHP code for rooms -->
-                  <?php
-                      $rs = $conn->query("SELECT room_id, name, capacity FROM rooms ORDER BY name");
-                      while($r = $rs->fetch_assoc()) {
-                          echo '<option value="'.htmlspecialchars($r['room_id']).'">'.htmlspecialchars($r['name']).' ('.htmlspecialchars($r['room_id']).') - '.$r['capacity'].' pax</option>';
-                      }
-                  ?> 
-                  <!-- End PHP code -->
-              </select>
-            </div>
-          </div>
-          
-          <!-- Week Navigation -->
-          <div class="col-md-8">
-            <div class="control-section">
-              <label class="control-label">📆 Week Navigation</label>
-              <div class="week-nav-container">
-                <button id="prevWeekBtn" class="btn-custom btn-outline-custom">
-                  ← Previous
-                </button>
-                <div id="weekDisplay" class="week-display-box">
-                  Select a room to start
-                </div>
-                <button id="nextWeekBtn" class="btn-custom btn-outline-custom">
-                  Next →
-                </button>
-              </div>
-            </div>
+<div class="layout">
+    <aside class="sidebar">
+        <div class="sidebar-title">Main Menu</div>
+        <ul class="sidebar-menu">
+            <li><a href="index-admin.php"><i class="fa-solid fa-gauge-high"></i> Dashboard</a></li>
             
-            <div class="control-section" style="margin-top: 16px;">
-              <label class="control-label">🗓️ Quick Date Jump</label>
-              <div class="date-picker-group">
-                <input type="date" id="weekStart" class="date-picker" />
-                <button id="renderBtn" class="btn-custom btn-secondary-custom">
-                  Go to Week
-                </button>
-              </div>
+            <?php if (!$isTechAdmin): ?>
+            <li><a href="reservation_request.php"><i class="fa-solid fa-inbox"></i> Requests</a></li>
+            <?php endif; ?>
+
+            <li><a href="admin_timetable.php" class="active"><i class="fa-solid fa-calendar-days"></i> Timetable</a></li>
+            
+            <?php if (!$isTechAdmin): ?>
+            <li><a href="admin_recurring.php"><i class="fa-solid fa-rotate"></i> Recurring</a></li>
+            <?php endif; ?>
+
+            <li><a href="admin_logbook.php"><i class="fa-solid fa-book"></i> Logbook</a></li>
+            <li><a href="generate_reports.php"><i class="fa-solid fa-chart-pie"></i> Reports</a></li>
+            <li><a href="admin_problems.php"><i class="fa-solid fa-triangle-exclamation"></i> Problems</a></li>
+            
+            <?php if ($isSuperAdmin || $isTechAdmin): ?>
+                <li><a href="manage_users.php"><i class="fa-solid fa-users-gear"></i> Users</a></li>
+            <?php endif; ?>
+        </ul>
+
+        <div class="sidebar-profile">
+            <div class="profile-icon"><?php echo strtoupper(substr($admin_name, 0, 1)); ?></div>
+            <div class="profile-info">
+                <div class="profile-name"><?php echo htmlspecialchars($admin_name); ?></div>
+                <div class="profile-email"><?php echo htmlspecialchars($admin_email); ?></div>
             </div>
-          </div>
-          
         </div>
-      </div>
+    </aside>
 
-      <!-- Legend -->
-      <div class="legend">
-        <div class="legend-item">
-          <span class="legend-color legend-available"></span>
-          Available
+    <main class="main-content">
+        <div class="page-header">
+            <div class="page-title">
+                <h2>Regular Timetable</h2>
+                <p>Manage weekly room schedules, bookings, and maintenance slots.</p>
+            </div>
         </div>
-        <div class="legend-item">
-          <span class="legend-color legend-selected"></span>
-          Selected
-        </div>
-        <div class="legend-item">
-          <span class="legend-color legend-pending"></span>
-          Pending
-        </div>
-        <div class="legend-item">
-          <span class="legend-color legend-booked"></span>
-          Booked
-        </div>
-        <div class="legend-item">
-          <span class="legend-color legend-maintenance"></span>
-          Maintenance
-        </div>
-        <div class="legend-item">
-          <span class="legend-color legend-recurring"></span>
-          Recurring
-        </div>
-      </div>
-      
-      <!-- Action Bar -->
-      <div class="action-bar">
-        <div class="action-buttons">
-          <button id="clearSelectionBtn" class="btn-custom btn-outline-custom">
-            ✕ Clear Selection
-          </button>
-          <button id="openCreateModalBtn" class="btn-custom btn-success-custom">
-            ✓ Save Selected Slots
-          </button>
-        </div>
-        <div class="action-toggle">
-          <input id="overwriteChk" type="checkbox">
-          <label for="overwriteChk" style="margin: 0; cursor: pointer;">Overwrite existing bookings</label>
-        </div>
-      </div>
 
-      <!-- Timetable Grid -->
-      <div id="gridArea" class="grid-container"></div>
+        <div class="card">
+            <div class="control-group">
+                <label class="control-label">Select Room</label>
+                <select id="roomSelect" class="room-selector">
+                    <option value="">-- Choose a Room --</option>
+                    <?php
+                        $rs = $conn->query("SELECT room_id, name, capacity FROM rooms ORDER BY name");
+                        while($r = $rs->fetch_assoc()) {
+                            echo '<option value="'.htmlspecialchars($r['room_id']).'">'.htmlspecialchars($r['name']).' ('.$r['capacity'].' pax)</option>';
+                        }
+                    ?>
+                </select>
+            </div>
 
-    </div>
-  </div>
+            <div class="control-group">
+                <label class="control-label">Week Navigation</label>
+                <div class="week-nav">
+                    <button id="prevWeekBtn" class="btn"><i class="fa-solid fa-chevron-left"></i> Prev</button>
+                    <div id="weekDisplay" class="week-display">Select a Room</div>
+                    <button id="nextWeekBtn" class="btn">Next <i class="fa-solid fa-chevron-right"></i></button>
+                    <input type="date" id="weekStart" class="room-selector" style="width: auto;">
+                    <button id="renderBtn" class="btn btn-primary">Go</button>
+                </div>
+            </div>
+
+            <div class="legend">
+                <div class="legend-item"><div class="dot" style="background:#fff; border:1px solid #ccc"></div> Available</div>
+                <div class="legend-item"><div class="dot" style="background:#dbeafe; border:1px solid #2563eb"></div> Selected</div>
+                <div class="legend-item"><div class="dot" style="background:#fef3c7"></div> Pending</div>
+                <div class="legend-item"><div class="dot" style="background:#fee2e2"></div> Booked</div>
+                <div class="legend-item"><div class="dot" style="background:#ffedd5"></div> Maintenance</div>
+                <div class="legend-item"><div class="dot" style="background:#e0e7ff"></div> Recurring</div>
+            </div>
+
+            <div class="action-bar">
+                <div class="toggle-group">
+                    <button id="clearSelectionBtn" class="btn">Clear Selection</button>
+                    <input id="overwriteChk" type="checkbox"> <label for="overwriteChk">Overwrite bookings</label>
+                </div>
+                <button id="openCreateModalBtn" class="btn btn-primary"><i class="fa-solid fa-plus"></i> Book Selected Slots</button>
+            </div>
+
+            <div id="gridArea" class="grid-wrap"></div>
+        </div>
+    </main>
 </div>
 
-<!-- Modal -->
-<div class="modal fade" id="createModal" tabindex="-1">
-  <div class="modal-dialog modal-dialog-centered">
+<div id="createModal" class="modal">
     <div class="modal-content">
-      <div class="modal-header">
-        <h5 class="modal-title">Create / Update Booking</h5>
-        <button class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
-      </div>
-      <div class="modal-body">
-        <div class="mb-3">
-          <label class="form-label">Purpose *</label>
-          <input id="modalPurpose" class="form-control" placeholder="e.g., Weekly Meeting">
+        <div class="modal-header">
+            <h3 id="modalTitle">Create Booking</h3>
+            <button class="btn-close" onclick="closeModal()">&times;</button>
         </div>
-        <div class="mb-3">
-          <label class="form-label">Description</label>
-          <textarea id="modalDesc" class="form-control" rows="3" placeholder="Additional details (optional)"></textarea>
-        </div>
-        <div class="mb-3">
-          <label class="form-label">Contact Tel</label>
-          <input id="modalTel" class="form-control" placeholder="e.g., +60123456789">
-        </div>
-        <div class="mb-3">
-          <label class="form-label">Status</label>
-          <select id="modalStatus" class="form-select">
-            <option value="booked">Booked</option>
-            <option value="pending">Pending</option>
-            <option value="maintenance" hidden>Maintenance</option>
-          </select>
-        </div>
+        <div class="modal-body">
+            <div class="form-group">
+                <label class="form-label">Purpose *</label>
+                <input id="modalPurpose" class="form-control" placeholder="e.g. Weekly Meeting" required>
+            </div>
+            <div class="form-group">
+                <label class="form-label">Description</label>
+                <textarea id="modalDesc" class="form-control" rows="2"></textarea>
+            </div>
+            <div class="form-group">
+                <label class="form-label">Contact Tel</label>
+                <input type="tel" id="modalTel" class="form-control" placeholder="+60...">
+            </div>
+            <div class="form-group">
+                <label class="form-label">Status</label>
+                <select id="modalStatus" class="form-select">
+                    <option value="booked">Booked</option>
+                    <option value="pending">Pending</option>
+                    <option value="maintenance">Maintenance</option>
+                </select>
+            </div>
+            
+            <div id="technicianField" class="tech-box">
+                <label class="form-label" style="color:#c2410c;">👷 Assign Technician</label>
+                <select id="modalTech" class="form-select">
+                    <option value="">-- Select Technician --</option>
+                    <?php foreach ($technicians as $t): ?>
+                        <option value="<?php echo htmlspecialchars($t['Fullname']); ?>"><?php echo htmlspecialchars($t['Fullname']); ?></option>
+                    <?php endforeach; ?>
+                </select>
+            </div>
 
-        <div id="technicianField" class="mb-3" style="display: none; background: #fff7ed; padding: 10px; border: 1px solid #fdba74; border-radius: 8px;">
-          <label class="form-label" style="color:#9a3412;">👷 Assign Technician</label>
-          <select id="modalTech" class="form-select" style="border-color: #fdba74;">
-            <option value="">-- Select a Technician --</option>
-            <?php foreach ($technicians as $t): ?>
-                <option value="<?php echo htmlspecialchars($t['Fullname']); ?>">
-                    <?php echo htmlspecialchars($t['Fullname']); ?>
-                </option>
-            <?php endforeach; ?>
-          </select>
-          <div style="font-size:11px; color:#9a3412; margin-top:4px;">
-            * Select slots, then choose a technician.
-          </div>
+            <div style="font-size:12px; color:var(--text-secondary);">
+                Selected slots: <span id="selectedCount" style="font-weight:700; color:var(--utm-maroon);">0</span>
+            </div>
         </div>
-
-        <div style="padding: 12px; background: var(--gray-50); border-radius: 8px; font-size: 13px; color: var(--gray-700);">
-          <strong>Selected slots:</strong> <span id="selectedCount">0</span>
-        </div>
-      </div>
-      <div class="modal-footer">
-        <button class="btn-custom btn-outline-custom" data-bs-dismiss="modal">Cancel</button>
-        <button id="modalSaveBtn" class="btn-custom btn-success-custom">Save Booking</button>
+        <div class="modal-footer">
+            <button class="btn" onclick="closeModal()">Cancel</button>
+            <button id="modalSaveBtn" class="btn btn-primary">Save Booking</button>
         </div>
     </div>
-  </div>
-</div> 
+</div>
 
-
-
-
-
-<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
 <script>
+  
+// --- TOAST HELPER FUNCTION ---
+function showToast(message, type = 'info') {
+    let container = document.getElementById('toast-container');
+    if (!container) {
+        container = document.createElement('div');
+        container.id = 'toast-container';
+        document.body.appendChild(container);
+    }
+
+    const toast = document.createElement('div');
+    toast.className = `toast-msg ${type}`;
+    
+    // Icons
+    const icons = { 
+        success: '<i class="fa-solid fa-circle-check" style="color:#10b981"></i>', 
+        error: '<i class="fa-solid fa-circle-exclamation" style="color:#ef4444"></i>', 
+        info: '<i class="fa-solid fa-circle-info" style="color:#3b82f6"></i>' 
+    };
+    const icon = icons[type] || icons.info;
+
+    toast.innerHTML = `
+        <span class="toast-icon">${icon}</span>
+        <span class="toast-content">${message}</span>
+    `;
+
+    container.appendChild(toast);
+
+    // Remove after 3 seconds
+    setTimeout(() => {
+        toast.style.animation = 'fadeOut 0.3s forwards';
+        setTimeout(() => toast.remove(), 300);
+    }, 3000);
+}
+
 const TIME_SLOTS = [
   "08:00-08:50","09:00-09:50","10:00-10:50","11:00-11:50",
   "12:00-12:50","13:00-13:50","14:00-14:50","15:00-15:50",
@@ -1437,6 +852,7 @@ let selectedCells = new Map();
 let bookingsIndex = {};
 let currentWeekStart = null;
 
+// Elements
 const roomSelect = document.getElementById('roomSelect');
 const weekStart = document.getElementById('weekStart');
 const weekDisplay = document.getElementById('weekDisplay');
@@ -1444,32 +860,12 @@ const renderBtn = document.getElementById('renderBtn');
 const prevWeekBtn = document.getElementById('prevWeekBtn');
 const nextWeekBtn = document.getElementById('nextWeekBtn');
 const gridArea = document.getElementById('gridArea');
-const openCreateModalBtn = document.getElementById('openCreateModalBtn');
-const clearSelectionBtn = document.getElementById('clearSelectionBtn');
-const overwriteChk = document.getElementById('overwriteChk');
-
-const createModal = new bootstrap.Modal(document.getElementById('createModal'));
-const modalPurpose = document.getElementById('modalPurpose');
-const modalDesc = document.getElementById('modalDesc');
-const modalTel = document.getElementById('modalTel');
-const modalStatus = document.getElementById('modalStatus');
-const selectedCount = document.getElementById('selectedCount');
 const modalSaveBtn = document.getElementById('modalSaveBtn');
-
-// <--- NEW: Grab the Technician Elements
-const modalTech = document.getElementById('modalTech');
+const modalStatus = document.getElementById('modalStatus');
 const technicianField = document.getElementById('technicianField');
+const selectedCount = document.getElementById('selectedCount');
 
-// <--- NEW: Toggle Technician Dropdown
-modalStatus.addEventListener('change', function() {
-    if (this.value === 'maintenance') {
-        technicianField.style.display = 'block';
-    } else {
-        technicianField.style.display = 'none';
-        modalTech.value = ''; 
-    }
-});
-
+// Helper Functions
 function getMonday(dateString) {
     const d = new Date(dateString + 'T12:00:00');
     const day = d.getDay();
@@ -1496,30 +892,30 @@ function formatDateRange(monday) {
 }
 
 function updateWeekDisplay() {
-    if (currentWeekStart) {
-        weekDisplay.textContent = formatDateRange(currentWeekStart);
-    }
+    if (currentWeekStart) weekDisplay.textContent = formatDateRange(currentWeekStart);
 }
 
-// Event Listeners for Navigation
-weekStart.addEventListener('change', () => {
-  const selected = weekStart.value;
-  if (!selected) return;
-  currentWeekStart = getMonday(selected);
-  weekStart.value = currentWeekStart;
-  updateWeekDisplay();
-  renderGrid();
+function closeModal() {
+    document.getElementById('createModal').classList.remove('show');
+}
+
+// Logic
+modalStatus.addEventListener('change', function() {
+    if (this.value === 'maintenance') technicianField.style.display = 'block';
+    else { technicianField.style.display = 'none'; document.getElementById('modalTech').value = ''; }
 });
 
-roomSelect.addEventListener('change', () => {
-  if (roomSelect.value && currentWeekStart) renderGrid();
+weekStart.addEventListener('change', () => {
+    if(weekStart.value) {
+        currentWeekStart = getMonday(weekStart.value);
+        renderGrid();
+    }
 });
 
 prevWeekBtn.addEventListener('click', () => {
     if (!currentWeekStart) currentWeekStart = getMonday(new Date().toISOString().slice(0,10));
     currentWeekStart = isoAddDays(currentWeekStart, -7);
     weekStart.value = currentWeekStart;
-    updateWeekDisplay();
     renderGrid();
 });
 
@@ -1527,44 +923,53 @@ nextWeekBtn.addEventListener('click', () => {
     if (!currentWeekStart) currentWeekStart = getMonday(new Date().toISOString().slice(0,10));
     currentWeekStart = isoAddDays(currentWeekStart, 7);
     weekStart.value = currentWeekStart;
-    updateWeekDisplay();
     renderGrid();
 });
 
 renderBtn.addEventListener('click', renderGrid);
-clearSelectionBtn.addEventListener('click', clearSelection);
+roomSelect.addEventListener('change', renderGrid);
 
-openCreateModalBtn.addEventListener('click', ()=>{
-    if (selectedCells.size === 0) return alert('Select slots first');
+document.getElementById('clearSelectionBtn').addEventListener('click', () => {
+    selectedCells.forEach(o => o.td.classList.remove('selected'));
+    selectedCells.clear();
+    selectedCount.textContent = 0;
+});
+
+document.getElementById('openCreateModalBtn').addEventListener('click', () => {
+    if (selectedCells.size === 0) return showToast('Please select at least one slot first.', 'error'); // New
     
-    // Check if we are in "Report Mode" (maintenance)
     const urlParams = new URLSearchParams(window.location.search);
     const maintenanceId = urlParams.get('maintenance');
 
     if (maintenanceId) {
-        modalPurpose.value = `Fixing Reported Issue #${maintenanceId}`;
+        document.getElementById('modalPurpose').value = `Fixing Reported Issue #${maintenanceId}`;
         modalStatus.value = 'maintenance';
         technicianField.style.display = 'block';
     } else {
-        modalPurpose.value = '';
+        document.getElementById('modalPurpose').value = '';
         modalStatus.value = 'booked';
         technicianField.style.display = 'none';
     }
     
-    modalDesc.value = '';
-    modalTel.value = '';
-    createModal.show();
+    document.getElementById('modalDesc').value = '';
+    document.getElementById('modalTel').value = '';
+    document.getElementById('modalTitle').textContent = 'Create Booking';
+    modalSaveBtn.textContent = 'Save Booking';
+    modalSaveBtn.dataset.actionType = 'save';
+    
+    document.getElementById('createModal').classList.add('show');
 });
-
 
 function renderGrid() {
     const room = roomSelect.value;
-    if (!room) return alert('Please select a room first.');
-
-    if (!currentWeekStart) {
-        const today = new Date();
-        currentWeekStart = getMonday(today.toISOString().slice(0,10));
+    
+    // 1. UPDATED: Show Toast if no room selected
+    if (!room) {
+        showToast('Please select a room first.', 'error');
+        return;
     }
+
+    if (!currentWeekStart) currentWeekStart = getMonday(new Date().toISOString().slice(0,10));
     
     const monday = currentWeekStart;
     weekStart.value = monday;
@@ -1572,65 +977,54 @@ function renderGrid() {
 
     gridArea.innerHTML = '';
     selectedCells.clear();
+    selectedCount.textContent = 0;
     bookingsIndex = {};
 
     const table = document.createElement('table');
     table.className = 'grid';
 
-   
+    // Header
     const thead = document.createElement('thead');
-    const headRow = document.createElement('tr');
-    const cornerTh = document.createElement('th');
-    cornerTh.textContent = 'Date / Time';
-    cornerTh.style.minWidth = '120px';
-    headRow.appendChild(cornerTh);
-    TIME_SLOTS.forEach(ts => {
-        const th = document.createElement('th');
-        th.textContent = ts;
-        th.style.minWidth = '100px';
-        headRow.appendChild(th);
-    });
-    thead.appendChild(headRow);
+    const trHead = document.createElement('tr');
+    trHead.innerHTML = '<th style="background:#f3f4f6; position:sticky; left:0; z-index:20;">Date / Time</th>';
+    TIME_SLOTS.forEach(ts => trHead.innerHTML += `<th>${ts}</th>`);
+    thead.appendChild(trHead);
     table.appendChild(thead);
-
 
     const tbody = document.createElement('tbody');
     for (let i = 0; i < 7; i++) {
         const iso = isoAddDays(monday, i);
         const tr = document.createElement('tr');
-
-        const tdDate = document.createElement('td');
-        tdDate.className = 'time-col';
-        tdDate.innerHTML = `<div class="day-head">${iso}</div><div class="day-name">${getDayName(iso)}</div>`;
-        tr.appendChild(tdDate);
+        
+        // Time Col
+        const tdTime = document.createElement('td');
+        tdTime.className = 'time-col';
+        tdTime.innerHTML = `${iso}<br><span style="font-weight:400;color:#64748b;font-size:10px;">${getDayName(iso)}</span>`;
+        tr.appendChild(tdTime);
 
         TIME_SLOTS.forEach(ts => {
             const td = document.createElement('td');
             td.className = 'slot available';
             td.dataset.date = iso;
             td.dataset.slot = ts;
- 
-            const todayIso = new Date().toISOString().slice(0,10);
-            if (iso < todayIso) {
-                td.classList.add('past');
-            }
 
+            if (iso < new Date().toISOString().slice(0,10)) td.classList.add('past');
 
             td.addEventListener('click', () => {
                 if (td.classList.contains('past')) return;
                 const key = iso + '|' + ts;
                 if (td.classList.contains('selected')) {
-                    td.classList.remove('selected', 'reported-slot'); // Remove highlight too
+                    td.classList.remove('selected', 'reported-slot');
+                    td.innerHTML = ''; // Remove report label
                     selectedCells.delete(key);
                 } else if (td.classList.contains('available')) {
                     td.classList.add('selected');
                     selectedCells.set(key, {date: iso, slot: ts, td});
-                } else if (td.classList.contains('booked') || td.classList.contains('pending') || td.classList.contains('maintenance')) {
-                    openEditForCell(iso, ts, td);
+                } else if (!td.classList.contains('available')) {
+                    openEditForCell(iso, ts);
                 }
-                updateSelectedCount();
+                selectedCount.textContent = selectedCells.size;
             });
-
             tr.appendChild(td);
         });
         tbody.appendChild(tr);
@@ -1638,318 +1032,189 @@ function renderGrid() {
     table.appendChild(tbody);
     gridArea.appendChild(table);
 
+    // Fetch Bookings
     const endDate = isoAddDays(monday, 6);
-
-    // FETCH BOOKINGS
-    fetch(`admin_timetable.php?endpoint=bookings&room=${encodeURIComponent(room)}&start=${monday}&end=${endDate}`, { cache: 'no-store' })
-    .then(r => {
-        if (!r.ok) throw new Error('HTTP ' + r.status);
-        return r.json();
-    })
+    fetch(`admin_timetable.php?endpoint=bookings&room=${encodeURIComponent(room)}&start=${monday}&end=${endDate}`)
+    .then(r => r.json())
     .then(json => {
-        if (!json.success) {
-            console.error('Load bookings error', json);
-            alert('Failed to load bookings: ' + (json.msg || 'unknown'));
-            return;
-        }
-
+        // 2. UPDATED: Use Toast for API errors
+        if(!json.success) return showToast(json.msg, 'error');
+        
         json.bookings.forEach(b => {
-            if (!b.slot_date || !b.time_start) return;
-
-            // FIX: Match slot by START TIME only (More robust)
-            // Backend might send 09:00:00 as end time, but slot is 08:00-08:50
-            const dbStart = b.time_start.slice(0,5); // "08:00"
-            
-            // Find the time slot string that STARTS with this time
+            const dbStart = b.time_start.slice(0,5);
             const targetSlot = TIME_SLOTS.find(ts => ts.startsWith(dbStart));
-            
-            if (!targetSlot) return; // Time not found in grid
+            if(!targetSlot) return;
 
             const selector = `td.slot[data-date="${b.slot_date}"][data-slot="${targetSlot}"]`;
             const td = document.querySelector(selector);
-            
-            if (!td) return;
+            if(!td) return;
 
             const key = b.slot_date + '|' + targetSlot;
             bookingsIndex[key] = b;
 
+            td.className = 'slot'; // Reset
+            td.innerHTML = '';
 
-            // Reset cell
-            td.classList.remove('available', 'selected', 'pending', 'booked', 'approved', 'maintenance', 'recurring');
-            td.innerHTML = ''; // Clear previous content
-
-            // 1. Handle Recurring
-            if (b.recurring) {
+            // Status Styling
+            if(b.recurring) {
                 td.classList.add('recurring');
-                td.innerHTML = `<div class="cell-content"><strong>${escapeHtml(b.purpose || 'Recurring')}</strong></div>`;
-                td.dataset.recurringId = b.recurring_id || '';
-                td.title = 'Recurring slot';
-                td.addEventListener('dblclick', () => alert('This is a recurring booking'));
-                return;
-            }
+                td.innerHTML = `<div class="cell-content"><strong>${b.purpose}</strong></div>`;
+                // Optional: Add Double click info for recurring
+                td.addEventListener('dblclick', () => showToast('This is a recurring template.', 'info'));
+            } else {
+                const s = (b.status||'').toLowerCase();
+                let cls = 'booked';
+                if(s === 'maintenance') cls = (b.tech_status === 'Work Done') ? 'maintenance-done' : 'maintenance';
+                else if(s === 'pending') cls = 'pending';
+                td.classList.add(cls);
 
-            // 2. Handle Status Classes
-            let cssClass = 'booked'; 
-            const status = (b.status || '').toLowerCase();
-            
-            if (status === 'maintenance') {
-                // CHECK IF DONE
-                if (b.tech_status === 'Work Done') {
-                    cssClass = 'maintenance-done';
-                } else {
-                    cssClass = 'maintenance';
+                let content = `<div class="cell-content"><strong>${b.purpose}</strong>`;
+                if(s === 'maintenance') {
+                     if(b.tech_status==='Work Done') content += `<br>✅ DONE`;
+                     if(b.technician) content += `<div class="cell-meta">👷 ${b.technician}</div>`;
+                } else if(b.tel) {
+                    content += `<div class="cell-meta">📞 ${b.tel}</div>`;
                 }
+                content += `</div>`;
+                
+                // Delete Button
+                const btn = document.createElement('button');
+                btn.className = 'delete-btn';
+                btn.innerHTML = '<i class="fa-solid fa-times"></i>';
+                btn.onclick = (e) => { e.stopPropagation(); deleteBooking(b.id); };
+                td.appendChild(btn);
+                
+                td.insertAdjacentHTML('beforeend', content);
             }
-            else if (status === 'pending') cssClass = 'pending';
-            else if (status === 'approved' || status === 'booked') cssClass = 'booked'; 
-            
-            td.classList.add(cssClass);
-
-            // 3. Build Cell Content
-            let content = `<div class="cell-title">${escapeHtml(b.purpose || 'Booked')}</div>`;
-            
-            if (status === 'maintenance') {
-                 // SHOW CHECKMARK
-                 if (b.tech_status === 'Work Done') {
-                     content += `<div style="font-size:11px; margin-bottom:2px;">✅ <strong>WORK DONE</strong></div>`;
-                 }
-                 if (b.technician) {
-                     content += `<div class="cell-meta">👷 ${escapeHtml(b.technician)}</div>`;
-                 }
-            } 
-            else if (b.tel) {
-                 content += `<div class="cell-meta">📞 ${escapeHtml(b.tel)}</div>`;
-            }
-            
-            td.innerHTML = `<div class="cell-content">${content}</div>`;
-
-            // 4. Add Delete Button (Admin Feature)
-            td.dataset.bookingId = b.id;
-            if (!td.querySelector('.delete-btn')) {
-                const del = document.createElement('button');
-                del.className = 'delete-btn';
-                del.innerHTML = '✕';
-                del.title = 'Delete Booking';
-                del.addEventListener('click', (ev) => {
-                    ev.stopPropagation();
-                    if (!confirm('Permanently delete this booking?')) return;
-                    deleteBooking(b.id);
-                });
-                td.appendChild(del);
-            }
-
-            // Enable Edit on Double Click
-            td.addEventListener('dblclick', () => openEditForCell(b.slot_date, targetSlot, td));
         });
-        // <--- ADD THIS LINE HERE:
         checkAndHighlightReport();
-    })
-
-    
-    .catch(err => {
-        console.error('Failed loading bookings', err);
     });
 }
 
-
-
-// <--- NEW: Function to check URL and Highlight Slot
 function checkAndHighlightReport() {
     const urlParams = new URLSearchParams(window.location.search);
     const pDate = urlParams.get('date');
     const pStart = urlParams.get('time_start');
     
     if (pDate && pStart) {
-        // Find matching slot string (e.g. "08:00" -> "08:00-08:50")
         const targetSlot = TIME_SLOTS.find(ts => ts.startsWith(pStart));
-        
         if (targetSlot) {
             const cell = document.querySelector(`td.slot[data-date="${pDate}"][data-slot="${targetSlot}"]`);
-            
-            // Fix: ensure cell exists and is actually available
-            if (cell && !cell.classList.contains('past') && cell.classList.contains('available')) {
-                
-                // 1. Visual Highlight
-                cell.classList.add('reported-slot'); // Use the CSS class you added earlier
-                if (!cell.querySelector('.reported-label')) {
-                    cell.innerHTML += '<div class="reported-label">REPORTED</div>';
-                }
-
-
-                // 2. Auto-Select so the user can just click "Save"
+            if (cell && cell.classList.contains('available')) {
+                cell.classList.add('reported-slot');
+                cell.innerHTML += '<div class="reported-label">REPORTED</div>';
                 if (!cell.classList.contains('selected')) {
                     cell.classList.add('selected');
-                    const key = pDate + '|' + targetSlot;
-                    selectedCells.set(key, { date: pDate, slot: targetSlot, td: cell });
-                    updateSelectedCount();
+                    selectedCells.set(pDate + '|' + targetSlot, { date: pDate, slot: targetSlot, td: cell });
+                    selectedCount.textContent = selectedCells.size;
                 }
-                
-                // 3. Scroll to it
                 cell.scrollIntoView({behavior: "smooth", block: "center"});
             }
         }
     }
 }
 
-function openEditForCell(date, slot, td) {
+function openEditForCell(date, slot) {
     const key = date+'|'+slot;
     const b = bookingsIndex[key];
-    if (!b) return;
+    if(!b) return;
 
-    modalPurpose.value = b.purpose || '';
-    modalDesc.value = b.description || '';
-    modalTel.value = b.tel || '';
+    document.getElementById('modalPurpose').value = b.purpose || '';
+    document.getElementById('modalDesc').value = b.description || '';
+    document.getElementById('modalTel').value = b.tel || '';
     modalStatus.value = b.status || 'booked';
     
-    // Reset Button State
-    modalSaveBtn.textContent = "Save Booking";
-    modalSaveBtn.className = "btn-custom btn-success-custom";
-    modalSaveBtn.dataset.actionType = "save";
+    modalSaveBtn.textContent = "Update Booking";
+    modalSaveBtn.dataset.actionType = 'save';
     modalSaveBtn.dataset.bookingId = b.id;
 
-    if (b.status === 'maintenance') {
+    if(b.status === 'maintenance') {
         technicianField.style.display = 'block';
-        modalTech.value = b.technician || '';
-        
-        // IF WORK IS DONE -> SHOW "VERIFY & CLEAR"
-        if (b.tech_status === 'Work Done') {
-            document.querySelector('.modal-title').textContent = "✅ Verify Completed Work";
-            modalSaveBtn.textContent = "✓ Verify & Clear Slot";
-            modalSaveBtn.className = "btn-custom btn-success-custom"; // Keep green or make distinct
-            modalSaveBtn.dataset.actionType = "verify_clear"; // Flag for click handler
+        document.getElementById('modalTech').value = b.technician || '';
+        if(b.tech_status === 'Work Done') {
+            document.getElementById('modalTitle').textContent = "✅ Verify Work";
+            modalSaveBtn.textContent = "Verify & Clear Slot";
+            modalSaveBtn.dataset.actionType = 'verify_clear';
         } else {
-            document.querySelector('.modal-title').textContent = "Update Maintenance";
+            document.getElementById('modalTitle').textContent = "Update Maintenance";
         }
     } else {
         technicianField.style.display = 'none';
-        modalTech.value = '';
-        document.querySelector('.modal-title').textContent = "Update Booking";
+        document.getElementById('modalTitle').textContent = "Update Booking";
     }
 
-    selectedCount.textContent = '1 (editing)';
     selectedCells.clear();
-    selectedCells.set(key, {date, slot, td, bookingId: b.id});
-    createModal.show();
+    selectedCells.set(key, {date, slot, bookingId: b.id});
+    selectedCount.textContent = '1 (Editing)';
+    document.getElementById('createModal').classList.add('show');
 }
 
-
-modalSaveBtn.addEventListener('click', ()=>{
-
-    // 1. Handle "Verify & Clear" Action (Green Button)
-    if (modalSaveBtn.dataset.actionType === "verify_clear") {
-        if (!confirm("Confirm that work is done?\n\nThis will mark the problem as RESOLVED and remove this slot from the timetable.")) {
-            return;
+modalSaveBtn.addEventListener('click', () => {
+    if(modalSaveBtn.dataset.actionType === 'verify_clear') {
+        if(confirm("Mark problem resolved and clear slot?")) {
+            deleteBooking(modalSaveBtn.dataset.bookingId);
+            closeModal();
         }
-        deleteBooking(modalSaveBtn.dataset.bookingId);
-        createModal.hide();
-        return; 
+        return;
     }
 
-    // 2. Prepare Payload for "Save" Action
-    const urlParams = new URLSearchParams(window.location.search);
-    const maintenanceId = urlParams.get('maintenance'); 
-    
     const room = roomSelect.value;
-    if (!room) return alert('Choose a room');
-    if (selectedCells.size === 0) return alert('Select at least one slot');
-    
-    // Capture the selected status
-    const selectedStatus = modalStatus.value; // 'booked', 'pending', or 'maintenance'
+    if (!room || selectedCells.size === 0) return showToast('Missing room or slot selection.', 'error'); // New
+
+    const urlParams = new URLSearchParams(window.location.search);
+    const maintenanceId = urlParams.get('maintenance');
 
     const payload = {
         action: 'save',
         room_id: room,
-        purpose: modalPurpose.value.trim(),
-        description: modalDesc.value.trim(),
-        tel: modalTel.value.trim(),
-        technician: modalTech.value.trim(),
-        status: selectedStatus,
-        overwrite: overwriteChk.checked ? 1 : 0,
+        purpose: document.getElementById('modalPurpose').value,
+        description: document.getElementById('modalDesc').value,
+        tel: document.getElementById('modalTel').value,
+        status: modalStatus.value,
+        technician: document.getElementById('modalTech').value,
+        overwrite: document.getElementById('overwriteChk').checked ? 1 : 0,
         problem_id: maintenanceId ? parseInt(maintenanceId) : 0,
-        slots: Array.from(selectedCells.values()).map(o => ({date: o.date, slot: o.slot}))
+        slots: Array.from(selectedCells.values()).map(o => ({date: o.date, slot: o.slot})),
+        booking_id: modalSaveBtn.dataset.bookingId || 0
     };
 
     modalSaveBtn.disabled = true;
-    fetch('admin_timetable.php', {
-        method:'POST',
-        headers:{'Content-Type':'application/json'},
-        body: JSON.stringify(payload)
-    })
-    .then(r=>r.json())
-    .then(js=>{
+    modalSaveBtn.innerText = 'Processing...';
+
+    fetch('admin_timetable.php', { method:'POST', body:JSON.stringify(payload) })
+    .then(r => r.json())
+    .then(res => {
         modalSaveBtn.disabled = false;
-        if (js.success) {
-            createModal.hide();
+        modalSaveBtn.innerText = 'Save Booking';
+        if(res.success) {
+            closeModal();
             renderGrid();
-            clearSelection();
-            
-            // Clean URL after save
             window.history.replaceState({}, document.title, window.location.pathname);
             
-            // --- FIX: SHOW RELEVANT MESSAGE ---
-            if (selectedStatus === 'maintenance') {
-                alert('Maintenance scheduled successfully! Technician has been notified via email.');
-            } else {
-                alert('Booking saved successfully!');
-            }
-            // ----------------------------------
-            
+            const msg = payload.status === 'maintenance' ? 'Maintenance Scheduled Successfully!' : 'Booking Saved Successfully!';
+            showToast(msg, 'success');
         } else {
-            alert('Save failed: ' + (js.msg || ''));
+            showToast('Error: ' + res.msg, 'error');
         }
-    })
-    .catch(err=>{ 
-        modalSaveBtn.disabled = false; 
-        console.error(err);
-        alert('Error saving. Check console.');
     });
 });
 
-function updateSelectedCount() { selectedCount.textContent = selectedCells.size; }
-function escapeHtml(s){ if(!s) return ''; return String(s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
-function clearSelection() { selectedCells.forEach(o=> { o.td.classList.remove('selected'); o.td.style.border = ""; }); selectedCells.clear(); updateSelectedCount(); }
-
 function deleteBooking(id) {
-    if (!confirm('Are you sure you want to delete this booking?')) return;
-
-    fetch('admin_timetable.php', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ action: 'delete', booking_id: id })
-    })
-    .then(r => r.json())
-    .then(data => {
-        if (data.success) {
-            renderGrid();
-        } else {
-            alert('Failed to delete: ' + (data.msg || 'Unknown error'));
-        }
-    })
-    .catch(err => console.error('Delete error:', err));
+    if(!confirm('Delete this booking?')) return;
+    fetch('admin_timetable.php', { method:'POST', body:JSON.stringify({action:'delete', booking_id:id}) })
+    .then(r=>r.json()).then(d => {
+        if(d.success) renderGrid();
+        else showToast(d.msg || 'Failed to delete booking', 'error'); // New
+    });
 }
 
-
-
-// <--- UPDATED INITIALIZATION
-(function init(){
+// Init
+(function() {
     const urlParams = new URLSearchParams(window.location.search);
-    const pDate = urlParams.get('date');
-    const pRoom = urlParams.get('room');
-
-    // 1. Set Date based on URL or Today
-    let startD = new Date();
-    if (pDate) startD = new Date(pDate);
-    
-    currentWeekStart = getMonday(startD.toISOString().slice(0,10));
-    weekStart.value = currentWeekStart;
-    
-    // 2. Set Room based on URL
-    if (pRoom) {
-        roomSelect.value = pRoom;
-        updateWeekDisplay();
-        renderGrid(); // renderGrid calls checkAndHighlightReport internally
-    } else {
-        updateWeekDisplay(); // Wait for user to select room
+    if(urlParams.get('date')) currentWeekStart = getMonday(urlParams.get('date'));
+    if(urlParams.get('room')) {
+        roomSelect.value = urlParams.get('room');
+        renderGrid();
     }
 })();
 </script>

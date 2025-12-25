@@ -1,48 +1,56 @@
 <?php
 /**
- * manage_users.php - COMPLETE VERSION
- * Features: 
- * 1. Search & Filter (Existing)
- * 2. Edit Role & Delete User (Existing)
- * 3. Create User & Send Activation Email (New)
+ * manage_users.php - User Management
+ * Roles: 
+ * - SuperAdmin: Full Access
+ * - Technical Admin: Can ONLY create Technicians
  */
 session_start();
 require_once __DIR__ . '/../includes/db_connect.php';
-require_once __DIR__ . '/../includes/functions.php'; // <--- ADD THIS LINE (adjust path if needed)
-require_once __DIR__ . '/../includes/config.php';    // <--- ENSURE CONFIG IS LOADED
+require_once __DIR__ . '/../includes/functions.php';
+require_once __DIR__ . '/../includes/config.php';
 
-// 1. SECURITY CHECK: Only allow 'Admin' to access this page
-if (!isset($_SESSION['loggedin']) || 
-    !isset($_SESSION['User_Type']) || 
-    strcasecmp($_SESSION['User_Type'], 'Admin') !== 0) {
+// --- 1. ACCESS CONTROL ---
+if (!isset($_SESSION['loggedin']) || !isset($_SESSION['User_Type'])) {
     header("location: ../loginterface.html");
     exit;
 }
 
-$admin_name = $_SESSION['Fullname'] ?? 'Admin';
+$uType = trim($_SESSION['User_Type']);
+$isSuperAdmin = (strcasecmp($uType, 'SuperAdmin') === 0);
+$isTechAdmin  = (strcasecmp($uType, 'Technical Admin') === 0);
 
-// --- SUPER ADMIN CONFIGURATION ---
-$protected_usernames = ['superadmin', 'admin'];
-$allowed_superAdmins = ['superadmin']; // usernames allowed to access this page
-
-if (!in_array(strtolower($_SESSION['username']), $allowed_superAdmins)) {
-    header("Location: index-admin.php"); 
+// Only allow SuperAdmin OR Technical Admin
+if (!$isSuperAdmin && !$isTechAdmin) {
+    header("location: index-admin.php");
     exit;
 }
+
+$admin_name = $_SESSION['Fullname'] ?? 'Admin';
+$admin_email = $_SESSION['Email'] ?? 'Admin';
+
+// Security: Protected Accounts
+$protected_usernames = ['superadmin', 'admin'];
 
 $message = "";
 $error = "";
 
-// 2. HANDLE FORM SUBMISSIONS (POST Request)
+// --- 2. HANDLE ACTIONS (POST) ---
 if ($_SERVER["REQUEST_METHOD"] == "POST") {
 
-    // --- A. NEW: CREATE USER (Admin/Technician) ---
+    // A. CREATE USER
     if (isset($_POST['create_user'])) {
         $new_fullname = trim($_POST['new_fullname']);
         $new_email = trim($_POST['new_email']);
-        $new_role = $_POST['new_role'];
+        
+        // ROLE LOGIC: Tech Admin can ONLY create Technicians
+        if ($isTechAdmin) {
+            $new_role = 'Technician';
+        } else {
+            $new_role = $_POST['new_role']; // SuperAdmin selects role
+        }
 
-        // 1. Check if email exists
+        // Check email uniqueness
         $stmt = $conn->prepare("SELECT id FROM users WHERE Email = ?");
         $stmt->bind_param("s", $new_email);
         $stmt->execute();
@@ -52,7 +60,7 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
         } else {
             $stmt->close();
             
-            // 2. Generate Username
+            // Generate Username (email prefix + counter)
             $username_base = explode('@', $new_email)[0];
             $new_username = $username_base;
             $counter = 1;
@@ -62,34 +70,23 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
                 $new_username = $username_base . $counter++;
             }
 
-            // 3. Generate Token using your helper function
-            $token = generate_reset_token(); // From functions.php
+            // Generate Token & Temp Password
+            $token = generate_reset_token(); 
             $expiry = date('Y-m-d H:i:s', strtotime('+24 hours'));
-
-            // 4. Temporary Password (placeholder, user will reset it anyway)
             $temp_password = bin2hex(random_bytes(8)); 
             $hashed_password = password_hash($temp_password, PASSWORD_DEFAULT);
 
-            // 5. Insert User
+            // Insert
             $ins = $conn->prepare("INSERT INTO users (username, Fullname, Email, password_hash, User_Type, reset_token, reset_token_expiry) VALUES (?, ?, ?, ?, ?, ?, ?)");
             $ins->bind_param("sssssss", $new_username, $new_fullname, $new_email, $hashed_password, $new_role, $token, $expiry);
             
             if ($ins->execute()) {
-                // 6. GENERATE LINK & SEND EMAIL
-                // Ensure SITE_BASE_URL is defined in config.php, otherwise build it dynamically
                 $base = defined('SITE_BASE_URL') ? SITE_BASE_URL : "http://localhost/roomreserve"; 
-                
-                // Point to your existing reset_password.php page
                 $activation_link = $base . "/../auth/reset_password.php?token=" . $token;
-
-                // CALL THE NEW FUNCTION
                 $sent = send_activation_email($new_email, $new_fullname, $new_username, $new_role, $activation_link);
 
-                if ($sent) {
-                    $message = "User created successfully! Activation email sent to $new_email.";
-                } else {
-                    $message = "User created, but email failed to send. Check server logs.";
-                }
+                if ($sent) $message = "User ($new_role) created! Activation email sent.";
+                else $message = "User created, but email failed to send.";
             } else {
                 $error = "Database error: " . $conn->error;
             }
@@ -97,12 +94,11 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
         }
     }
 
-    // --- B. EXISTING: UPDATE ROLE ---
-    if (isset($_POST['user_id']) && isset($_POST['new_role'])) {
+    // B. UPDATE ROLE (SuperAdmin Only)
+    if (isset($_POST['user_id']) && isset($_POST['new_role']) && $isSuperAdmin) {
         $userIdToUpdate = intval($_POST['user_id']);
         $newRole = $_POST['new_role'];
 
-        // Protection check
         $check_stmt = $conn->prepare("SELECT username FROM users WHERE id = ?");
         $check_stmt->bind_param("i", $userIdToUpdate);
         $check_stmt->execute();
@@ -111,31 +107,22 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
         $check_stmt->close();
 
         if (in_array(strtolower($fetched_username ?? ''), $protected_usernames)) {
-            $error = "Action denied: You cannot modify the Super Admin account.";
+            $error = "Action denied: Cannot modify Super Admin.";
         } else {
-            // Added Technician to allowed roles
-            $allowedRoles = ['Admin', 'Lecturer', 'Staff', 'Student', 'Technician'];
-            if (in_array($newRole, $allowedRoles)) {
-                $stmt = $conn->prepare("UPDATE users SET User_Type = ? WHERE id = ?");
-                $stmt->bind_param("si", $newRole, $userIdToUpdate);
-                if ($stmt->execute()) {
-                    header("Location: manage_users.php?msg=updated");
-                    exit;
-                } else {
-                    $error = "Error updating role: " . $conn->error;
-                }
-                $stmt->close();
-            } else {
-                $error = "Invalid role selected.";
+            $stmt = $conn->prepare("UPDATE users SET User_Type = ? WHERE id = ?");
+            $stmt->bind_param("si", $newRole, $userIdToUpdate);
+            if ($stmt->execute()) {
+                header("Location: manage_users.php?msg=updated");
+                exit;
             }
+            $stmt->close();
         }
     }
 
-    // --- C. EXISTING: DELETE USER ---
-    if (isset($_POST['delete_user_id'])) {
+    // C. DELETE USER (SuperAdmin Only)
+    if (isset($_POST['delete_user_id']) && $isSuperAdmin) {
         $userIdToDelete = intval($_POST['delete_user_id']);
 
-        // Protection check
         $check_stmt = $conn->prepare("SELECT username FROM users WHERE id = ?");
         $check_stmt->bind_param("i", $userIdToDelete);
         $check_stmt->execute();
@@ -144,9 +131,9 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
         $check_stmt->close();
 
         if (in_array(strtolower($fetched_username ?? ''), $protected_usernames)) {
-            $error = "Action denied: You cannot delete a Protected Admin account.";
+            $error = "Action denied: Cannot delete Protected Account.";
         } elseif ($userIdToDelete == $_SESSION['id']) {
-            $error = "Action denied: You cannot delete your own account while logged in.";
+            $error = "Action denied: Cannot delete yourself.";
         } else {
             try {
                 $del_stmt = $conn->prepare("DELETE FROM users WHERE id = ?");
@@ -157,336 +144,404 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
                 }
                 $del_stmt->close();
             } catch (mysqli_sql_exception $e) {
-                $error = "Cannot delete user. They might have existing reservations linked to them.";
+                $error = "Cannot delete: User has linked records.";
             }
         }
     }
 }
 
-// Check for success messages from redirect
 if (isset($_GET['msg'])) {
     if ($_GET['msg'] == 'updated') $message = "User role successfully updated.";
     if ($_GET['msg'] == 'deleted') $message = "User successfully deleted.";
 }
 
-// 3. SEARCH AND FILTER LOGIC (Existing)
-$search_query = "";
-$role_filter = "";
+// --- 3. SEARCH, FILTER & PAGINATION ---
+$search_query = trim($_GET['search'] ?? '');
+$role_filter = $_GET['role_filter'] ?? '';
+$page = isset($_GET['page']) ? (int)$_GET['page'] : 1;
+$limit = 10;
+$offset = ($page - 1) * $limit;
 
+// Build WHERE
 $placeholders = implode(',', array_fill(0, count($protected_usernames), '?'));
 $where_clauses = ["username NOT IN ($placeholders)"];
 $params = $protected_usernames; 
 $types = str_repeat('s', count($protected_usernames));
 
-if (isset($_GET['search']) && !empty(trim($_GET['search']))) {
-    $search_query = trim($_GET['search']);
+if (!empty($search_query)) {
     $where_clauses[] = "(username LIKE ? OR Fullname LIKE ? OR Email LIKE ?)";
     $like_term = "%" . $search_query . "%";
     $params[] = $like_term; $params[] = $like_term; $params[] = $like_term;
     $types .= "sss";
 }
 
-if (isset($_GET['role_filter']) && !empty($_GET['role_filter'])) {
-    $role_filter = $_GET['role_filter'];
+if (!empty($role_filter)) {
     $where_clauses[] = "User_Type = ?";
     $params[] = $role_filter;
     $types .= "s";
 }
 
-$sql = "SELECT id, username, Fullname, User_Type, Email FROM users WHERE " . implode(" AND ", $where_clauses) . " ORDER BY User_Type ASC, username ASC";
+$where_sql = implode(" AND ", $where_clauses);
+
+// Count
+$count_sql = "SELECT COUNT(*) as total FROM users WHERE $where_sql";
+$stmt = $conn->prepare($count_sql);
+if (!empty($params)) $stmt->bind_param($types, ...$params);
+$stmt->execute();
+$total_rows = $stmt->get_result()->fetch_assoc()['total'];
+$total_pages = ceil($total_rows / $limit);
+$stmt->close();
+
+// Fetch Data
+$sql = "SELECT id, username, Fullname, User_Type, Email FROM users WHERE $where_sql ORDER BY User_Type ASC, username ASC LIMIT ? OFFSET ?";
+$params[] = $limit;
+$params[] = $offset;
+$types .= "ii";
 
 $users = [];
-if ($stmt = $conn->prepare($sql)) {
-    if (!empty($params)) {
-        $stmt->bind_param($types, ...$params);
-    }
-    $stmt->execute();
-    $result = $stmt->get_result();
-    if ($result) {
-        while($row = $result->fetch_assoc()) {
-            $users[] = $row;
-        }
-    }
-    $stmt->close();
+$stmt = $conn->prepare($sql);
+if (!empty($params)) $stmt->bind_param($types, ...$params);
+$stmt->execute();
+$result = $stmt->get_result();
+if ($result) while($row = $result->fetch_assoc()) $users[] = $row;
+$stmt->close();
+
+function getQueryLink($newPage) {
+    global $search_query, $role_filter;
+    return "?page=$newPage&search=" . urlencode($search_query) . "&role_filter=" . urlencode($role_filter);
 }
 ?>
-
 <!doctype html>
 <html lang="en">
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<title>Manage Users — Admin</title>
-<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+<title>Manage Users</title>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
 <style>
-  :root{
-    --primary: #2563eb; --primary-dark: #1d4ed8; --primary-light: #dbeafe;
-    --success: #059669; --danger: #dc2626;
-    --gray-50: #f9fafb; --gray-100: #f3f4f6; --gray-200: #e5e7eb; --gray-300: #d1d5db;
-    --gray-600: #4b5563; --gray-700: #374151; --gray-800: #1f2937;
-    --shadow-sm: 0 4px 12px rgba(18, 38, 63, 0.08); --shadow-md: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
-    --nav-height: 80px;
-  }
-  *{box-sizing:border-box}
-  body{ font-family: 'Inter', system-ui, sans-serif; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); margin:0; min-height:100vh; display:flex; }
-  
-  /* Navbar & Layout */
-  .nav-bar { background: white; padding: 16px 24px; box-shadow: var(--shadow-md); position: fixed; top: 0; left: 0; right: 0; z-index: 1000; height: 80px; display: flex; align-items: center; }
-  .nav-logo { height:50px; }
-  .layout { width: 100%; max-width: 2000px; padding: 24px; gap: 24px; margin: 100px auto 0; display: flex; align-items: flex-start; }
-  
-  /* Sidebar */
-  .sidebar { width: 260px; background: white; border-radius: 12px; padding: 20px; box-shadow: var(--shadow-sm); z-index: 100; flex-shrink: 0; position: sticky; top: 100px; }
-  .sidebar-menu { list-style:none; padding:0; margin:0; }
-  .sidebar-menu a { display:flex; align-items:center; gap:12px; padding:12px 16px; border-radius:8px; text-decoration:none; color:var(--gray-700); font-size:14px; font-weight:500; margin-bottom:8px; }
-  .sidebar-menu a:hover { background:var(--gray-100); color:var(--primary); }
-  .sidebar-menu a.active { background:var(--primary-light); color:var(--primary); font-weight:600; }
-  .sidebar-profile { margin-top:20px; padding-top:20px; border-top:1px solid var(--gray-200); display:flex; gap:12px; align-items:center; }
-  .profile-icon { width:36px; height:36px; background:var(--primary-light); color:var(--primary); border-radius:50%; display:flex; align-items:center; justify-content:center; font-weight:700; }
-  
-  /* Main */
-  .main { flex:1; min-width:0; }
-  .header-card { background: white; border-radius: 12px; padding: 24px 32px; margin-bottom: 24px; box-shadow: var(--shadow-md); display: flex; justify-content: space-between; align-items: center; }
-  .header-title h1 { font-size: 24px; font-weight: 700; margin: 0; color: var(--gray-800); }
-  .header-badge { background: var(--primary-light); color: var(--primary); padding: 4px 12px; border-radius: 20px; font-size: 12px; font-weight: 600; text-transform: uppercase; }
-  .card { background:#fff; border-radius:12px; padding:24px; box-shadow: var(--shadow-sm); }
+:root { 
+    --utm-maroon: #800000;
+    --utm-maroon-light: #a31313;
+    --bg-light: #f9fafb;
+    --text-primary: #1e293b;
+    --text-secondary: #64748b;
+    --border: #e2e8f0;
+    --nav-height: 70px;
+}
+* { box-sizing: border-box; margin: 0; padding: 0; }
+body { font-family: 'Inter', sans-serif; background: var(--bg-light); min-height: 100vh; color: var(--text-primary); }
 
-  /* Alerts */
-  .alert { padding: 14px 18px; margin-bottom: 20px; border-radius: 8px; font-weight: 500; }
-  .alert-success { background: #d1fae5; color: #065f46; border-left: 4px solid var(--success); }
-  .alert-error { background: #fee2e2; color: #991b1b; border-left: 4px solid var(--danger); }
+/* Standard UI Components */
+.nav-bar { position: fixed; top: 0; left: 0; right: 0; height: var(--nav-height); background: white; display: flex; align-items: center; justify-content: space-between; padding: 0 24px; box-shadow: 0 1px 3px rgba(0,0,0,0.1); z-index: 1000; border-bottom: 1px solid var(--border); }
+.nav-left { display: flex; align-items: center; gap: 16px; }
+.nav-logo { height: 50px; }
+.nav-title h1 { font-size: 16px; font-weight: 700; color: var(--utm-maroon); margin: 0; }
+.nav-title p { font-size: 11px; color: var(--text-secondary); margin: 0; }
+.btn-logout { text-decoration: none; color: var(--text-secondary); font-size: 13px; font-weight: 500; padding: 8px 12px; border-radius: 6px; transition: 0.2s; }
+.btn-logout:hover { background: #fef2f2; color: var(--utm-maroon); }
 
-  /* Controls */
-  .top-controls { display:flex; gap:12px; align-items:center; justify-content:space-between; flex-wrap:wrap; margin-bottom:20px; padding-bottom: 16px; border-bottom: 2px solid var(--gray-200); }
-  .search-input { padding:10px 14px; border-radius:8px; border:2px solid var(--gray-300); background:#fff; min-width: 250px; }
-  .role-select { padding:10px 12px; border-radius:8px; border:2px solid var(--gray-300); background:#fff; }
-  
-  /* Buttons */
-  .btn { padding:10px 14px; border-radius:8px; border:0; cursor:pointer; font-weight:700; text-decoration: none; display: inline-block; transition:0.2s; }
-  .btn.primary { background:linear-gradient(135deg,var(--primary),var(--primary-dark)); color:#fff; }
-  .btn.primary:hover { transform:translateY(-2px); box-shadow:0 4px 12px rgba(37,99,235,0.3); }
-  .btn.outline { background:#fff; border:2px solid var(--gray-300); color:var(--gray-700); }
-  .btn.danger { background:linear-gradient(135deg,var(--danger),#b91c1c); color:white; }
+.layout { display: flex; margin-top: var(--nav-height); min-height: calc(100vh - var(--nav-height)); }
+.sidebar { width: 260px; background: white; border-right: 1px solid var(--border); padding: 24px; flex-shrink: 0; position: sticky; top: var(--nav-height); height: calc(100vh - var(--nav-height)); display: flex; flex-direction: column; }
+.sidebar-title { font-size: 11px; font-weight: 700; text-transform: uppercase; color: var(--text-secondary); letter-spacing: 0.5px; margin-bottom: 16px; }
+.sidebar-menu { list-style: none; flex: 1; padding: 0; }
+.sidebar-menu li { margin-bottom: 4px; }
+.sidebar-menu a { display: flex; align-items: center; gap: 12px; padding: 10px 12px; border-radius: 6px; text-decoration: none; color: var(--text-primary); font-size: 14px; font-weight: 500; transition: all 0.2s; }
+.sidebar-menu a:hover { background: var(--bg-light); color: var(--utm-maroon); }
+.sidebar-menu a.active { background: #fef2f2; color: var(--utm-maroon); font-weight: 600; }
+.sidebar-menu a i { width: 20px; text-align: center; }
+.sidebar-profile { margin-top: auto; padding-top: 16px; border-top: 1px solid var(--border); display: flex; align-items: center; gap: 12px; }
+.profile-icon { width: 36px; height: 36px; background: #f3f4f6; color: var(--utm-maroon); border-radius: 50%; display: flex; align-items: center; justify-content: center; font-weight: 700; }
+.profile-info { font-size: 13px; overflow: hidden; }
+.profile-name { font-weight: 600; white-space: nowrap; text-overflow: ellipsis; }
+.profile-email { font-size: 11px; color: var(--text-secondary); white-space: nowrap; text-overflow: ellipsis; }
 
-  /* Table */
-  .table-wrap { overflow: auto; border-radius:10px; border:1px solid var(--gray-200); position: relative; }
-  table.grid { width:100%; border-collapse:collapse; min-width:980px; background:#fff; }
-  table.grid th, table.grid td { padding:12px 10px; border-bottom:1px solid var(--gray-100); text-align:left; vertical-align:middle; }
-  table.grid thead th { background: var(--gray-50); font-weight:700; font-size:12px; text-transform:uppercase; position: sticky; top: 0; z-index: 10; }
-  
-  /* Inline Forms */
-  .role-select-inline { padding: 6px 10px; border-radius: 6px; border: 2px solid var(--gray-300); font-size: 13px; font-weight: 500; }
-  .actions { display: flex; gap: 8px; align-items: center; }
-  .btn-update { background:#10b981; color:#fff; padding:8px 12px; border-radius:8px; border:0; cursor:pointer; font-weight:700; }
-  .btn-delete { background:#ef4444; color:#fff; padding:8px 12px; border-radius:8px; border:0; cursor:pointer; font-weight:700; }
-  .badge-protected { background:#fef3c7; color:#92400e; padding:6px 10px; border-radius:8px; font-weight:700; font-size:13px; }
+.main-content { flex: 1; padding: 32px; min-width: 0; }
+.page-header { margin-bottom: 24px; display: flex; justify-content: space-between; align-items: end; }
+.page-title h2 { font-size: 24px; font-weight: 700; color: var(--utm-maroon); margin: 0; }
+.page-title p { color: var(--text-secondary); font-size: 14px; margin: 4px 0 0 0; }
 
-  /* MODAL CSS */
-  .modal-overlay { position: fixed; top:0; left:0; right:0; bottom:0; background: rgba(0,0,0,0.5); z-index: 2000; display: none; align-items: center; justify-content: center; backdrop-filter: blur(4px); }
-  .modal-overlay.active { display: flex; }
-  .modal-box { background: white; width: 100%; max-width: 500px; border-radius: 16px; padding: 24px; box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.25); animation: slideUp 0.3s ease; }
-  @keyframes slideUp { from { transform: translateY(20px); opacity: 0; } to { transform: translateY(0); opacity: 1; } }
-  .form-group { margin-bottom: 16px; }
-  .form-label { display: block; margin-bottom: 8px; font-weight: 600; font-size: 14px; color: var(--gray-700); }
-  .form-control { width: 100%; padding: 12px; border: 2px solid var(--gray-200); border-radius: 8px; font-size: 14px; transition: border-color 0.2s; }
-  .form-control:focus { outline:none; border-color:var(--primary); }
-  .modal-header { display: flex; justify-content: space-between; align-items:center; margin-bottom: 24px; }
-  .modal-title { font-size: 20px; font-weight: 700; margin:0; color:var(--gray-800); }
-  .close-btn { background: none; border: none; font-size: 24px; cursor: pointer; color: var(--gray-600); }
+.card { background: white; border-radius: 12px; box-shadow: 0 1px 2px rgba(0,0,0,0.05); border: 1px solid var(--border); padding: 24px; }
+.filters-container { display: flex; gap: 12px; margin-bottom: 24px; flex-wrap: wrap; align-items: center; border-bottom: 1px solid var(--border); padding-bottom: 20px; }
+.search-input { padding: 10px 14px; border: 1px solid var(--border); border-radius: 8px; width: 300px; font-size: 14px; outline: none; }
+.role-select { padding: 10px 14px; border: 1px solid var(--border); border-radius: 8px; font-size: 14px; outline: none; background: white; }
+.search-input:focus, .role-select:focus { border-color: var(--utm-maroon); }
 
-  @media (max-width:1200px) { .sidebar { display:none; } .layout { display:block; } }
+.btn { padding: 10px 16px; border-radius: 8px; border: 1px solid var(--border); background: white; color: var(--text-primary); font-weight: 600; cursor: pointer; font-size: 13px; transition: 0.2s; display: inline-flex; align-items: center; gap: 6px; text-decoration: none; }
+.btn:hover { border-color: var(--utm-maroon); color: var(--utm-maroon); }
+.btn-primary { background: var(--utm-maroon); color: white; border-color: var(--utm-maroon); }
+.btn-primary:hover { background: var(--utm-maroon-light); color: white; border-color: var(--utm-maroon-light); }
+.btn-sm { padding: 6px 12px; font-size: 12px; }
+.btn-delete { background: #fee2e2; color: #991b1b; border-color: #fecaca; }
+.btn-update { background: #dcfce7; color: #166534; border-color: #bbf7d0; }
+
+.alert { padding: 12px 16px; border-radius: 8px; margin-bottom: 20px; font-size: 14px; font-weight: 500; display: flex; align-items: center; gap: 10px; }
+.alert-success { background: #f0fdf4; color: #15803d; border: 1px solid #bbf7d0; }
+.alert-error { background: #fef2f2; color: #b91c1c; border: 1px solid #fecaca; }
+
+.table-wrap { overflow-x: auto; border: 1px solid var(--border); border-radius: 8px; }
+.table { width: 100%; border-collapse: collapse; min-width: 900px; }
+.table th, .table td { padding: 16px; text-align: left; border-bottom: 1px solid var(--border); vertical-align: middle; }
+.table th { background: #f8fafc; font-weight: 600; font-size: 12px; text-transform: uppercase; color: var(--text-secondary); letter-spacing: 0.5px; }
+.role-select-inline { padding: 6px; border-radius: 6px; border: 1px solid var(--border); font-size: 13px; margin-right: 6px; }
+
+.pagination { display: flex; align-items: center; justify-content: space-between; padding-top: 20px; border-top: 1px solid var(--border); margin-top: 20px; }
+.page-info { font-size: 13px; color: var(--text-secondary); }
+.page-nav { display: flex; gap: 6px; }
+.page-link { padding: 6px 12px; border: 1px solid var(--border); border-radius: 6px; font-size: 13px; text-decoration: none; color: var(--text-primary); }
+.page-link:hover { border-color: var(--utm-maroon); color: var(--utm-maroon); }
+.page-link.active { background: var(--utm-maroon); color: white; border-color: var(--utm-maroon); }
+
+/* Modal */
+.modal { position: fixed; inset: 0; background: rgba(0,0,0,0.5); display: none; align-items: center; justify-content: center; z-index: 2000; backdrop-filter: blur(2px); }
+.modal.show { display: flex; }
+.modal-content { background: white; width: 95%; max-width: 500px; border-radius: 12px; box-shadow: 0 20px 25px -5px rgba(0,0,0,0.1); padding: 24px; animation: popIn 0.2s ease-out; }
+.modal-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; border-bottom: 1px solid var(--border); padding-bottom: 16px; }
+.modal-header h3 { margin: 0; font-size: 18px; color: var(--utm-maroon); font-weight: 700; }
+.btn-close { background: none; border: none; font-size: 24px; color: var(--text-secondary); cursor: pointer; }
+.form-group { margin-bottom: 16px; }
+.form-label { display: block; font-size: 13px; font-weight: 600; margin-bottom: 6px; color: var(--text-primary); }
+.form-control, .form-select { width: 100%; padding: 10px; border: 1px solid var(--border); border-radius: 8px; font-size: 14px; outline: none; }
+.form-control:focus { border-color: var(--utm-maroon); }
+
+@keyframes popIn { from { transform: scale(0.95); opacity: 0; } to { transform: scale(1); opacity: 1; } }
+@media (max-width: 1024px) { .sidebar { display: none; } .main-content { margin-left: 0; } }
 </style>
 </head>
 <body>
 
 <nav class="nav-bar">
-  <img class="nav-logo" src="../assets/images/utmlogo.png" alt="UTM Logo">
+    <div class="nav-left">
+        <img class="nav-logo" src="../assets/images/utmlogo.png" alt="UTM Logo">
+        <div class="nav-title">
+            <h1>Room Booking System</h1>
+            <p>Admin Dashboard</p>
+        </div>
+    </div>
+    <a href="../auth/logout.php" class="btn-logout"><i class="fa-solid fa-right-from-bracket"></i> Logout</a>
 </nav>
 
 <div class="layout">
-  <aside class="sidebar">
-    <div style="font-weight:700; color:#666; margin-bottom:16px; text-transform:uppercase; font-size:12px;">Main Menu</div>
-    <ul class="sidebar-menu">
-      <li><a href="index-admin.php">Dashboard</a></li>
-      <li><a href="reservation_request.php">Reservation Request</a></li>
-      <li><a href="admin_timetable.php">Regular Timetable</a></li>
-      <li><a href="admin_recurring.php">Recurring Templates</a></li>
-      <li><a href="manage_users.php" class="active">Manage Users</a></li>
-      <li><a href="admin_logbook.php">Logbook</a></li>
-      <li><a href="generate_reports.php">Generate Reports</a></li>
-      <li><a href="admin_problems.php">Room Problems</a></li>
-    </ul>
-    <div class="sidebar-profile">
-      <div class="profile-icon"><?php echo strtoupper(substr($admin_name,0,1)); ?></div>
-      <div style="font-size:13px;">
-        <div style="font-weight:600;"><?php echo htmlspecialchars($admin_name); ?></div>
-        <div style="font-size:11px; color:#666;">SuperAdmin</div>
-      </div>
-    </div>
-  </aside>
-
-  <div class="main">
-    <div class="header-card">
-      <div class="header-title">
-        <h1>User Management</h1>
-        <span class="header-badge">Admin</span>
-      </div>
-    </div>
-
-    <div class="card">
-      <?php if ($message): ?>
-        <div class="alert alert-success" id="flashMsg"><?php echo htmlspecialchars($message); ?></div>
-      <?php endif; ?>
-      <?php if ($error): ?>
-        <div class="alert alert-error" id="flashMsg"><?php echo htmlspecialchars($error); ?></div>
-      <?php endif; ?>
-
-      <form method="GET" class="top-controls">
-        <div style="display:flex; gap:10px; width:100%;">
-          <input type="text" name="search" class="search-input" placeholder="Search by name, username, or email..." value="<?php echo htmlspecialchars($search_query); ?>" style="flex-grow:1;">
-          <select name="role_filter" class="role-select">
-            <option value="">All Roles</option>
-            <option value="Admin" <?php if($role_filter == 'Admin') echo 'selected'; ?>>Admin</option>
-            <option value="Technician" <?php if($role_filter == 'Technician') echo 'selected'; ?>>Technician</option>
-            <option value="Lecturer" <?php if($role_filter == 'Lecturer') echo 'selected'; ?>>Lecturer</option>
-            <option value="Staff" <?php if($role_filter == 'Staff') echo 'selected'; ?>>Staff</option>
-            <option value="Student" <?php if($role_filter == 'Student') echo 'selected'; ?>>Student</option>
-          </select>
-          <button type="submit" class="btn primary">Search</button>
-              <?php if (!empty($search_query) || !empty($role_filter)): ?>
-                <a href="manage_users.php" class="btn outline">Reset</a>
-              <?php endif; ?>
-            </div>
-          <button type="button" onclick="openModal()" class="btn primary" style="display:flex; align-items:center; gap:8px;">
-            <span>+</span> Create User
-          </button>
-      </form>
-
-      <div class="table-wrap">
-        <table class="grid">
-          <thead>
-            <tr>
-              <th>ID</th>
-              <th>Full Name</th>
-              <th>Username</th>
-              <th>Email</th>
-              <th>Role</th>
-              <th>Actions</th>
-            </tr>
-          </thead>
-          <tbody>
-            <?php if (count($users) > 0): ?>
-              <?php foreach ($users as $user): ?>
-              <?php $is_protected = in_array(strtolower($user['username']), $protected_usernames); ?>
-              <tr>
-                <td><?php echo htmlspecialchars($user['id']); ?></td>
-                <td><?php echo htmlspecialchars($user['Fullname']); ?></td>
-                <td><?php echo htmlspecialchars($user['username']); ?></td>
-                <td><?php echo htmlspecialchars($user['Email']); ?></td>
-                <td>
-                  <?php if ($is_protected): ?>
-                    <span class="badge-protected">Protected</span>
-                  <?php else: ?>
-                    <?php echo htmlspecialchars($user['User_Type']); ?>
-                  <?php endif; ?>
-                </td>
-                <td>
-                  <div class="actions">
-                    <form method="POST" style="display:inline-flex;gap:8px;margin:0;" onsubmit="return confirmRoleChange(this);">
-                      <input type="hidden" name="user_id" value="<?php echo $user['id']; ?>">
-                      <select name="new_role" class="role-select-inline" <?php echo $is_protected ? 'disabled' : ''; ?>>
-                        <option value="Admin" <?php echo ($user['User_Type'] == 'Admin') ? 'selected' : ''; ?>>Admin</option>
-                        <option value="Technician" <?php echo ($user['User_Type'] == 'Technician') ? 'selected' : ''; ?>>Technician</option>
-                        <option value="Lecturer" <?php echo ($user['User_Type'] == 'Lecturer') ? 'selected' : ''; ?>>Lecturer</option>
-                        <option value="Staff" <?php echo ($user['User_Type'] == 'Staff') ? 'selected' : ''; ?>>Staff</option>
-                        <option value="Student" <?php echo ($user['User_Type'] == 'Student') ? 'selected' : ''; ?>>Student</option>
-                      </select>
-                      <button type="submit" class="btn-update" <?php echo $is_protected ? 'disabled' : ''; ?>>Update</button>
-                    </form>
-
-                    <form method="POST" style="display:inline;margin:0;" onsubmit="return confirmDelete(this);">
-                      <input type="hidden" name="delete_user_id" value="<?php echo $user['id']; ?>">
-                      <button type="submit" class="btn-delete" <?php echo ($is_protected || $user['id'] == $_SESSION['id']) ? 'disabled' : ''; ?>>Delete</button>
-                    </form>
-                  </div>
-                </td>
-              </tr>
-              <?php endforeach; ?>
-            <?php else: ?>
-              <tr><td colspan="6" style="text-align:center;padding:30px;color:var(--gray-600)">No users found.</td></tr>
+    <aside class="sidebar">
+        <div class="sidebar-title">Main Menu</div>
+        <ul class="sidebar-menu">
+            <li><a href="index-admin.php"><i class="fa-solid fa-gauge-high"></i> Dashboard</a></li>
+            <?php if (!$isTechAdmin): ?>
+            <li><a href="reservation_request.php"><i class="fa-solid fa-inbox"></i> Requests</a></li>
             <?php endif; ?>
-          </tbody>
-        </table>
-      </div>
-      <div style="margin-top:20px; color:#666; font-size:13px; font-style:italic;">* Protected accounts cannot be modified here.</div>
-    </div>
-  </div>
+            <li><a href="admin_timetable.php"><i class="fa-solid fa-calendar-days"></i> Timetable</a></li>
+            <?php if (!$isTechAdmin): ?>
+            <li><a href="admin_recurring.php"><i class="fa-solid fa-rotate"></i> Recurring</a></li>
+            <?php endif; ?>
+            <li><a href="admin_logbook.php"><i class="fa-solid fa-book"></i> Logbook</a></li>
+            <li><a href="generate_reports.php"><i class="fa-solid fa-chart-pie"></i> Reports</a></li>
+            <li><a href="admin_problems.php"><i class="fa-solid fa-triangle-exclamation"></i> Problems</a></li>
+            
+            <?php if ($isSuperAdmin || $isTechAdmin): ?>
+            <li><a href="manage_users.php" class="active"><i class="fa-solid fa-users-gear"></i> Users</a></li>
+            <?php endif; ?>
+        </ul>
+        <div class="sidebar-profile">
+            <div class="profile-icon"><?php echo strtoupper(substr($admin_name, 0, 1)); ?></div>
+            <div class="profile-info">
+                <div class="profile-name"><?php echo htmlspecialchars($admin_name); ?></div>
+                <div class="profile-email"><?php echo htmlspecialchars($admin_email); ?></div>
+            </div>
+        </div>
+    </aside>
+
+    <main class="main-content">
+        <div class="page-header">
+            <div class="page-title">
+                <h2>User Management</h2>
+                <p>Create and manage system users.</p>
+            </div>
+            <button class="btn btn-primary" onclick="openModal()">
+                <i class="fa-solid fa-user-plus"></i> Create User
+            </button>
+        </div>
+
+        <div class="card">
+            <?php if ($message): ?>
+                <div class="alert alert-success" id="flashMsg"><i class="fa-solid fa-check-circle"></i> <?php echo htmlspecialchars($message); ?></div>
+            <?php endif; ?>
+            <?php if ($error): ?>
+                <div class="alert alert-error" id="flashMsg"><i class="fa-solid fa-circle-exclamation"></i> <?php echo htmlspecialchars($error); ?></div>
+            <?php endif; ?>
+
+            <form method="GET" class="filters-container">
+                <input type="text" name="search" class="search-input" placeholder="Search users..." value="<?php echo htmlspecialchars($search_query); ?>">
+                <select name="role_filter" class="role-select">
+                    <option value="">All Roles</option>
+                    <option value="Admin" <?php if($role_filter == 'Admin') echo 'selected'; ?>>Admin</option>
+                    <option value="Technician" <?php if($role_filter == 'Technician') echo 'selected'; ?>>Technician</option>
+                    <option value="Lecturer" <?php if($role_filter == 'Lecturer') echo 'selected'; ?>>Lecturer</option>
+                    <option value="Staff" <?php if($role_filter == 'Staff') echo 'selected'; ?>>Staff</option>
+                    <option value="Student" <?php if($role_filter == 'Student') echo 'selected'; ?>>Student</option>
+                </select>
+                <button type="submit" class="btn btn-primary">Search</button>
+                <?php if (!empty($search_query) || !empty($role_filter)): ?>
+                    <a href="manage_users.php" class="btn">Reset</a>
+                <?php endif; ?>
+            </form>
+
+            <div class="table-wrap">
+                <table class="table">
+                    <thead>
+                        <tr>
+                            <th>ID</th>
+                            <th>Full Name</th>
+                            <th>Username</th>
+                            <th>Email</th>
+                            <th>Role</th>
+                            <?php if ($isSuperAdmin): ?>
+                            <th>Actions</th>
+                            <?php endif; ?>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <?php if (count($users) > 0): ?>
+                            <?php foreach ($users as $user): ?>
+                            <?php $is_protected = in_array(strtolower($user['username']), $protected_usernames); ?>
+                            <tr>
+                                <td>#<?php echo htmlspecialchars($user['id']); ?></td>
+                                <td style="font-weight:600; color:var(--text-primary);"><?php echo htmlspecialchars($user['Fullname']); ?></td>
+                                <td><?php echo htmlspecialchars($user['username']); ?></td>
+                                <td style="color:var(--text-secondary);"><?php echo htmlspecialchars($user['Email']); ?></td>
+                                <td>
+                                    <?php if ($is_protected): ?>
+                                        <span class="badge-protected"><i class="fa-solid fa-lock"></i> Protected</span>
+                                    <?php else: ?>
+                                        <?php echo htmlspecialchars($user['User_Type']); ?>
+                                    <?php endif; ?>
+                                </td>
+                                
+                                <?php if ($isSuperAdmin): ?>
+                                <td>
+                                    <div style="display:flex; gap:8px; align-items:center;">
+                                        <form method="POST" style="display:inline-flex; align-items:center;" onsubmit="return confirmRoleChange(this);">
+                                            <input type="hidden" name="user_id" value="<?php echo $user['id']; ?>">
+                                            <select name="new_role" class="role-select-inline" <?php echo $is_protected ? 'disabled' : ''; ?>>
+                                                <option value="Admin" <?php echo ($user['User_Type'] == 'Admin') ? 'selected' : ''; ?>>Admin</option>
+                                                <option value="Technician" <?php echo ($user['User_Type'] == 'Technician') ? 'selected' : ''; ?>>Technician</option>
+                                                <option value="Lecturer" <?php echo ($user['User_Type'] == 'Lecturer') ? 'selected' : ''; ?>>Lecturer</option>
+                                                <option value="Staff" <?php echo ($user['User_Type'] == 'Staff') ? 'selected' : ''; ?>>Staff</option>
+                                                <option value="Student" <?php echo ($user['User_Type'] == 'Student') ? 'selected' : ''; ?>>Student</option>
+                                            </select>
+                                            <button type="submit" class="btn btn-sm btn-update" <?php echo $is_protected ? 'disabled style="opacity:0.5; cursor:not-allowed;"' : ''; ?>>
+                                                <i class="fa-solid fa-rotate"></i>
+                                            </button>
+                                        </form>
+
+                                        <form method="POST" style="display:inline;" onsubmit="return confirmDelete(this);">
+                                            <input type="hidden" name="delete_user_id" value="<?php echo $user['id']; ?>">
+                                            <button type="submit" class="btn btn-sm btn-delete" <?php echo ($is_protected || $user['id'] == $_SESSION['id']) ? 'disabled style="opacity:0.5; cursor:not-allowed;"' : ''; ?>>
+                                                <i class="fa-solid fa-trash"></i>
+                                            </button>
+                                        </form>
+                                    </div>
+                                </td>
+                                <?php endif; ?> </tr>
+                            <?php endforeach; ?>
+                        <?php else: ?>
+                            <tr><td colspan="<?php echo $isSuperAdmin ? '6' : '5'; ?>" style="text-align:center; padding:32px; color:var(--text-secondary);">No users found.</td></tr>
+                        <?php endif; ?>
+                    </tbody>
+                </table>
+            </div>
+
+            <?php if ($total_pages > 1): ?>
+            <div class="pagination">
+                <div class="page-info">Showing <?php echo $offset + 1; ?> to <?php echo min($offset + $limit, $total_rows); ?> of <?php echo $total_rows; ?> users</div>
+                <div class="page-nav">
+                    <?php if ($page > 1): ?>
+                        <a href="<?php echo getQueryLink($page - 1); ?>" class="page-link">Previous</a>
+                    <?php endif; ?>
+                    
+                    <?php for($i = max(1, $page-2); $i <= min($total_pages, $page+2); $i++): ?>
+                        <a href="<?php echo getQueryLink($i); ?>" class="page-link <?php echo ($i == $page) ? 'active' : ''; ?>"><?php echo $i; ?></a>
+                    <?php endfor; ?>
+
+                    <?php if ($page < $total_pages): ?>
+                        <a href="<?php echo getQueryLink($page + 1); ?>" class="page-link">Next</a>
+                    <?php endif; ?>
+                </div>
+            </div>
+            <?php endif; ?>
+        </div>
+    </main>
 </div>
 
-<div id="createUserModal" class="modal-overlay">
-  <div class="modal-box">
-    <div class="modal-header">
-      <h3 class="modal-title">Create New User</h3>
-      <button onclick="closeModal()" class="close-btn">&times;</button>
+<div id="createUserModal" class="modal">
+    <div class="modal-content">
+        <div class="modal-header">
+            <h3>Create New User</h3>
+            <button class="btn-close" onclick="closeModal()">&times;</button>
+        </div>
+        <form method="POST">
+            <div class="form-group">
+                <label class="form-label">Full Name</label>
+                <input type="text" name="new_fullname" class="form-control" required placeholder="e.g. Ahmad Ali">
+            </div>
+            <div class="form-group">
+                <label class="form-label">Email Address</label>
+                <input type="email" name="new_email" class="form-control" required placeholder="e.g. ahmad@utm.my">
+                <div style="font-size:11px; color:var(--text-secondary); margin-top:4px;">
+                    <i class="fa-solid fa-circle-info"></i> An activation link will be sent to this email.
+                </div>
+            </div>
+            <div class="form-group">
+                <label class="form-label">Role</label>
+                <?php if ($isTechAdmin): ?>
+                    <input type="text" class="form-control" value="Technician" readonly style="background:#f3f4f6; color:#64748b;">
+                    <input type="hidden" name="new_role" value="Technician">
+                <?php else: ?>
+                    <select name="new_role" class="form-control">
+                        <option value="Admin">Admin</option>
+                        <option value="Technician">Technician</option>
+                        <option value="Lecturer">Lecturer</option>
+                        <option value="Staff">Staff</option>
+                        <option value="Student">Student</option>
+                    </select>
+                <?php endif; ?>
+            </div>
+            <div style="margin-top:24px; text-align:right; border-top:1px solid var(--border); padding-top:16px;">
+                <button type="button" onclick="closeModal()" class="btn">Cancel</button>
+                <button type="submit" name="create_user" class="btn btn-primary" style="margin-left:8px;">Create & Send Email</button>
+            </div>
+        </form>
     </div>
-    <form method="POST">
-      <div class="form-group">
-        <label class="form-label">Full Name</label>
-        <input type="text" name="new_fullname" class="form-control" required placeholder="e.g. Ahmad Technician">
-      </div>
-      <div class="form-group">
-        <label class="form-label">Email Address</label>
-        <input type="email" name="new_email" class="form-control" required placeholder="e.g. tech@utm.my">
-        <small style="color:#666; font-size:12px;">Activation link will be sent to this email.</small>
-      </div>
-      <div class="form-group">
-        <label class="form-label">Role</label>
-        <select name="new_role" class="form-control">
-            <option value="Admin">Admin</option>
-            <option value="Technician">Technician</option>
-        </select>
-      </div>
-      <div style="margin-top:24px; text-align:right;">
-        <button type="button" onclick="closeModal()" class="btn outline" style="margin-right:8px;">Cancel</button>
-        <button type="submit" name="create_user" class="btn primary">Create & Send Email</button>
-      </div>
-    </form>
-  </div>
 </div>
 
 <script>
-// Modal Logic
-function openModal() { document.getElementById('createUserModal').classList.add('active'); }
-function closeModal() { document.getElementById('createUserModal').classList.remove('active'); }
+function openModal() { document.getElementById('createUserModal').classList.add('show'); }
+function closeModal() { document.getElementById('createUserModal').classList.remove('show'); }
 
-// Click outside to close
-document.getElementById('createUserModal').addEventListener('click', function(e) {
-  if (e.target === this) closeModal();
-});
+window.onclick = function(event) {
+    var modal = document.getElementById('createUserModal');
+    if (event.target == modal) closeModal();
+}
 
-// Existing Alerts fade out
 window.addEventListener('DOMContentLoaded', () => {
-  const flash = document.getElementById('flashMsg');
-  if (flash) {
-    setTimeout(() => {
-      flash.style.transition = 'opacity 0.6s ease';
-      flash.style.opacity = '0';
-      setTimeout(() => flash.remove(), 700);
-    }, 3500);
-  }
+    const flash = document.getElementById('flashMsg');
+    if (flash) {
+        setTimeout(() => {
+            flash.style.transition = 'opacity 0.6s ease';
+            flash.style.opacity = '0';
+            setTimeout(() => flash.remove(), 700);
+        }, 3500);
+    }
 });
 
 function confirmRoleChange(form) {
-  const select = form.querySelector('select[name="new_role"]');
-  if (!select) return true;
-  const newRole = select.value;
-  return confirm('Change role to "' + newRole + '"?');
+    const select = form.querySelector('select[name="new_role"]');
+    if (!select) return true;
+    return confirm('Change user role to "' + select.value + '"?');
 }
 
 function confirmDelete(form) {
-  return confirm('WARNING: Are you sure you want to delete this user? This action cannot be undone.');
+    return confirm('WARNING: Are you sure you want to delete this user?');
 }
 </script>
-
 </body>
 </html>

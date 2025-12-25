@@ -2,24 +2,32 @@
 /**
  * generate_reports_action.php
  * Generates various reports in PDF, Excel (CSV), and PowerPoint (PPTX) formats
- * 
- * =====================================================================
- * IMPLEMENTED REPORTS:
- * =====================================================================
- * 1. Booking Summary Report (PDF, Excel, PPTX)
- * 2. Room Usage Report      (PDF, Excel, PPTX)
- * 3. User Activity Report   (PDF, Excel, PPTX)
- * 4. Admin Log Report       (PDF, Excel, PPTX)
- * =====================================================================
  */
 
 session_start();
 require_once __DIR__ . '/../includes/db_connect.php';
 
-// Security check - Admin only
-if (!isset($_SESSION['loggedin']) || strcasecmp($_SESSION['User_Type'], 'Admin') !== 0) {
+// --- FIXED ACCESS CONTROL ---
+// 1. Get User Details
+$uType = trim($_SESSION['User_Type'] ?? '');
+$admin_id = $_SESSION['User_ID'] ?? $_SESSION['id'] ?? null;
+$username = $_SESSION['username'] ?? '';
+
+// 2. Define Roles
+$isTechAdmin  = (strcasecmp($uType, 'Technical Admin') === 0);
+$isSuperAdmin = (strcasecmp($uType, 'SuperAdmin') === 0 || strtolower($username) === 'superadmin');
+$isAdmin      = (strcasecmp($uType, 'Admin') === 0);
+
+// 3. Check Allowed (Admin OR Tech Admin OR SuperAdmin)
+$allowed = ($isAdmin || $isTechAdmin || $isSuperAdmin);
+
+if (!$admin_id || !$allowed) {
+    // Send a 403 Forbidden header to let the browser know it failed
+    http_response_code(403);
     exit("Access Denied");
 }
+
+// --- END OF FIX ---
 
 $report = $_GET['report'] ?? '';
 $format = $_GET['format'] ?? '';
@@ -83,10 +91,52 @@ $endDateFormatted = date('d M Y', strtotime($endDate));
 $dateRangeDisplay = "Data from: $startDateFormatted – $endDateFormatted";
 
 // Include FPDF for PDF generation
+// Note: Ensure this path is correct for your server setup
 require_once(__DIR__ . '/../libs/fpdf/fpdf.php');
 
 /* =====================================================================
+   HELPER: Show Styled Error Card
+   ===================================================================== */
+function showErrorAndExit($message, $title = "System Alert") {
+    // Clean any previous output so the HTML renders cleanly
+    if (ob_get_level()) ob_end_clean();
+    ?>
+    <!DOCTYPE html>
+    <html lang="en">
+    <head>
+        <meta charset="UTF-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1.0">
+        <title><?php echo htmlspecialchars($title); ?></title>
+        <style>
+            body { background: #f0f2f5; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; display: flex; align-items: center; justify-content: center; height: 100vh; margin: 0; }
+            .card { background: white; padding: 2rem; border-radius: 12px; box-shadow: 0 4px 12px rgba(0,0,0,0.1); max-width: 400px; text-align: center; border-left: 5px solid #e74c3c; }
+            .card h1 { margin-top: 0; color: #e74c3c; font-size: 1.5rem; }
+            .card p { color: #555; line-height: 1.6; margin-bottom: 1.5rem; }
+            .btn { display: inline-block; background: #34495e; color: white; text-decoration: none; padding: 10px 20px; border-radius: 6px; font-weight: bold; transition: background 0.3s; }
+            .btn:hover { background: #2c3e50; }
+        </style>
+    </head>
+    <body>
+        <div class="card">
+            <h1>⚠ <?php echo htmlspecialchars($title); ?></h1>
+            <p><?php echo htmlspecialchars($message); ?></p>
+            <a href="javascript:history.back()" class="btn">Go Back</a>
+        </div>
+    </body>
+    </html>
+    <?php
+    exit;
+}
+
+// EXAMPLE USAGE IN YOUR CODE (REPLACE YOUR EXITS):
+// if (!$allowed) showErrorAndExit("You do not have permission to access this report.", "Access Denied");
+// if (!in_array($format, $allowedFormats)) showErrorAndExit("Unsupported File Format. Allowed: pdf, excel, ppt", "Invalid Format");
+
+/* =====================================================================
    HELPER: Base PDF Class with common header/footer
+   ===================================================================== */
+/* =====================================================================
+   HELPER: Base PDF Class with Pie Chart Support
    ===================================================================== */
 class ReportPDF extends FPDF {
     public $reportTitle = 'Report';
@@ -94,69 +144,250 @@ class ReportPDF extends FPDF {
     public $dateRange = '';
     public $headers = [];
     public $colWidths = [];
-    
+
     function Header() {
-        // Logo placeholder
-        $this->SetFont('Arial', 'B', 16);
-        $this->Cell(0, 10, $this->reportTitle, 0, 1, 'C');
-        $this->SetFont('Arial', '', 10);
-        $this->Cell(0, 6, "Generated: " . date('Y-m-d H:i:s'), 0, 1, 'C');
-        
-        // Add period info
-        if (!empty($this->periodLabel)) {
-            $this->SetFont('Arial', 'B', 10);
-            $this->SetTextColor(37, 99, 235); // Primary blue
-            $this->Cell(0, 6, "Report Period: " . $this->periodLabel, 0, 1, 'C');
-            $this->SetFont('Arial', '', 9);
-            $this->SetTextColor(100, 100, 100);
-            $this->Cell(0, 5, $this->dateRange, 0, 1, 'C');
-            $this->SetTextColor(0, 0, 0);
-        }
-        $this->Ln(5);
-        
-        // Table header
-        if (!empty($this->headers)) {
-            $this->SetFont('Arial', 'B', 9);
-            $this->SetFillColor(52, 73, 94); // Dark blue
-            $this->SetTextColor(255, 255, 255); // White text
-            foreach ($this->headers as $i => $header) {
-                $w = isset($this->colWidths[$i]) ? $this->colWidths[$i] : 30;
-                $this->Cell($w, 8, $header, 1, 0, 'C', true);
-            }
-            $this->Ln();
-            $this->SetTextColor(0, 0, 0); // Reset to black
-        }
+    $this->SetFont('Arial', 'B', 16);
+    $this->Cell(0, 10, $this->reportTitle, 0, 1, 'C');
+    $this->SetFont('Arial', '', 10);
+    $this->Cell(0, 6, "Generated: " . date('Y-m-d H:i:s'), 0, 1, 'C');
+    
+    if (!empty($this->periodLabel)) {
+        $this->SetFont('Arial', 'B', 10);
+        $this->SetTextColor(37, 99, 235);
+        $this->Cell(0, 6, "Report Period: " . $this->periodLabel, 0, 1, 'C');
+        $this->SetFont('Arial', '', 9);
+        $this->SetTextColor(100, 100, 100);
+        $this->Cell(0, 5, $this->dateRange, 0, 1, 'C');
+        $this->SetTextColor(0, 0, 0);
     }
+    $this->Ln(5);
+    
+    // REMOVED: Automatic table header drawing
+    // Table headers should be drawn manually when needed
+    }
+    
+
 
     function Footer() {
         $this->SetY(-15);
         $this->SetFont('Arial', 'I', 8);
-        $periodInfo = !empty($this->periodLabel) ? " | " . $this->periodLabel : "";
-        $this->Cell(0, 10, "Page " . $this->PageNo() . " | " . $this->reportTitle . $periodInfo . " | Room Reservation System", 0, 0, 'C');
+        $this->Cell(0, 10, "Page " . $this->PageNo() . " | " . $this->reportTitle . " | Room Reservation System", 0, 0, 'C');
     }
-    
-    // Helper to calculate row height for multi-line cells
-    function NbLines($w, $txt) {
-        $cw = $this->CurrentFont['cw'];
-        if ($w == 0) $w = $this->w - $this->rMargin - $this->x;
-        $wmax = ($w - 2 * $this->cMargin) * 1000 / $this->FontSize;
-        $s = str_replace("\r", '', (string)$txt);
-        $nb = strlen($s);
-        if ($nb > 0 && $s[$nb - 1] == "\n") $nb--;
-        $sep = -1; $i = 0; $j = 0; $l = 0; $nl = 1;
-        while ($i < $nb) {
-            $c = $s[$i];
-            if ($c == "\n") { $i++; $sep = -1; $j = $i; $l = 0; $nl++; continue; }
-            if ($c == ' ') $sep = $i;
-            if (isset($cw[$c])) $l += $cw[$c]; else $l += 500;
-            if ($l > $wmax) {
-                if ($sep == -1) { if ($i == $j) $i++; }
-                else $i = $sep + 1;
-                $sep = -1; $j = $i; $l = 0; $nl++;
-            } else $i++;
+
+    // --- NEW: Function to draw a Pie Chart ---
+        // Replace the PieChart and related functions in your ReportPDF class (around line 200-280)
+    // with this corrected version:
+
+    function PieChart($w, $h, $data, $format, $colors=null) {
+        $this->SetFont('Arial', '', 10);
+        $this->SetLegendFont();
+        $margin = 2;
+        $hLegend = 5;
+        $radius = min($w - $margin * 4, $h - $margin * 2);
+        $radius = floor($radius / 2);
+        $XPage = $this->GetX();
+        $YPage = $this->GetY();
+        $XDiag = $XPage + $margin + $radius;
+        $YDiag = $YPage + $margin + $radius;
+        
+        // Default colors
+        if($colors == null) {
+            $colors = array(
+                array(68, 114, 196),   // Blue
+                array(237, 125, 49),   // Orange
+                array(165, 165, 165),  // Gray
+                array(255, 192, 0),    // Yellow
+                array(91, 155, 213),   // Light Blue
+                array(112, 173, 71),   // Green
+                array(158, 72, 14),    // Brown
+                array(99, 99, 99)      // Dark Gray
+            );
         }
-        return $nl;
+
+        // Calculate sum and angles
+        $sum = array_sum($data);
+        if ($sum == 0) return;
+        
+        $angle = 0;
+        $i = 0;
+        
+        // Draw each slice
+        foreach($data as $val) {
+            $sliceAngle = ($val * 360) / doubleval($sum);
+            if ($sliceAngle != 0) {
+                $this->SetFillColor($colors[$i % count($colors)][0], 
+                                $colors[$i % count($colors)][1], 
+                                $colors[$i % count($colors)][2]);
+                $this->Sector($XDiag, $YDiag, $radius, $angle, $angle + $sliceAngle);
+                $angle += $sliceAngle;
+            }
+            $i++;
+        }
+
+        // Draw border circle
+        $this->SetLineWidth(0.5);
+        $this->SetDrawColor(100, 100, 100);
+        $this->Circle($XDiag, $YDiag, $radius);
+
+        // Draw legends
+        $this->SetFont('Arial', '', 9);
+        $x1 = $XDiag + $radius + 10;
+        $y1 = $YDiag - ($radius / 2);
+        
+        $i = 0;
+        foreach($data as $label => $val) {
+            $this->SetFillColor($colors[$i % count($colors)][0], 
+                            $colors[$i % count($colors)][1], 
+                            $colors[$i % count($colors)][2]);
+            $this->Rect($x1, $y1, $hLegend, $hLegend, 'DF');
+            $this->SetXY($x1 + $hLegend + 2, $y1);
+            $percentage = number_format(($val / $sum) * 100, 1);
+            $this->Cell(0, $hLegend, $label . ': ' . $val . ' (' . $percentage . '%)', 0, 1);
+            $y1 += $hLegend + 2;
+            $i++;
+        }
     }
+
+    function SetLegendFont() {
+        $this->SetFont('Arial', '', 10);
+    }
+
+    function Sector($xc, $yc, $r, $a, $b, $style='FD', $cw=true, $o=90) {
+        $d0 = $a - $b;
+        if($cw) {
+            $d = $b;
+            $b = $o - $a;
+            $a = $o - $d;
+        } else {
+            $b += $o;
+            $a += $o;
+        }
+        
+        while($a < 0) $a += 360;
+        while($a > 360) $a -= 360;
+        while($b < 0) $b += 360;
+        while($b > 360) $b -= 360;
+        
+        if ($a > $b) $b += 360;
+        
+        $b = $b / 180 * M_PI;
+        $a = $a / 180 * M_PI;
+        $d = $b - $a;
+        
+        if ($d == 0 && $d0 != 0) $d = 2 * M_PI;
+        
+        $k = $this->k;
+        $hp = $this->h;
+        
+        if (sin($d/2))
+            $MyArc = 4/3 * (1 - cos($d/2)) / sin($d/2) * $r;
+        else
+            $MyArc = 0;
+        
+        // First point
+        $this->_out(sprintf('%.2F %.2F m', ($xc)*$k, ($hp-($yc))*$k));
+        
+        // Line to arc start
+        $this->_out(sprintf('%.2F %.2F l', ($xc + $r*cos($a))*$k, ($hp-($yc - $r*sin($a)))*$k));
+        
+        // Draw arc
+        if ($d < M_PI/2) {
+            $this->_Arc($xc + $r*cos($a) + $MyArc*cos($a+M_PI/2),
+                        $yc - $r*sin($a) - $MyArc*sin($a+M_PI/2),
+                        $xc + $r*cos($b) + $MyArc*cos($b-M_PI/2),
+                        $yc - $r*sin($b) - $MyArc*sin($b-M_PI/2),
+                        $xc + $r*cos($b),
+                        $yc - $r*sin($b));
+        } else {
+            $b = $a + $d/4;
+            $MyArc = 4/3 * (1 - cos($d/8)) / sin($d/8) * $r;
+            $this->_Arc($xc + $r*cos($a) + $MyArc*cos($a+M_PI/2),
+                        $yc - $r*sin($a) - $MyArc*sin($a+M_PI/2),
+                        $xc + $r*cos($b) + $MyArc*cos($b-M_PI/2),
+                        $yc - $r*sin($b) - $MyArc*sin($b-M_PI/2),
+                        $xc + $r*cos($b),
+                        $yc - $r*sin($b));
+            $a = $b;
+            $b = $a + $d/4;
+            $this->_Arc($xc + $r*cos($a) + $MyArc*cos($a+M_PI/2),
+                        $yc - $r*sin($a) - $MyArc*sin($a+M_PI/2),
+                        $xc + $r*cos($b) + $MyArc*cos($b-M_PI/2),
+                        $yc - $r*sin($b) - $MyArc*sin($b-M_PI/2),
+                        $xc + $r*cos($b),
+                        $yc - $r*sin($b));
+            $a = $b;
+            $b = $a + $d/4;
+            $this->_Arc($xc + $r*cos($a) + $MyArc*cos($a+M_PI/2),
+                        $yc - $r*sin($a) - $MyArc*sin($a+M_PI/2),
+                        $xc + $r*cos($b) + $MyArc*cos($b-M_PI/2),
+                        $yc - $r*sin($b) - $MyArc*sin($b-M_PI/2),
+                        $xc + $r*cos($b),
+                        $yc - $r*sin($b));
+            $a = $b;
+            $b = $a + $d/4;
+            $this->_Arc($xc + $r*cos($a) + $MyArc*cos($a+M_PI/2),
+                        $yc - $r*sin($a) - $MyArc*sin($a+M_PI/2),
+                        $xc + $r*cos($b) + $MyArc*cos($b-M_PI/2),
+                        $yc - $r*sin($b) - $MyArc*sin($b-M_PI/2),
+                        $xc + $r*cos($b),
+                        $yc - $r*sin($b));
+        }
+        
+        // Close path
+        $this->_out(sprintf('%.2F %.2F l', ($xc)*$k, ($hp-($yc))*$k));
+        
+        if($style=='F')
+            $op='f';
+        elseif($style=='FD' || $style=='DF')
+            $op='b';
+        else
+            $op='s';
+        $this->_out($op);
+    }
+
+    function _Arc($x1, $y1, $x2, $y2, $x3, $y3) {
+        $h = $this->h;
+        $this->_out(sprintf('%.2F %.2F %.2F %.2F %.2F %.2F c', 
+            $x1*$this->k, ($h-$y1)*$this->k,
+            $x2*$this->k, ($h-$y2)*$this->k,
+            $x3*$this->k, ($h-$y3)*$this->k));
+    }
+
+    function Circle($x, $y, $r, $style='D') {
+        $this->Ellipse($x, $y, $r, $r, $style);
+    }
+
+    function Ellipse($x, $y, $rx, $ry, $style='D') {
+        if($style=='F')
+            $op='f';
+        elseif($style=='FD' || $style=='DF')
+            $op='B';
+        else
+            $op='S';
+        $lx = 4/3*(M_SQRT2-1)*$rx;
+        $ly = 4/3*(M_SQRT2-1)*$ry;
+        $k = $this->k;
+        $h = $this->h;
+        $this->_out(sprintf('%.2F %.2F m %.2F %.2F %.2F %.2F %.2F %.2F c',
+            ($x+$rx)*$k, ($h-$y)*$k,
+            ($x+$rx)*$k, ($h-($y-$ly))*$k,
+            ($x+$lx)*$k, ($h-($y-$ry))*$k,
+            $x*$k, ($h-($y-$ry))*$k));
+        $this->_out(sprintf('%.2F %.2F %.2F %.2F %.2F %.2F c',
+            ($x-$lx)*$k, ($h-($y-$ry))*$k,
+            ($x-$rx)*$k, ($h-($y-$ly))*$k,
+            ($x-$rx)*$k, ($h-$y)*$k));
+        $this->_out(sprintf('%.2F %.2F %.2F %.2F %.2F %.2F c',
+            ($x-$rx)*$k, ($h-($y+$ly))*$k,
+            ($x-$lx)*$k, ($h-($y+$ry))*$k,
+            $x*$k, ($h-($y+$ry))*$k));
+        $this->_out(sprintf('%.2F %.2F %.2F %.2F %.2F %.2F c',
+            ($x+$lx)*$k, ($h-($y+$ry))*$k,
+            ($x+$rx)*$k, ($h-($y+$ly))*$k,
+            ($x+$rx)*$k, ($h-$y)*$k));
+        $this->_out($op);
+    }
+
 }
 
 /* =====================================================================
@@ -189,34 +420,37 @@ function exportToCSV($filename, $headers, $data) {
    ===================================================================== */
 function exportToPPT($filename, $title, $slides) {
     // Clear any previous output
-    if (ob_get_level()) {
+    while (ob_get_level()) {
         ob_end_clean();
     }
+
+    ini_set('display_errors', 0);
     
-    // Create temp file for the ZIP with unique name
+    // 2. Use system temp dir, but fallback if not writable
+    // 2. Use system temp dir, but fallback if not writable
     $tempDir = sys_get_temp_dir();
-    $tempFile = $tempDir . DIRECTORY_SEPARATOR . 'pptx_' . uniqid() . '.zip';
-    
-    // Ensure temp directory exists and is writable
     if (!is_writable($tempDir)) {
-        exit("Error: Temp directory is not writable");
+        $tempDir = __DIR__;
     }
-    
+
+    $tempFile = $tempDir . '/pptx_' . uniqid() . '_' . time() . '.zip';
+
     $zip = new ZipArchive();
     $result = $zip->open($tempFile, ZipArchive::CREATE | ZipArchive::OVERWRITE);
     if ($result !== true) {
         exit("Cannot create PowerPoint file. Error code: " . $result);
     }
-    
-    // Count slides with charts (pie_chart data)
+
     $chartCount = 0;
-    $slideChartMap = []; // Maps slide number to chart number
+    $slideChartMap = [];
     foreach ($slides as $idx => $slide) {
         if (isset($slide['pie_chart']) && !empty($slide['pie_chart'])) {
             $chartCount++;
             $slideChartMap[$idx + 1] = $chartCount;
         }
     }
+
+
     
     // [Content_Types].xml
     $contentTypes = '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
@@ -422,30 +656,46 @@ function exportToPPT($filename, $title, $slides) {
     // Close the ZIP archive properly
     $closeResult = $zip->close();
     if ($closeResult !== true) {
-        exit("Error closing ZIP file");
+        error_log("Error closing ZIP file");
+        exit("Error creating PowerPoint file");
     }
-    
+
     // Verify the file exists and has content
     if (!file_exists($tempFile) || filesize($tempFile) === 0) {
-        exit("Error: Generated file is empty or does not exist");
+        error_log("Generated file is empty or does not exist");
+        exit("Error: Generated file is empty");
     }
-    
-    // Output the file
-    $pptxFilename = str_replace('.ppt', '.pptx', $filename);
-    if (substr($pptxFilename, -5) !== '.pptx') {
-        $pptxFilename .= '.pptx';
+
+    // Clear any output buffers
+    while (ob_get_level()) {
+        ob_end_clean();
     }
-    
+
+    // Set headers for download
+    header('Content-Description: File Transfer');
     header('Content-Type: application/vnd.openxmlformats-officedocument.presentationml.presentation');
-    header('Content-Disposition: attachment; filename="' . $pptxFilename . '"');
-    header('Content-Length: ' . filesize($tempFile));
-    header('Cache-Control: no-cache, no-store, must-revalidate');
-    header('Pragma: no-cache');
+    header('Content-Disposition: attachment; filename="' . $filename . '"');
+    header('Content-Transfer-Encoding: binary');
     header('Expires: 0');
-    
-    // Read and output the file
-    readfile($tempFile);
-    
+    header('Cache-Control: must-revalidate, post-check=0, pre-check=0');
+    header('Pragma: public');
+    header('Content-Length: ' . filesize($tempFile));
+
+    // Flush system output buffer
+    flush();
+
+    // Read and output the file in chunks
+    $handle = fopen($tempFile, 'rb');
+    if ($handle === false) {
+        exit("Error reading file");
+    }
+
+    while (!feof($handle)) {
+        echo fread($handle, 8192);
+        flush();
+    }
+    fclose($handle);
+
     // Clean up temp file
     @unlink($tempFile);
     exit;
@@ -1090,7 +1340,7 @@ if ($report === 'adminlog') {
             'stats' => array_merge(['Total Actions' => count($logs)], $actionCounts)
         ];
         
-        exportToPPT('Admin_Log_Report_' . $periodFileName . '_' . date('Ymd') . '.ppt', 'Admin Log Report', $slides);
+        exportToPPT('Admin_Log_Report_' . $periodFileName . '_' . date('Ymd') . '.pptx', 'Admin Log Report', $slides);
     }
 }
 
@@ -1133,16 +1383,59 @@ if ($report === 'booking') {
         $pdf->reportTitle = 'Booking Summary Report';
         $pdf->periodLabel = $periodLabel;
         $pdf->dateRange = $dateRangeDisplay;
-        $pdf->headers = ['Ticket', 'User', 'Room', 'Purpose', 'Date', 'Time', 'Status'];
-        $pdf->colWidths = [25, 40, 50, 55, 28, 30, 22];
+        // Don't set headers here - we'll draw them manually
         
         $pdf->SetMargins(10, 10);
-        $pdf->AddPage('L');
+        $pdf->AddPage('L'); // Landscape
+        
+        // --- Draw the Pie Chart First ---
+        $pdf->SetFont('Arial', 'B', 12);
+        $pdf->Cell(0, 8, 'Booking Status Distribution', 0, 1, 'C');
+        $pdf->Ln(2);
+        
+        // Prepare chart data
+        $chartData = [];
+        if ($stats['booked'] > 0) $chartData['Approved'] = $stats['booked'];
+        if ($stats['pending'] > 0) $chartData['Pending'] = $stats['pending'];
+        if ($stats['cancelled'] > 0) $chartData['Cancelled'] = $stats['cancelled'];
+        if ($stats['rejected'] > 0) $chartData['Rejected'] = $stats['rejected'];
+        
+        // Draw chart if data exists
+        if (!empty($chartData)) {
+            $pdf->PieChart(80, 50, $chartData, '%l (%p)');
+            $pdf->Ln(55);// Move down below chart
+        }
+        
+        // --- Now Draw Table Headers Manually ---
+        $pdf->SetFont('Arial', 'B', 9);
+        $pdf->SetFillColor(52, 73, 94);
+        $pdf->SetTextColor(255, 255, 255);
+        
+        $headers = ['Ticket', 'User', 'Room', 'Purpose', 'Date', 'Time', 'Status'];
+        $widths = [25, 40, 50, 55, 28, 30, 22];
+        
+        foreach ($headers as $i => $h) {
+            $pdf->Cell($widths[$i], 8, $h, 1, 0, 'C', true);
+        }
+        $pdf->Ln();
+        
+        // --- Draw Data Rows ---
+        $pdf->SetTextColor(0, 0, 0);
         $pdf->SetFont('Arial', '', 8);
 
         foreach ($bookings as $b) {
             if ($pdf->GetY() > 180) {
                 $pdf->AddPage('L');
+                // Redraw headers on new page
+                $pdf->SetFont('Arial', 'B', 9);
+                $pdf->SetFillColor(52, 73, 94);
+                $pdf->SetTextColor(255, 255, 255);
+                foreach ($headers as $i => $h) {
+                    $pdf->Cell($widths[$i], 8, $h, 1, 0, 'C', true);
+                }
+                $pdf->Ln();
+                $pdf->SetTextColor(0, 0, 0);
+                $pdf->SetFont('Arial', '', 8);
             }
             
             $timeSlot = substr($b['time_start'], 0, 5) . '-' . substr($b['time_end'], 0, 5);
@@ -1161,12 +1454,11 @@ if ($report === 'booking') {
         $pdf->SetFont('Arial', 'B', 11);
         $pdf->Cell(0, 8, "BOOKING STATISTICS", 0, 1);
         $pdf->SetFont('Arial', '', 10);
-        $pdf->Cell(50, 7, "Total Bookings: " . $stats['total'], 0, 0);
+        $pdf->Cell(50, 7, "Total: " . $stats['total'], 0, 0);
         $pdf->Cell(50, 7, "Pending: " . $stats['pending'], 0, 0);
-        $pdf->Cell(50, 7, "Booked/Approved: " . $stats['booked'], 0, 1);
+        $pdf->Cell(50, 7, "Approved: " . $stats['booked'], 0, 1);
         $pdf->Cell(50, 7, "Cancelled: " . $stats['cancelled'], 0, 0);
-        $pdf->Cell(50, 7, "Rejected: " . $stats['rejected'], 0, 0);
-        $pdf->Cell(50, 7, "Maintenance: " . $stats['maintenance'], 0, 1);
+        $pdf->Cell(50, 7, "Rejected: " . $stats['rejected'], 0, 1);
 
         $pdf->Output('D', 'Booking_Summary_Report_' . $periodFileName . '_' . date('Ymd') . '.pdf');
         exit;
@@ -1275,7 +1567,7 @@ if ($report === 'booking') {
             $slideNum++;
         }
         
-        exportToPPT('Booking_Summary_Report_' . $periodFileName . '_' . date('Ymd') . '.ppt', 'Booking Summary Report', $slides);
+        exportToPPT('Booking_Summary_Report_' . $periodFileName . '_' . date('Ymd') . '.pptx', 'Booking Summary Report', $slides);
     }
 }
 
@@ -1331,17 +1623,68 @@ if ($report === 'room') {
         $pdf->reportTitle = 'Room Usage Report';
         $pdf->periodLabel = $periodLabel;
         $pdf->dateRange = $dateRangeDisplay;
-        $pdf->headers = ['Room ID', 'Room Name', 'Capacity', 'Total', 'Approved', 'Pending', 'Cancelled', 'Maintenance'];
-        $pdf->colWidths = [30, 55, 25, 25, 28, 25, 28, 30];
         
         $pdf->SetMargins(10, 10);
         $pdf->AddPage('L');
+        
+        // --- STEP 4a: DRAW CHART (Top 5 Rooms) ---
+        $pdf->SetFont('Arial', 'B', 12);
+        $pdf->Cell(0, 10, 'Top 5 Most Used Rooms', 0, 1, 'L');
+
+        // 1. Prepare data (Take only top 5)
+        $chartData = [];
+        $topRooms = array_slice($rooms, 0, 5); // Get first 5 rooms
+        foreach ($topRooms as $r) {
+            if ($r['total_bookings'] > 0) {
+                // Use room name as label, total bookings as value
+                $chartData[$r['room_name']] = $r['total_bookings'];
+            }
+        }
+
+        // 2. Draw Chart
+        if (!empty($chartData)) {
+            $valX = $pdf->GetX();
+            $valY = $pdf->GetY();
+            // Draw Pie Chart
+            $pdf->PieChart(80, 50, $chartData, '%l: %v');
+            $pdf->Ln(55); 
+        } else {
+            $pdf->Cell(0, 10, 'No booking data available for chart.', 0, 1);
+        }
+
+        // --- STEP 4b: DRAW TABLE HEADERS ---
+        $pdf->Ln(5);
+        $pdf->SetFont('Arial', 'B', 9);
+        $pdf->SetFillColor(52, 73, 94);
+        $pdf->SetTextColor(255, 255, 255);
+        
+        $headers = ['Room ID', 'Room Name', 'Capacity', 'Total', 'Approved', 'Pending', 'Cancelled', 'Maint.'];
+        $widths = [30, 55, 25, 25, 28, 25, 28, 30];
+        
+        foreach ($headers as $i => $h) {
+            $pdf->Cell($widths[$i], 8, $h, 1, 0, 'C', true);
+        }
+        $pdf->Ln();
+
+        // --- STEP 4c: DRAW DATA ROWS ---
+        $pdf->SetTextColor(0, 0, 0);
         $pdf->SetFont('Arial', '', 9);
 
         $grandTotal = 0;
         foreach ($rooms as $r) {
+            // Check for new page
             if ($pdf->GetY() > 180) {
                 $pdf->AddPage('L');
+                // Redraw Headers
+                $pdf->SetFont('Arial', 'B', 9);
+                $pdf->SetFillColor(52, 73, 94);
+                $pdf->SetTextColor(255, 255, 255);
+                foreach ($headers as $i => $h) {
+                    $pdf->Cell($widths[$i], 8, $h, 1, 0, 'C', true);
+                }
+                $pdf->Ln();
+                $pdf->SetTextColor(0, 0, 0);
+                $pdf->SetFont('Arial', '', 9);
             }
             
             $grandTotal += $r['total_bookings'];
@@ -1364,11 +1707,6 @@ if ($report === 'room') {
         $pdf->Cell(0, 7, "Total Rooms: " . count($rooms), 0, 1);
         $pdf->Cell(0, 7, "Total Bookings (All Rooms): " . $grandTotal, 0, 1);
         
-        // Most used room
-        if (!empty($rooms)) {
-            $pdf->Cell(0, 7, "Most Used Room: " . $rooms[0]['room_name'] . " (" . $rooms[0]['total_bookings'] . " bookings)", 0, 1);
-        }
-
         $pdf->Output('D', 'Room_Usage_Report_' . $periodFileName . '_' . date('Ymd') . '.pdf');
         exit;
     }
@@ -1475,7 +1813,7 @@ if ($report === 'room') {
             'stats' => $topStats
         ];
         
-        exportToPPT('Room_Usage_Report_' . $periodFileName . '_' . date('Ymd') . '.ppt', 'Room Usage Report', $slides);
+        exportToPPT('Room_Usage_Report_' . $periodFileName . '_' . date('Ymd') . '.pptx', 'Room Usage Report', $slides);
     }
 }
 
@@ -1662,7 +2000,7 @@ if ($report === 'user') {
             'stats' => $topStats
         ];
         
-        exportToPPT('User_Activity_Report_' . $periodFileName . '_' . date('Ymd') . '.ppt', 'User Activity Report', $slides);
+        exportToPPT('User_Activity_Report_' . $periodFileName . '_' . date('Ymd') . '.pptx', 'User Activity Report', $slides);
     }
 }
 

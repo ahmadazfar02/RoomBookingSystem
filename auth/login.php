@@ -24,8 +24,12 @@ if (isset($_COOKIE['remember_me'])) {
             $_SESSION["Fullname"] = $fullname;
             $_SESSION["User_Type"] = $User_Type;
             
-
-            if (strcasecmp(trim($User_Type), 'Admin') == 0) {
+            // --- FIX 1: Cookie Check (Admin OR Technical Admin OR SuperAdmin) ---
+            $uType = trim($User_Type);
+            if (strcasecmp($uType, 'Admin') == 0 || 
+                strcasecmp($uType, 'Technical Admin') == 0 || 
+                strcasecmp($uType, 'SuperAdmin') == 0) {
+                
                 header("location: ../admin/index-admin.php");
             } else {
                 header("location: ../timetable.html");
@@ -50,7 +54,8 @@ if ($_SERVER["REQUEST_METHOD"] == "POST"){
                 $stmt->bind_result($id, $username, $fullname, $hashed_password, $User_Type);
                 $stmt->fetch();
 
-                if (password_verify($password, $hashed_password)){
+                // Pass null string if password hash is null to prevent error
+                if (password_verify($password, $hashed_password ?? '')){
                     session_start();
                     $_SESSION["loggedin"] = true;
                     $_SESSION["id"] = $id;
@@ -72,9 +77,14 @@ if ($_SERVER["REQUEST_METHOD"] == "POST"){
                         setcookie('remember_me', $token, time() + 60 * 60 * 24 * 30, '/'); // 30-day cookie
                     }
 
-                    if(strcasecmp(trim($User_Type), 'Admin') == 0){
+                    // --- FIX 2: Login Check (Admin OR Technical Admin OR SuperAdmin) ---
+                    $uType = trim($User_Type);
+                    if (strcasecmp($uType, 'Admin') == 0 || 
+                        strcasecmp($uType, 'Technical Admin') == 0 || 
+                        strcasecmp($uType, 'SuperAdmin') == 0) {
+                        
                         header("location: ../admin/index-admin.php");
-                    } else{
+                    } else {
                         header("location: ../timetable.html");
                     }
                     exit;
@@ -82,12 +92,12 @@ if ($_SERVER["REQUEST_METHOD"] == "POST"){
                 else{
                     $login_err = "Invalid username or password.";
                     echo "<script>alert('Invalid password'); window.location.href='../loginterface.html';</script>";
-                    } 
+                } 
             }
             else{
-                    $login_err = "Invalid username or password.";
-                    echo "<script>alert('User not found'); window.location.href='../loginterface.html';</script>";
-                }
+                $login_err = "Invalid username or password.";
+                echo "<script>alert('User not found'); window.location.href='../loginterface.html';</script>";
+            }
         }
         $stmt->close();
     }

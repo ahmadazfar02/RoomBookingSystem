@@ -3,10 +3,15 @@
 session_start();
 require_once __DIR__ . '/../includes/db_connect.php';
 
-// Access control: require logged in + Admin role
-if (!isset($_SESSION['loggedin']) || $_SESSION['loggedin'] !== true ||
-    !isset($_SESSION['User_Type']) || strcasecmp(trim($_SESSION['User_Type']), 'Admin') != 0) {
-    header("Location: ../loginterface.html");
+// Redirects if NOT logged in OR if user is NEITHER 'Admin' NOR 'Technical Admin'
+// Fixed Access Control
+if (!isset($_SESSION['loggedin']) || $_SESSION['loggedin'] !== true || 
+    !isset($_SESSION['User_Type']) || 
+    (strcasecmp(trim($_SESSION['User_Type']), 'Admin') != 0 && 
+     strcasecmp(trim($_SESSION['User_Type']), 'Technical Admin') != 0 && 
+     strcasecmp(trim($_SESSION['User_Type']), 'SuperAdmin') != 0)) {
+    
+    header("Location: loginterface.html");
     exit;
 }
 
@@ -17,17 +22,18 @@ $userType = $_SESSION['User_Type'] ?? '';
 
 // determine whether this user is superadmin (by username or explicit role)
 $isSuperAdmin = (strtolower($username) === 'superadmin' || $userType === 'SuperAdmin');
+$isTechAdmin  = (strcasecmp($userType, 'Technical Admin') === 0);
 
-// --- Fetch dashboard data ---
-// total rooms
+// --- DATA FETCHING ---
+
+// 1. Total rooms
 $total_rooms = 0;
 if ($r = $conn->query("SELECT COUNT(*) AS c FROM rooms")) {
     $row = $r->fetch_assoc();
     $total_rooms = intval($row['c'] ?? 0);
-    $r->free();
 }
 
-// active bookings today (booked)
+// 2. Active bookings today
 $active_bookings_today = 0;
 $stmt = $conn->prepare("SELECT COUNT(*) FROM bookings WHERE slot_date = CURDATE() AND status = 'booked'");
 if ($stmt) {
@@ -38,7 +44,7 @@ if ($stmt) {
     $stmt->close();
 }
 
-// pending approvals (status = pending)
+// 3. Pending approvals
 $pending_approvals = 0;
 $stmt = $conn->prepare("SELECT COUNT(*) FROM bookings WHERE status = 'pending'");
 if ($stmt) {
@@ -49,8 +55,7 @@ if ($stmt) {
     $stmt->close();
 }
 
-// --- NEW: Activity Summary Data ---
-// Bookings this week
+// 4. Bookings this week
 $bookings_this_week = 0;
 $stmt = $conn->prepare("SELECT COUNT(*) FROM bookings WHERE YEARWEEK(slot_date, 1) = YEARWEEK(CURDATE(), 1)");
 if ($stmt) {
@@ -61,7 +66,7 @@ if ($stmt) {
     $stmt->close();
 }
 
-// Most popular room this week
+// 5. Most popular room this week
 $popular_room = ['name' => 'N/A', 'count' => 0];
 $stmt = $conn->prepare("
     SELECT r.name, COUNT(*) as booking_count
@@ -81,7 +86,7 @@ if ($stmt) {
     $stmt->close();
 }
 
-// Recent cancellations (last 3)
+// 6. Recent cancellations (last 3)
 $recent_cancellations = [];
 $stmt = $conn->prepare("
     SELECT r.name AS room_name, u.username, b.slot_date
@@ -99,7 +104,7 @@ if ($stmt) {
     $stmt->close();
 }
 
-// Upcoming bookings (next 7 days)
+// 7. Upcoming bookings (next 7 days)
 $upcoming_bookings = [];
 $stmt = $conn->prepare("
     SELECT r.name AS room_name, u.username, b.slot_date, b.time_start
@@ -118,14 +123,14 @@ if ($stmt) {
     $stmt->close();
 }
 
-// recent booking requests table (latest 6)
+// 8. Recent requests table (latest 6)
 $recent_requests = [];
 $stmt = $conn->prepare("
     SELECT b.id, r.name AS room_name, r.room_id AS room_no, u.username AS requester, b.slot_date, b.time_start, b.time_end, b.status, b.purpose
     FROM bookings b
     JOIN rooms r ON b.room_id = r.room_id
     JOIN users u ON b.user_id = u.id
-    ORDER BY b.slot_date DESC, b.time_start DESC
+    ORDER BY b.created_at DESC
     LIMIT 6
 ");
 if ($stmt) {
@@ -134,433 +139,428 @@ if ($stmt) {
     while ($row = $res->fetch_assoc()) $recent_requests[] = $row;
     $stmt->close();
 }
-
 ?>
 <!doctype html>
 <html lang="en">
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<title>Admin Dashboard — Reservation System</title>
-<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+<title>Dashboard - UTM Admin</title>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
 <style>
-:root{
-  --primary: #2563eb;
-  --primary-dark: #1d4ed8;
-  --primary-light: #dbeafe;
-  --accent: #6e0b0b;
-  --success: #059669;
+:root {
+  --utm-maroon: #800000;
+  --utm-maroon-light: #a31313;
+  --bg-light: #f9fafb;
+  --text-primary: #1f2937;
+  --text-secondary: #6b7280;
+  --border: #e5e7eb;
+  --success: #16a34a;
   --danger: #dc2626;
   --warning: #f59e0b;
-  --gray-50: #f9fafb;
-  --gray-100: #f3f4f6;
-  --gray-200: #e5e7eb;
-  --gray-300: #d1d5db;
-  --gray-600: #4b5563;
-  --gray-700: #374151;
-  --shadow-sm: 0 6px 22px rgba(18, 38, 63, 0.10);
-  --nav-height: 100px;
+  --info: #0284c7;
+  --shadow-sm: 0 1px 2px 0 rgba(0, 0, 0, 0.05);
+  --nav-height: 70px;
 }
-*{box-sizing:border-box}
-body{
-  margin:0;
-  font-family: 'Inter', system-ui, -apple-system, 'Segoe UI', Roboto, Arial;
-  min-height:100vh;
-  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-  color: var(--gray-700);
-  -webkit-font-smoothing:antialiased;
-  -moz-osx-font-smoothing:grayscale;
+
+* { box-sizing: border-box; margin: 0; padding: 0; }
+
+body {
+  font-family: 'Inter', sans-serif;
+  background: var(--bg-light);
+  color: var(--text-primary);
+
 }
 
 /* NAVBAR */
 .nav-bar {
-  position: fixed;
-  top:0; left:0; right:0;
+  position: fixed; top: 0; left: 0; right: 0;
   height: var(--nav-height);
-  background: #fff;
-  display:flex;
-  align-items:center;
-  gap:16px;
-  padding:12px 22px;
-  box-shadow: 0 10px 30px rgba(2,6,23,0.12);
-  z-index:1400;
+  background: white;
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 0 24px;
+  box-shadow: var(--shadow-sm);
+  z-index: 1000;
+  border-bottom: 1px solid var(--border);
 }
-.nav-logo { height: 80px;}
+.nav-left { display: flex; align-items: center; gap: 16px; }
+.nav-logo { height: 50px; }
+.nav-title h1 { font-size: 16px; font-weight: 700; color: var(--utm-maroon); margin: 0; }
+.nav-title p { font-size: 11px; color: var(--text-secondary); margin: 0; }
+.btn-logout { 
+    text-decoration: none; color: var(--text-secondary); font-size: 13px; font-weight: 500;
+    padding: 8px 12px; border-radius: 6px; transition: 0.2s;
+}
+.btn-logout:hover { background: #fef2f2; color: var(--utm-maroon); }
 
-.nav-actions { margin-left: auto; display:flex; gap:12px; align-items:center; }
-.btn { padding:8px 12px; border-radius:8px; border:0; cursor:pointer; font-weight:700; text-decoration:none; display:inline-flex; align-items:center; justify-content:center; }
-.btn.primary { background: linear-gradient(135deg,var(--primary),var(--primary-dark)); color: #fff; }
-.btn.outline { background: #fff; border:2px solid var(--gray-300); color: var(--gray-700); }
-/* layout */
+/* LAYOUT */
 .layout {
-  width: 100%;
-  max-width: 2000px;
-  margin: calc(var(--nav-height) + 18px) auto 48px;
-  padding: 20px;
-  display:flex;
-  gap:20px;
-  align-items:flex-start;
+  display: flex;
+  margin-top: var(--nav-height);
+  min-height: calc(100vh - var(--nav-height));
 }
 
-/* sidebar */
+/* SIDEBAR */
 .sidebar {
-    width: 260px;
-    background: white;
-    border-radius: 12px;
-    padding: 20px;
-    box-shadow: var(--shadow-lg);
-    z-index: 100;
-    flex-shrink: 0;
-    position: sticky;
-    top: 100px; 
+  width: 260px;
+  background: white;
+  border-right: 1px solid var(--border);
+  padding: 24px;
+  flex-shrink: 0;
+  position: sticky;
+  top: var(--nav-height);
+  height: calc(100vh - var(--nav-height));
+  display: flex; flex-direction: column;
 }
-  .sidebar-title {
-    font-size: 14px;
-    font-weight: 700;
-    text-transform: uppercase;
-    letter-spacing: 0.5px;
-    color: var(--gray-600);
-    margin-bottom: 16px;
-    padding-bottom: 12px;
-    border-bottom: 2px solid var(--gray-200);
-  }
-  
-  .sidebar-menu {
-    list-style: none;
-    padding: 0;
-    margin: 0;
-  }
-  
-  .sidebar-menu li {
-    margin-bottom: 8px;
-  }
-  
-  .sidebar-menu a {
-    display: flex;
-    align-items: center;
-    gap: 12px;
-    padding: 12px 16px;
-    border-radius: 8px;
-    text-decoration: none;
-    color: var(--gray-700);
-    font-size: 14px;
-    font-weight: 500;
-    transition: all 0.2s;
-  }
-  
-  .sidebar-menu a:hover {
-    background: var(--gray-100);
-    color: var(--primary);
-  }
-  
-  .sidebar-menu a.active {
-    background: var(--primary-light);
-    color: var(--primary);
-    font-weight: 600;
-  }
 
-  .sidebar-profile {
-    margin-top: auto;
-    padding-top: 20px;
-    border-top: 1px solid var(--gray-200);
-    display: flex;
-    align-items: center;
-    gap: 12px;
-  }
-
-  .profile-icon {
-     width: 36px; 
-     height: 36px; 
-     background: var(--primary-light); 
-     border-radius: 50%; 
-     display: flex; 
-     align-items: center; 
-     justify-content: center; 
-     color: var(--primary); 
-     font-weight: 700;
-  }
-  
-  .profile-info { font-size: 13px; }
-  .profile-name { font-weight: 600; color: var(--gray-800); margin-bottom: 2px; }
-  .profile-email { font-size: 11px; color: var(--gray-600); }
-
-/* main */
-.main { flex:1; min-width:0; }
-
-/* header card */
-.header-card {
-  display:flex; justify-content:space-between; align-items:center;
-  background:#fff; padding:20px; border-radius:12px; box-shadow:var(--shadow-sm); margin-bottom:18px;
+.sidebar-title {
+  font-size: 11px; font-weight: 700; text-transform: uppercase;
+  color: var(--text-secondary); letter-spacing: 0.5px;
+  margin-bottom: 16px;
 }
-.header-title h1 { margin:0; font-size:20px; color:var(--gray-800); }
-.header-sub { color:var(--gray-600); font-size:13px; margin-top:6px; }
 
-/* stats grid */
-.stats-grid { display:grid; grid-template-columns: repeat(3, 1fr); gap:16px; margin-bottom:18px; }
-@media (max-width:900px){ .stats-grid { grid-template-columns: 1fr; } }
-
-.stat-card { background:#fff; padding:18px; border-radius:10px; box-shadow:var(--shadow-sm); }
-.stat-card h4 { margin:0 0 8px 0; font-size:13px; color:var(--gray-600); font-weight:700; }
-.stat-card .value { font-size:2rem; font-weight:800; color:var(--gray-800); margin-top:6px; }
-
-/* activity summary + table layout */
-.row { display:flex; gap:16px; }
-@media (max-width:1000px){ .row { flex-direction:column; } }
-
-.card { background:#fff; border-radius:12px; padding:16px; box-shadow:var(--shadow-sm); }
-
-/* NEW: Activity Summary Styles */
-.activity-summary { flex:1; max-width:420px; }
-.activity-section { margin-bottom: 20px; padding-bottom: 16px; border-bottom: 1px solid var(--gray-200); }
-.activity-section:last-child { border-bottom: none; margin-bottom: 0; }
-.activity-section h5 { margin: 0 0 10px 0; font-size: 13px; font-weight: 700; color: var(--gray-700); text-transform: uppercase; letter-spacing: 0.5px; }
-
-.activity-highlight {
-  background: linear-gradient(135deg, var(--primary-light), #e0e7ff);
-  padding: 12px 16px;
-  border-radius: 8px;
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  margin-bottom: 8px;
+.sidebar-menu { list-style: none; flex: 1; padding: 0; }
+.sidebar-menu li { margin-bottom: 4px; }
+.sidebar-menu a {
+  display: flex; align-items: center; gap: 12px;
+  padding: 10px 12px;
+  border-radius: 6px;
+  text-decoration: none;
+  color: var(--text-primary);
+  font-size: 14px; font-weight: 500;
+  transition: all 0.2s;
 }
-.activity-highlight .label { font-size: 12px; color: var(--gray-600); font-weight: 600; }
-.activity-highlight .value { font-size: 24px; font-weight: 800; color: var(--primary); }
+.sidebar-menu a:hover { background: var(--bg-light); color: var(--utm-maroon); }
+.sidebar-menu a.active { background: #fef2f2; color: var(--utm-maroon); font-weight: 600; }
+.sidebar-menu a i { width: 20px; text-align: center; }
 
+.sidebar-profile {
+  margin-top: auto; padding-top: 16px;
+  border-top: 1px solid var(--border);
+  display: flex; align-items: center; gap: 12px;
+}
+.profile-icon {
+  width: 36px; height: 36px;
+  background: #f3f4f6; color: var(--utm-maroon);
+  border-radius: 50%;
+  display: flex; align-items: center; justify-content: center;
+  font-weight: 700;
+}
+.profile-info { font-size: 13px; overflow: hidden; }
+.profile-name { font-weight: 600; white-space: nowrap; text-overflow: ellipsis; }
+.profile-email { font-size: 11px; color: var(--text-secondary); white-space: nowrap; text-overflow: ellipsis; }
+
+/* MAIN CONTENT */
+.main-content {
+  flex: 1;
+  padding: 32px;
+  min-width: 0;
+}
+
+/* WELCOME CARD */
+.welcome-banner {
+  background: linear-gradient(135deg, var(--utm-maroon) 0%, #a31313 100%);
+  color: white;
+  padding: 24px 32px;
+  border-radius: 12px;
+  margin-bottom: 32px;
+  box-shadow: 0 10px 15px -3px rgba(128, 0, 0, 0.2);
+}
+.welcome-banner h2 { font-size: 24px; font-weight: 700; margin-bottom: 6px; }
+.welcome-banner p { opacity: 0.9; font-size: 14px; }
+
+/* STATS GRID */
+.stats-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+  gap: 20px;
+  margin-bottom: 32px;
+}
+.stat-card {
+  background: white; border-radius: 12px; padding: 20px;
+  border: 1px solid var(--border); box-shadow: var(--shadow-sm);
+  display: flex; flex-direction: column; justify-content: space-between;
+}
+.stat-top { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 12px; }
+.stat-icon {
+  width: 40px; height: 40px; border-radius: 10px;
+  display: flex; align-items: center; justify-content: center; font-size: 18px;
+}
+.stat-icon.blue { background: #dbeafe; color: #1e40af; }
+.stat-icon.green { background: #dcfce7; color: #166534; }
+.stat-icon.orange { background: #ffedd5; color: #9a3412; }
+.stat-value { font-size: 28px; font-weight: 800; color: var(--text-primary); line-height: 1; }
+.stat-label { font-size: 13px; color: var(--text-secondary); font-weight: 500; }
+
+/* DASHBOARD GRID (2 Columns) */
+.dashboard-grid {
+    display: grid;
+    grid-template-columns: 2fr 1fr; /* Table takes 2/3, Sidebar 1/3 */
+    gap: 24px;
+}
+
+/* CARD GENERAL */
+.card {
+  background: white; border-radius: 12px;
+  box-shadow: var(--shadow-sm); border: 1px solid var(--border);
+  padding: 0; /* Padding handled by children */
+  overflow: hidden;
+  height: 100%;
+}
+.card-header {
+  padding: 20px 24px; border-bottom: 1px solid var(--border);
+  display: flex; justify-content: space-between; align-items: center;
+}
+.card-title { font-size: 16px; font-weight: 700; color: var(--text-primary); display: flex; align-items: center; gap: 8px; }
+.card-action { font-size: 13px; color: var(--utm-maroon); text-decoration: none; font-weight: 600; }
+.card-action:hover { text-decoration: underline; }
+
+/* ACTIVITY LIST (Right Side) */
+.activity-list { padding: 0; }
 .activity-item {
-  padding: 8px 0;
-  font-size: 13px;
-  color: var(--gray-700);
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  border-bottom: 1px dashed #eee;
+    padding: 16px 20px;
+    border-bottom: 1px solid var(--border);
+    display: flex; gap: 12px; align-items: flex-start;
 }
 .activity-item:last-child { border-bottom: none; }
-.activity-item .icon {
-  width: 8px;
-  height: 8px;
-  border-radius: 50%;
-  margin-right: 8px;
-  display: inline-block;
+.act-icon { font-size: 14px; margin-top: 3px; }
+.act-content strong { display: block; font-size: 13px; color: var(--text-primary); margin-bottom: 2px; }
+.act-content p { font-size: 12px; color: var(--text-secondary); margin: 0; }
+.act-time { font-size: 11px; color: var(--text-secondary); margin-left: auto; white-space: nowrap; }
+
+/* POPULAR ROOM HIGHLIGHT */
+.pop-room-card {
+    background: #fffbeb; border: 1px solid #fde68a;
+    border-radius: 8px; padding: 16px; margin: 20px;
+    display: flex; gap: 12px; align-items: center;
 }
-.activity-item .icon.success { background: var(--success); }
-.activity-item .icon.warning { background: var(--warning); }
-.activity-item .icon.danger { background: var(--danger); }
-.activity-date { font-size: 11px; color: var(--gray-500); }
+.pop-icon { font-size: 24px; color: #d97706; }
 
-.empty-state { 
-  text-align: center; 
-  padding: 16px; 
-  color: var(--gray-500); 
-  font-size: 13px;
-  font-style: italic;
+/* TABLE STYLES (Matches Reservation Request) */
+.table-wrap { overflow-x: auto; }
+.list-table { width: 100%; border-collapse: collapse; min-width: 600px; }
+.list-table th {
+  background: var(--bg-light); text-align: left;
+  padding: 12px 20px; font-size: 11px; font-weight: 600;
+  color: var(--text-secondary); text-transform: uppercase; letter-spacing: 0.5px;
 }
+.list-table td {
+  padding: 14px 20px; border-top: 1px solid var(--border);
+  font-size: 13px; vertical-align: middle; color: var(--text-primary);
+}
+.list-table tr:hover { background: #fafafa; }
 
-/* requests table */
-.table-wrap { overflow:auto; border-radius:8px; border:1px solid var(--gray-200); background:#fff; }
-.table { width:100%; border-collapse:collapse; min-width:800px; }
-.table th, .table td { padding:12px 10px; border-bottom:1px solid #f1f5f9; text-align:left; }
-.table th { background:linear-gradient(180deg,var(--gray-100),var(--gray-50)); font-weight:700; font-size:12px; text-transform:uppercase; letter-spacing:0.5px; position:sticky; top:0; z-index:10; }
-.status { display:inline-block; padding:6px 10px; border-radius:8px; font-weight:700; font-size:12px; }
-.status.pending { background:linear-gradient(135deg,#fff7ed,#fff1c2); color:#92400e; }
-.status.booked { background:linear-gradient(135deg,#ecfdf5,#dcfce7); color:var(--success); }
-.status.approve { background:linear-gradient(135deg,#dbeafe,#cfe0ff); color:var(--primary); }
-.status.cancel, .status.cancelled { background:linear-gradient(135deg,#fff1f2,#fee2e2); color:var(--danger); }
+/* BADGES */
+.status {
+  display: inline-flex; padding: 4px 10px; border-radius: 99px;
+  font-size: 11px; font-weight: 600; text-transform: uppercase;
+}
+.status.pending { background: #fef3c7; color: #92400e; }
+.status.booked, .status.approved { background: #dcfce7; color: #166534; }
+.status.rejected, .status.cancelled { background: #fee2e2; color: #991b1b; }
 
-/* small helpers */
-.link-secondary { color:var(--accent); text-decoration:none; font-weight:700; }
-
-/* responsive */
-@media (max-width:760px){
-  .layout { padding:12px; margin-top: calc(var(--nav-height) + 10px); display:block; }
-  .sidebar { display:none; }
-  .table { min-width:700px; }
+@media (max-width: 1024px) {
+  .dashboard-grid { grid-template-columns: 1fr; }
+  .sidebar { display: none; }
+  .layout { margin-left: 0; }
 }
 </style>
 </head>
 <body>
-<nav class="nav-bar" role="navigation" aria-label="Main navigation">
-  <img class="nav-logo" src="../assets/images/utmlogo.png" alt="UTM Logo">
-    <div class="nav-actions">
-    <a href="../auth/logout.php" class="btn outline">Logout</a>
-  </div>
+
+<nav class="nav-bar">
+    <div class="nav-left">
+        <img class="nav-logo" src="../assets/images/utmlogo.png" alt="UTM Logo">
+        <div class="nav-title">
+            <h1>Room Booking System</h1>
+            <p>Admin Dashboard</p>
+        </div>
+    </div>
+    <a href="../auth/logout.php" class="btn-logout"><i class="fa-solid fa-right-from-bracket"></i> Logout</a>
 </nav>
 
-<div class="layout" role="main">
-  <!-- Sidebar -->
-  <aside class="sidebar" aria-label="Sidebar">
-    <div class="sidebar-title">Main Menu</div>
-    <ul class="sidebar-menu">
-      <li><a href="index-admin.php" class="active">Dashboard</a></li>
-      <li><a href="reservation_request.php">Reservation Request</a></li>
-      <li><a href="admin_timetable.php">Regular Timetable</a></li>
-      <li><a href="admin_recurring.php">Recurring Templates</a></li>
+<div class="layout">
+    <aside class="sidebar">
+        <div class="sidebar-title">Main Menu</div>
+        <ul class="sidebar-menu">
+            <li><a href="index-admin.php" class="active"><i class="fa-solid fa-gauge-high"></i> Dashboard</a></li>
+            
+            <?php if (!$isTechAdmin): ?>
+            <li><a href="reservation_request.php"><i class="fa-solid fa-inbox"></i> Requests</a></li>
+            <?php endif; ?>
 
-      <?php if ($isSuperAdmin): ?>
-        <li><a href="manage_users.php">Manage Users</a></li>
-      <?php endif; ?>
-      <li><a href="admin_logbook.php">Logbook</a></li>
-      <li><a href="generate_reports.php">Generate Reports</a></li>
-      <li><a href="admin_problems.php">Room Problems</a></li>
-    </ul>
+            <li><a href="admin_timetable.php"><i class="fa-solid fa-calendar-days"></i> Timetable</a></li>
+            
+            <?php if (!$isTechAdmin): ?>
+            <li><a href="admin_recurring.php"><i class="fa-solid fa-rotate"></i> Recurring</a></li>
+            <?php endif; ?>
 
-    <div class="sidebar-profile">
-      <div class="profile-icon"><?php echo strtoupper(substr($admin_name,0,1)); ?></div>
-      <div class="profile-info">
-        <div class="profile-name"><?php echo htmlspecialchars($admin_name); ?></div>
-        <div class="profile-email"><?php echo htmlspecialchars($admin_email); ?></div>
-      </div>
-    </div>
-  </aside>
+            <li><a href="admin_logbook.php"><i class="fa-solid fa-book"></i> Logbook</a></li>
+            <li><a href="generate_reports.php"><i class="fa-solid fa-chart-pie"></i> Reports</a></li>
+            <li><a href="admin_problems.php"><i class="fa-solid fa-triangle-exclamation"></i> Problems</a></li>
+            
+            <?php if ($isSuperAdmin || $isTechAdmin): ?>
+                <li><a href="manage_users.php"><i class="fa-solid fa-users-gear"></i> Users</a></li>
+            <?php endif; ?>
+        </ul>
 
-  <main class="main">
-    <div class="header-card">
-      <div>
-        <div class="header-title"><h1>Admin Dashboard</h1></div>
-        <div class="header-sub">Welcome back — manage rooms & bookings</div>
-      </div>
-      <div style="text-align:right">
-        <div style="font-weight:700;color:var(--gray-700)"><?php echo htmlspecialchars($admin_name); ?></div>
-        <div style="font-size:12px;color:var(--gray-500)"><?php echo htmlspecialchars($admin_email); ?></div>
-      </div>
-    </div>
-
-    <div class="stats-grid">
-      <div class="stat-card card">
-        <h4>Total Rooms</h4>
-        <div class="value"><?php echo number_format($total_rooms); ?></div>
-        <div style="margin-top:8px;color:var(--gray-500);font-size:13px">Registered rooms in the system</div>
-      </div>
-
-      <div class="stat-card card">
-        <h4>Active Bookings Today</h4>
-        <div class="value"><?php echo number_format($active_bookings_today); ?></div>
-        <div style="margin-top:8px;color:var(--gray-500);font-size:13px">Confirmed bookings for today</div>
-      </div>
-
-      <div class="stat-card card">
-        <h4>Pending Approvals</h4>
-        <div class="value"><?php echo number_format($pending_approvals); ?></div>
-        <div style="margin-top:8px;color:var(--gray-500);font-size:13px">Requests waiting for admin action</div>
-      </div>
-    </div>
-
-    <div class="row" style="margin-bottom:16px">
-      <!-- NEW: Activity Summary Section -->
-      <div class="card activity-summary">
-        <h4 style="margin:0 0 16px 0">Activity Summary</h4>
-        
-        <!-- Bookings This Week -->
-        <div class="activity-section">
-          <div class="activity-highlight">
-            <div class="label">Bookings This Week</div>
-            <div class="value"><?php echo number_format($bookings_this_week); ?></div>
-          </div>
-        </div>
-
-        <!-- Most Popular Room -->
-        <div class="activity-section">
-          <h5>🔥 Most Popular Room</h5>
-          <?php if ($popular_room['count'] > 0): ?>
-            <div style="background: var(--gray-50); padding: 10px; border-radius: 6px; font-size: 13px;">
-              <strong><?php echo htmlspecialchars($popular_room['name']); ?></strong>
-              <div style="color: var(--gray-600); font-size: 12px; margin-top: 4px;">
-                <?php echo $popular_room['count']; ?> booking<?php echo $popular_room['count'] !== 1 ? 's' : ''; ?> this week
-              </div>
+        <div class="sidebar-profile">
+            <div class="profile-icon"><?php echo strtoupper(substr($admin_name, 0, 1)); ?></div>
+            <div class="profile-info">
+                <div class="profile-name"><?php echo htmlspecialchars($admin_name); ?></div>
+                <div class="profile-email"><?php echo htmlspecialchars($admin_email); ?></div>
             </div>
-          <?php else: ?>
-            <div class="empty-state">No bookings this week</div>
-          <?php endif; ?>
+        </div>
+    </aside>
+
+    <main class="main-content">
+        <div class="welcome-banner">
+            <h2>Welcome back, <?php echo htmlspecialchars(explode(' ', $admin_name)[0]); ?>!</h2>
+            <p>Here is an overview of the room booking activities today.</p>
         </div>
 
-        <!-- Upcoming Bookings -->
-        <div class="activity-section">
-          <h5>📅 Upcoming (Next 7 Days)</h5>
-          <?php if (count($upcoming_bookings) > 0): ?>
-            <?php foreach ($upcoming_bookings as $ub): ?>
-              <div class="activity-item">
-                <div>
-                  <span class="icon success"></span>
-                  <strong><?php echo htmlspecialchars($ub['room_name']); ?></strong> — <?php echo htmlspecialchars($ub['username']); ?>
+        <div class="stats-grid">
+            <div class="stat-card">
+                <div class="stat-top">
+                    <span class="stat-label">Total Rooms</span>
+                    <div class="stat-icon blue"><i class="fa-solid fa-door-open"></i></div>
                 </div>
-                <span class="activity-date"><?php echo date('M d', strtotime($ub['slot_date'])); ?> • <?php echo htmlspecialchars($ub['time_start']); ?></span>
-              </div>
-            <?php endforeach; ?>
-          <?php else: ?>
-            <div class="empty-state">No upcoming bookings</div>
-          <?php endif; ?>
-        </div>
+                <div class="stat-value"><?php echo number_format($total_rooms); ?></div>
+            </div>
 
-        <!-- Recent Cancellations -->
-        <div class="activity-section">
-          <h5>❌ Recent Cancellations</h5>
-          <?php if (count($recent_cancellations) > 0): ?>
-            <?php foreach ($recent_cancellations as $rc): ?>
-              <div class="activity-item">
-                <div>
-                  <span class="icon danger"></span>
-                  <strong><?php echo htmlspecialchars($rc['room_name']); ?></strong> by <?php echo htmlspecialchars($rc['username']); ?>
+            <div class="stat-card">
+                <div class="stat-top">
+                    <span class="stat-label">Active Bookings (Today)</span>
+                    <div class="stat-icon green"><i class="fa-solid fa-calendar-check"></i></div>
                 </div>
-                <span class="activity-date"><?php echo date('M d', strtotime($rc['slot_date'])); ?></span>
-              </div>
-            <?php endforeach; ?>
-          <?php else: ?>
-            <div class="empty-state">No recent cancellations</div>
-          <?php endif; ?>
+                <div class="stat-value"><?php echo number_format($active_bookings_today); ?></div>
+            </div>
+
+            <div class="stat-card">
+                <div class="stat-top">
+                    <span class="stat-label">Pending Requests</span>
+                    <div class="stat-icon orange"><i class="fa-solid fa-clock"></i></div>
+                </div>
+                <div class="stat-value"><?php echo number_format($pending_approvals); ?></div>
+            </div>
+            
+             <div class="stat-card">
+                <div class="stat-top">
+                    <span class="stat-label">Total Bookings (Week)</span>
+                    <div class="stat-icon blue"><i class="fa-solid fa-chart-line"></i></div>
+                </div>
+                <div class="stat-value"><?php echo number_format($bookings_this_week); ?></div>
+            </div>
         </div>
 
-        <div style="margin-top:12px"><a class="link-secondary" href="generate_reports.php">View detailed reports →</a></div>
-      </div>
+        <div class="dashboard-grid">
+            
+            <div class="card">
+                <div class="card-header">
+                    <div class="card-title"><i class="fa-solid fa-list-check"></i> Recent Requests</div>
+                    <a href="reservation_request.php" class="card-action">View All</a>
+                </div>
+                <div class="table-wrap">
+                    <table class="list-table">
+                        <thead>
+                            <tr>
+                                <th>#ID</th>
+                                <th>Room</th>
+                                <th>Requester</th>
+                                <th>Date / Time</th>
+                                <th>Status</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <?php if (count($recent_requests) > 0): ?>
+                                <?php foreach ($recent_requests as $rq): ?>
+                                <tr>
+                                    <td><strong>#<?php echo $rq['id']; ?></strong></td>
+                                    <td>
+                                        <strong><?php echo htmlspecialchars($rq['room_name']); ?></strong>
+                                        <div style="font-size:11px; color:#6b7280;"><?php echo htmlspecialchars($rq['room_no']); ?></div>
+                                    </td>
+                                    <td><?php echo htmlspecialchars($rq['requester']); ?></td>
+                                    <td>
+                                        <div><?php echo date('M d, Y', strtotime($rq['slot_date'])); ?></div>
+                                        <div style="font-size:11px; color:#6b7280;">
+                                            <?php echo substr($rq['time_start'],0,5) . ' - ' . substr($rq['time_end'],0,5); ?>
+                                        </div>
+                                    </td>
+                                    <td>
+                                        <span class="status <?php echo strtolower($rq['status']); ?>">
+                                            <?php echo ucfirst($rq['status']); ?>
+                                        </span>
+                                    </td>
+                                </tr>
+                                <?php endforeach; ?>
+                            <?php else: ?>
+                                <tr><td colspan="5" style="text-align:center; padding:30px; color:#6b7280;">No recent requests found.</td></tr>
+                            <?php endif; ?>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
 
-      <!-- Recent Booking Requests Table -->
-      <div class="card" style="flex:1">
-        <h4 style="margin:0 0 12px 0">Recent Booking Requests</h4>
-        <div class="table-wrap">
-          <table class="table" role="table">
-            <thead>
-              <tr>
-                <th>Ticket</th>
-                <th>Room</th>
-                <th>Room No.</th>
-                <th>User</th>
-                <th>Date</th>
-                <th>Time</th>
-                <th>Status</th>
-              </tr>
-            </thead>
-            <tbody>
-              <?php if (count($recent_requests) === 0): ?>
-                <tr><td colspan="7" style="text-align:center;padding:18px">No recent requests</td></tr>
-              <?php else: ?>
-                <?php foreach ($recent_requests as $rq): ?>
-                  <tr>
-                    <td><?php echo htmlspecialchars($rq['id']); ?></td>
-                    <td><strong><?php echo htmlspecialchars($rq['room_name']); ?></strong></td>
-                    <td><?php echo htmlspecialchars($rq['room_no']); ?></td>
-                    <td><?php echo htmlspecialchars($rq['requester']); ?></td>
-                    <td><?php echo date('d M Y', strtotime($rq['slot_date'])); ?></td>
-                    <td><?php echo htmlspecialchars($rq['time_start'] . ' - ' . $rq['time_end']); ?></td>
-                    <td><span class="status <?php echo htmlspecialchars($rq['status']); ?>"><?php echo ucfirst(htmlspecialchars($rq['status'])); ?></span></td>
-                  </tr>
-                <?php endforeach; ?>
-              <?php endif; ?>
-            </tbody>
-          </table>
-        </div>
-        <div style="margin-top:12px"><a class="link-secondary" href="reservation_request.php">View all requests →</a></div>
-      </div>
-    </div>
+            <div class="card">
+                <div class="card-header">
+                    <div class="card-title"><i class="fa-solid fa-bolt"></i> Activity Feed</div>
+                </div>
+                
+                <div class="activity-list">
+                    <?php if ($popular_room['count'] > 0): ?>
+                    <div class="pop-room-card">
+                        <div class="pop-icon"><i class="fa-solid fa-fire"></i></div>
+                        <div>
+                            <div style="font-size:11px; text-transform:uppercase; color:#92400e; font-weight:700;">Most Popular</div>
+                            <div style="font-weight:700; color:#1f2937;"><?php echo htmlspecialchars($popular_room['name']); ?></div>
+                            <div style="font-size:12px; color:#6b7280;"><?php echo $popular_room['count']; ?> bookings this week</div>
+                        </div>
+                    </div>
+                    <?php endif; ?>
 
-  </main>
+                    <div style="padding: 12px 20px 4px; font-size:11px; font-weight:700; color:#6b7280; text-transform:uppercase;">Upcoming 7 Days</div>
+                    
+                    <?php if(count($upcoming_bookings) > 0): ?>
+                        <?php foreach($upcoming_bookings as $up): ?>
+                        <div class="activity-item">
+                            <div class="act-icon" style="color:#16a34a;"><i class="fa-solid fa-circle-check"></i></div>
+                            <div class="act-content">
+                                <strong><?php echo htmlspecialchars($up['room_name']); ?></strong>
+                                <p><?php echo htmlspecialchars($up['username']); ?></p>
+                            </div>
+                            <div class="act-time">
+                                <?php echo date('M d', strtotime($up['slot_date'])); ?><br>
+                                <?php echo substr($up['time_start'],0,5); ?>
+                            </div>
+                        </div>
+                        <?php endforeach; ?>
+                    <?php else: ?>
+                        <div class="activity-item" style="color:#6b7280; font-size:13px;">No upcoming bookings.</div>
+                    <?php endif; ?>
+
+                    <div style="padding: 20px 20px 4px; font-size:11px; font-weight:700; color:#6b7280; text-transform:uppercase;">Recent Cancellations</div>
+                    
+                    <?php if(count($recent_cancellations) > 0): ?>
+                        <?php foreach($recent_cancellations as $rc): ?>
+                        <div class="activity-item">
+                            <div class="act-icon" style="color:#dc2626;"><i class="fa-solid fa-circle-xmark"></i></div>
+                            <div class="act-content">
+                                <strong><?php echo htmlspecialchars($rc['room_name']); ?></strong>
+                                <p>Cancelled by <?php echo htmlspecialchars($rc['username']); ?></p>
+                            </div>
+                            <div class="act-time"><?php echo date('M d', strtotime($rc['slot_date'])); ?></div>
+                        </div>
+                        <?php endforeach; ?>
+                    <?php else: ?>
+                        <div class="activity-item" style="color:#6b7280; font-size:13px;">No recent cancellations.</div>
+                    <?php endif; ?>
+                </div>
+            </div>
+
+        </div> </main>
 </div>
-
-<script>
-document.addEventListener('DOMContentLoaded', () => {
-  const flash = document.querySelector('.alert-success, .alert-error');
-  if (flash) setTimeout(()=> flash.remove(), 3500);
-});
-</script>
 
 </body>
 </html>
