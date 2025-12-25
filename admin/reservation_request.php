@@ -4,7 +4,7 @@ require_once __DIR__ . '/../includes/db_connect.php';
 
 // Access control
 if(!isset($_SESSION["loggedin"]) || $_SESSION["loggedin"] !== true ||
-   strcasecmp(trim($_SESSION["User_Type"]), 'Admin') != 0) {
+   strcasecmp(trim($_SESSION["User_Type"]), 'Admin') != 0 && strcasecmp(trim($_SESSION["User_Type"]), 'SuperAdmin') != 0) {
     header("location: ../loginterface.html");
     exit;
 }
@@ -36,21 +36,24 @@ $sql = "
 SELECT 
     b.session_id,
     GROUP_CONCAT(b.id ORDER BY b.time_start ASC) AS booking_ids,
-    GROUP_CONCAT(CONCAT(b.time_start,'-',b.time_end) ORDER BY b.time_start ASC SEPARATOR ', ') AS time_slots,
+    GROUP_CONCAT(CONCAT(SUBSTRING(b.time_start, 1, 5),'-',SUBSTRING(b.time_end, 1, 5)) ORDER BY b.time_start ASC SEPARATOR ', ') AS time_slots,
     b.slot_date,
     r.room_id AS room_no,
     r.name AS room_name,
     u.username AS requested_by,
+    u.fullname AS user_fullname,
+    u.email AS user_email,
     b.purpose,
     b.description,
+    b.created_at,
     MAX(b.ticket) AS ticket,
     b.status
 FROM bookings b
 JOIN rooms r ON b.room_id = r.room_id
 JOIN users u ON b.user_id = u.id
 $where_sql
-GROUP BY b.session_id, r.room_id, b.slot_date, r.name, u.username, b.purpose, b.description, b.status
-ORDER BY b.slot_date DESC
+GROUP BY b.session_id, r.room_id, b.slot_date, r.name, u.username, u.fullname, u.email, b.purpose, b.description, b.status, b.created_at
+ORDER BY b.created_at DESC, b.slot_date ASC
 ";
 
 $result = $conn->query($sql);
@@ -67,282 +70,625 @@ while($r = $rooms_result->fetch_assoc()){
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<title>Reservation Requests — Admin</title>
-<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+<title>Reservation Requests - UTM Admin</title>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
 <style>
-  :root{
-    --primary: #2563eb;
-    --primary-dark: #1d4ed8;
-    --primary-light: #dbeafe;
-    --success: #059669;
-    --danger: #dc2626;
-    --warning: #f59e0b;
-    --purple: #7c3aed;
-    --gray-50: #f9fafb;
-    --gray-100: #f3f4f6;
-    --gray-200: #e5e7eb;
-    --gray-300: #d1d5db;
-    --gray-600: #4b5563;
-    --gray-700: #374151;
-    --gray-800: #1f2937;
-  }
-  *{box-sizing:border-box; margin:0; padding:0;}
-  body{
-    font-family: 'Inter', sans-serif;
-    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-    min-height: 100vh;
-  }
-  .nav-bar {
-    background: white;
-    padding: 16px 24px;
-    box-shadow: 0 2px 4px rgba(0,0,0,0.1);
-    position: fixed;
-    top: 0; left: 0; right: 0;
-    z-index: 1000;
-    height: 80px;
-    display: flex;
+:root {
+  --utm-maroon: #800000;
+  --utm-maroon-light: #a31313;
+  --bg-light: #f9fafb;
+  --text-primary: #1f2937;
+  --text-secondary: #6b7280;
+  --border: #e5e7eb;
+  --success: #16a34a;
+  --danger: #dc2626;
+  --warning: #f59e0b;
+  --purple: #7c3aed;
+  --shadow-sm: 0 1px 2px 0 rgba(0, 0, 0, 0.05);
+  --nav-height: 70px;
+}
+
+* { box-sizing: border-box; margin: 0; padding: 0; }
+
+body {
+  font-family: 'Inter', sans-serif;
+  background: var(--bg-light);
+  color: var(--text-primary);
+}
+
+/* NAVBAR */
+.nav-bar {
+  position: fixed; top: 0; left: 0; right: 0;
+  height: var(--nav-height);
+  background: white;
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 0 24px;
+  box-shadow: var(--shadow-sm);
+  z-index: 1000;
+  border-bottom: 1px solid var(--border);
+}
+.nav-left { display: flex; align-items: center; gap: 16px; }
+.nav-logo { height: 50px; }
+.nav-title h1 { font-size: 16px; font-weight: 700; color: var(--utm-maroon); margin: 0; }
+.nav-title p { font-size: 11px; color: var(--text-secondary); margin: 0; }
+
+.btn-logout { 
+    text-decoration: none; color: var(--text-secondary); font-size: 13px; font-weight: 500;
+    padding: 8px 12px; border-radius: 6px; transition: 0.2s;
+}
+.btn-logout:hover { background: #fef2f2; color: var(--utm-maroon); }
+
+/* LAYOUT */
+.layout {
+  display: flex;
+  margin-top: var(--nav-height);
+  min-height: calc(100vh - var(--nav-height));
+}
+
+/* SIDEBAR */
+.sidebar {
+  width: 260px;
+  background: white;
+  border-right: 1px solid var(--border);
+  padding: 24px;
+  flex-shrink: 0;
+  position: sticky;
+  top: var(--nav-height);
+  height: calc(100vh - var(--nav-height));
+  display: flex; flex-direction: column;
+}
+
+.sidebar-title {
+  font-size: 11px; font-weight: 700; text-transform: uppercase;
+  color: var(--text-secondary); letter-spacing: 0.5px;
+  margin-bottom: 16px;
+}
+
+.sidebar-menu { list-style: none; flex: 1; padding: 0; }
+.sidebar-menu li { margin-bottom: 4px; }
+.sidebar-menu a {
+  display: flex; align-items: center; gap: 12px;
+  padding: 10px 12px;
+  border-radius: 6px;
+  text-decoration: none;
+  color: var(--text-primary);
+  font-size: 14px; font-weight: 500;
+  transition: all 0.2s;
+}
+.sidebar-menu a:hover { background: var(--bg-light); color: var(--utm-maroon); }
+.sidebar-menu a.active { background: #fef2f2; color: var(--utm-maroon); font-weight: 600; }
+.sidebar-menu a i { width: 20px; text-align: center; }
+
+.sidebar-profile {
+  margin-top: auto; padding-top: 16px;
+  border-top: 1px solid var(--border);
+  display: flex; align-items: center; gap: 12px;
+}
+.profile-icon {
+  width: 36px; height: 36px;
+  background: #f3f4f6; color: var(--utm-maroon);
+  border-radius: 50%;
+  display: flex; align-items: center; justify-content: center;
+  font-weight: 700;
+}
+.profile-info { font-size: 13px; overflow: hidden; }
+.profile-name { font-weight: 600; white-space: nowrap; text-overflow: ellipsis; }
+.profile-email { font-size: 11px; color: var(--text-secondary); white-space: nowrap; text-overflow: ellipsis; }
+
+/* MAIN CONTENT */
+.main-content { flex: 1; padding: 32px; min-width: 0; }
+
+/* HEADER CARD */
+.page-header {
+  display: flex; justify-content: space-between; align-items: center;
+  margin-bottom: 24px;
+}
+.page-title h2 { font-size: 24px; font-weight: 700; color: var(--utm-maroon); margin:0; }
+.page-title p { color: var(--text-secondary); font-size: 14px; margin: 4px 0 0 0; }
+
+/* CONTENT CARD */
+.card {
+  background: white; border-radius: 12px;
+  box-shadow: var(--shadow-sm); border: 1px solid var(--border);
+  padding: 24px;
+}
+
+/* FILTERS & CONTROLS */
+.top-controls {
+  display: flex; justify-content: space-between; align-items: center;
+  margin-bottom: 24px; gap: 16px; flex-wrap: wrap;
+}
+
+.tabs {
+  display: flex; background: var(--bg-light);
+  padding: 4px; border-radius: 8px; gap: 4px;
+}
+.tab {
+  padding: 8px 16px; border-radius: 6px;
+  text-decoration: none; color: var(--text-secondary);
+  font-size: 13px; font-weight: 600;
+  transition: all 0.2s;
+}
+.tab:hover { color: var(--utm-maroon); background: white; }
+.tab.active { background: white; color: var(--utm-maroon); box-shadow: var(--shadow-sm); }
+
+.search-form { display: flex; gap: 8px; }
+.room-select {
+  padding: 8px 12px; border: 1px solid var(--border);
+  border-radius: 6px; font-size: 13px; min-width: 180px;
+}
+.room-select:focus { outline: none; border-color: var(--utm-maroon); }
+
+/* BUTTONS */
+.btn {
+  display: inline-flex; align-items: center; gap: 8px;
+  padding: 8px 16px; border-radius: 6px;
+  font-size: 13px; font-weight: 600; cursor: pointer; border: none;
+  transition: all 0.2s; text-decoration: none;
+}
+.btn-primary { background: var(--utm-maroon); color: white; }
+.btn-primary:hover { background: var(--utm-maroon-light); }
+.btn-outline { background: white; border: 1px solid var(--border); color: var(--text-primary); }
+.btn-outline:hover { border-color: var(--utm-maroon); color: var(--utm-maroon); }
+
+/* TABLE */
+.table-wrap { overflow-x: auto; border: 1px solid var(--border); border-radius: 8px; }
+.list-table { width: 100%; border-collapse: collapse; min-width: 1000px; }
+.list-table th {
+  background: var(--bg-light); text-align: left;
+  padding: 12px 16px; font-size: 12px; font-weight: 600;
+  color: var(--text-secondary); text-transform: uppercase;
+}
+.list-table td {
+  padding: 14px 16px; border-top: 1px solid var(--border);
+  font-size: 13px; vertical-align: middle;
+}
+.list-table tr:hover { background: #fafafa; }
+.user-subtext { font-size: 11px; color: var(--text-secondary); display: block; margin-top: 2px; }
+
+/* --- EMPTY STATE (Matches booking_status.html) --- */
+.loading-cell { text-align: center; padding: 40px !important; color: var(--text-secondary); }
+
+/* STATUS BADGES */
+.status {
+  display: inline-flex; padding: 4px 10px; border-radius: 99px;
+  font-size: 11px; font-weight: 600; text-transform: uppercase;
+}
+.status.pending { background: #fef3c7; color: #92400e; }
+.status.booked, .status.approved { background: #dcfce7; color: #166534; }
+.status.rejected, .status.cancelled { background: #fee2e2; color: #991b1b; }
+
+/* ACTIONS */
+.actions { display: flex; gap: 6px; }
+.btn-icon {
+  width: 32px; height: 32px; border-radius: 6px;
+  display: flex; align-items: center; justify-content: center;
+  border: 1px solid var(--border); background: white;
+  color: var(--text-secondary); cursor: pointer;
+  transition: all 0.2s;
+}
+.btn-icon:hover { border-color: var(--utm-maroon); color: var(--utm-maroon); }
+.btn-icon.view:hover { background: #eff6ff; border-color: #3b82f6; color: #3b82f6; }
+.btn-icon.approve:hover { background: var(--success); border-color: var(--success); color: white; }
+.btn-icon.reject:hover { background: var(--danger); border-color: var(--danger); color: white; }
+
+/* MODALS */
+.modal {
+  position: fixed; inset: 0; background: rgba(0,0,0,0.5);
+  display: none; align-items: center; justify-content: center;
+  z-index: 2000; backdrop-filter: blur(2px);
+}
+.modal.show { display: flex; }
+
+.modal-card {
+  background: white; border-radius: 12px;
+  width: 100%; max-width: 500px; padding: 24px;
+  box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.1);
+  display: flex; flex-direction: column;
+}
+.modal-card.large { max-width: 1200px; max-height: 90vh; }
+
+.modal-header {
+  display: flex; justify-content: space-between; align-items: center;
+  margin-bottom: 20px; border-bottom: 1px solid var(--border); padding-bottom: 16px;
+}
+
+.modal-header h3 { 
+  font-size: 18px; 
+  font-weight: 700; color: var(--utm-maroon); 
+  margin:0; }
+
+.btn-close {
+  background: none; 
+  border: none; 
+  font-size: 20px;
+  color: var(--text-secondary); 
+  cursor: pointer;
+}
+
+.modal-body { 
+  overflow-y: auto; 
+  flex: 1; 
+  padding-bottom: 20px; 
+}
+
+.modal-footer {
+  margin-top: auto; 
+  padding-top: 16px; 
+  border-top: 1px solid var(--border);
+  display: flex; 
+  justify-content: flex-end; 
+  gap: 8px;
+}
+
+.modal-textarea {
+  width: 100%; 
+  height: 100px; 
+  padding: 12px;
+  border: 1px solid var(--border); 
+  border-radius: 6px;
+  font-family: inherit; 
+  font-size: 14px; 
+  margin-top: 8px;
+  resize: vertical;
+}
+
+
+.slot-list { 
+    display: flex; 
+    flex-wrap: wrap; 
+    gap: 6px; 
+    margin-top: 4px;
+}
+
+.slot-pill { 
+    background: #f3f4f6; 
+    border: 1px solid #e5e7eb; 
+    padding: 4px 8px; 
+    border-radius: 6px; 
+    font-size: 11px; 
+    font-weight: 500; 
+    color: #374151; 
+    display: inline-flex;
     align-items: center;
-  }
-  .nav-logo { height:50px; }
-  .layout {
-    width: 100%; max-width: 2000px;
-    padding: 24px; gap: 24px;
-    margin: 100px auto 0;
+    gap: 4px;
+}
+.slot-pill i { color: #6b7280; font-size: 10px; }
+
+/* TIMETABLE GRID */
+.grid { width: 100%; border-collapse: collapse; font-size: 12px; margin-top: 10px; }
+.grid th, .grid td { border: 1px solid var(--border); padding: 8px; text-align: center; }
+.grid th { background: var(--bg-light); color: var(--text-secondary); position: sticky; top:0; z-index: 10; }
+.grid td.date-col { background: var(--bg-light); font-weight: 600; position: sticky; left:0; z-index: 5; text-align: left;}
+
+.slot { height: 50px; position: relative; transition: all 0.2s; }
+.slot.available { background: #f9fafb; }
+.slot.booked { background: #fee2e2; color: #991b1b; font-weight: 600; font-size: 10px; }
+.slot.maintenance { background: #ffedd5; color: #9a3412; font-weight: 600; }
+.slot.recurring { background: #e0e7ff; border-left: 3px solid #6366f1; color: #4338ca; }
+.slot.highlight-request { 
+    background: #dbeafe; 
+    border: 2.5px dashed #2563eb; 
+    color: #1e40af; 
+    font-weight: 700; 
+    animation: pulse 2s infinite; 
+    z-index: 2;
+}
+@keyframes pulse { 0% { opacity: 1; } 50% { opacity: 0.7; } 100% { opacity: 1; } }
+
+/* DETAILS PANEL */
+.booking-details-panel {
+    background: var(--bg-light);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 16px;
+    margin-top: 20px;
+}
+.detail-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin-top: 12px; }
+.detail-item strong { display: block; font-size: 11px; color: var(--text-secondary); text-transform: uppercase; margin-bottom: 4px; }
+.detail-item span { font-size: 14px; color: var(--text-primary); font-weight: 500; }
+.detail-desc { grid-column: 1 / -1; margin-top: 8px; }
+
+/* --- PAGINATION STYLES --- */
+.pagination-container {
     display: flex;
-  }
-  .sidebar {
-    width: 260px; background: white; border-radius: 12px; padding: 20px;
-    box-shadow: 0 4px 6px rgba(0,0,0,0.1);
-    position: sticky; top: 100px;
-  }
-  .sidebar-title { font-size: 14px; font-weight: 700; text-transform: uppercase; color: var(--gray-600); margin-bottom: 16px; padding-bottom: 12px; border-bottom: 2px solid var(--gray-200); }
-  .sidebar-menu { list-style: none; }
-  .sidebar-menu li { margin-bottom: 8px; }
-  .sidebar-menu a { display: flex; padding: 12px 16px; border-radius: 8px; text-decoration: none; color: var(--gray-700); font-size: 14px; font-weight: 500; }
-  .sidebar-menu a:hover { background: var(--gray-100); color: var(--primary); }
-  .sidebar-menu a.active { background: var(--primary-light); color: var(--primary); font-weight: 600; }
-  .sidebar-profile { margin-top: 20px; padding-top: 20px; border-top: 1px solid var(--gray-200); display: flex; gap: 12px; }
-  .profile-icon { width: 36px; height: 36px; background: var(--primary-light); border-radius: 50%; display: flex; align-items: center; justify-content: center; color: var(--primary); font-weight: 700; }
-  .profile-info { font-size: 13px; }
-  .profile-name { font-weight: 600; color: var(--gray-800); }
-  .profile-email { font-size: 11px; color: var(--gray-600); }
-  .main { flex:1; }
-  .header-card { background: white; border-radius: 12px; padding: 24px 32px; margin-bottom: 24px; box-shadow: 0 4px 6px rgba(0,0,0,0.1); display: flex; justify-content: space-between; align-items: center; }
-  .header-title h1 { font-size: 24px; font-weight: 700; color: var(--gray-800); }
-  .header-badge { background: var(--primary-light); color: var(--primary); padding: 4px 12px; border-radius: 20px; font-size: 12px; font-weight: 600; text-transform: uppercase; }
-  .header-subtitle { font-size: 14px; color: var(--gray-600); margin-top: 4px; }
-  .card { background:#fff; border-radius:12px; padding:20px; box-shadow: 0 2px 8px rgba(0,0,0,0.1); }
-  .top-controls { display:flex; gap:12px; justify-content:space-between; flex-wrap:wrap; margin-bottom:16px; }
-  .room-select { padding:10px 12px; border-radius:8px; border:2px solid var(--gray-300); font-weight:600; background:#fff; }
-  .btn { padding:10px 16px; border-radius:8px; border:0; cursor:pointer; font-weight:700; }
-  .btn.primary { background:var(--primary); color:#fff; }
-  .btn.outline { background:#fff; border:2px solid var(--gray-300); color:var(--gray-700); }
-  .tabs { display:flex; gap:8px; margin-bottom:12px; }
-  .tab { padding:8px 12px; border-radius:8px; background:var(--gray-50); border:1px solid var(--gray-200); text-decoration:none; color:var(--gray-700); font-weight:600; }
-  .tab.active { background:var(--primary-light); color:var(--primary); }
-  .table-wrap-list { overflow: auto; border-radius:10px; border:1px solid var(--gray-200); }
-  table.list-table { width:100%; border-collapse:collapse; min-width:980px; background:#fff; }
-  table.list-table th, table.list-table td { padding:12px 10px; border-bottom:1px solid var(--gray-100); text-align:left; }
-  table.list-table th { background: var(--gray-100); font-weight:700; font-size:12px; text-transform:uppercase; color:var(--gray-700); }
-  .status { display:inline-block; padding:6px 10px; border-radius:8px; font-weight:700; font-size:13px; }
-  .status.pending { background:#fef3c7; color:#92400e; }
-  .status.booked { background:#d1fae5; color:var(--success); }
-  .status.rejected, .status.cancelled { background:#fee2e2; color:var(--danger); }
-  .actions button { margin-right:8px; padding:8px 12px; border-radius:8px; border:0; cursor:pointer; font-weight:700; }
-  .actions .approve { background:var(--success); color:#fff; }
-  .actions .reject { background:var(--danger); color:#fff; }
-  .btn-view-time { background: white; border: 2px solid var(--gray-300); color: var(--gray-700); padding: 6px 12px; border-radius: 6px; font-size: 12px; cursor: pointer; }
-  .btn-view-time:hover { background: var(--gray-100); }
-  
-  /* MODAL */
-  .modal { position:fixed; inset:0; display:none; align-items:center; justify-content:center; background: rgba(0,0,0,0.5); z-index:2000; }
-  .modal.show { display:flex; }
-  .modal-card { width:90%; max-width:1400px; max-height:90vh; background:#fff; border-radius:12px; padding:24px; box-shadow:0 20px 60px rgba(0,0,0,0.3); overflow-y:auto; }
-  .modal-header-custom { display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; padding-bottom: 12px; border-bottom: 2px solid var(--gray-200); }
-  .modal-header-custom h3 { margin: 0; font-size: 20px; color: var(--primary); }
-  .btn-close-modal { background: none; border: none; font-size: 32px; cursor: pointer; color: var(--gray-600); padding: 0; width: 36px; height: 36px; line-height: 1; }
-  .btn-close-modal:hover { color: var(--danger); }
-  .legend-row { display: flex; gap: 15px; flex-wrap: wrap; padding: 12px; background: var(--gray-50); border-radius: 8px; margin-bottom: 20px; font-size: 13px; }
-  .legend-row span { display: inline-flex; align-items: center; gap: 6px; }
-  .legend-box { width: 16px; height: 16px; border-radius: 3px; border: 1px solid var(--gray-300); }
-  
-  /* TABLE */
-  .table-wrap { overflow: auto; border: 1px solid var(--gray-200); border-radius: 10px; max-height: 600px; }
-  table.grid { width: 100%; border-collapse: collapse; background: #fff; min-width: 1400px; }
-  table.grid th, table.grid td { padding: 10px 8px; border: 1px solid var(--gray-200); text-align: center; font-size: 12px; }
-  table.grid thead th { background: var(--gray-100); font-weight: 700; text-transform: uppercase; position: sticky; top: 0; z-index: 10; }
-  table.grid th:first-child, table.grid td:first-child { position: sticky; left: 0; background: #e0f2fe; font-weight: 700; min-width: 120px; text-align: left; padding-left: 12px; z-index: 5; }
-  table.grid thead th:first-child { z-index: 15; background: var(--gray-100); }
-  .slot { height: 60px; min-width: 90px; position: relative; }
-  .available { background: #dcfce7; }
-  .booked { background: #fecaca; color: var(--danger); font-weight: 600; }
-  .pending { background: #fde68a; color: #92400e; font-weight: 600; }
-  .maintenance { background: #fdba74; color: #9a3412; font-weight: 600; }
-  .recurring { background: #c7d2fe; color: var(--purple); font-weight: 700; border-left: 3px solid var(--purple); }
-  .past { background: var(--gray-200); color: var(--gray-600); opacity: 0.6; }
-  .requested { background: #dbeafe !important; border: 2px dashed #2563eb !important; color: #1e40af; font-weight: 700; animation: pulse 1.5s infinite; }
-  .conflict { background: #ef4444 !important; color: white !important; font-weight: 800; border: 2px solid #b91c1c !important; }
-  @keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.7; } }
-  .cell-content { font-size: 11px; line-height: 1.3; padding: 4px; }
-  .day-head { font-weight: 700; font-size: 13px; color: #1e40af; }
-  .day-name { font-size: 11px; color: var(--gray-600); margin-top: 2px; }
-  .modal-actions { margin-top: 20px; padding-top: 15px; border-top: 1px solid var(--gray-200); text-align: right; }
-  @media (max-width:1200px) { .sidebar { display:none; } }
+    justify-content: center;
+    align-items: center;
+    gap: 8px;
+    margin-top: 24px;
+    padding-bottom: 10px;
+}
+.page-btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 36px;
+    height: 36px;
+    border-radius: 8px;
+    border: 1px solid var(--border);
+    background: white;
+    color: var(--text-primary);
+    font-weight: 600;
+    font-size: 14px;
+    cursor: pointer;
+    transition: all 0.2s ease;
+}
+.page-btn:hover:not(:disabled) {
+    border-color: var(--utm-maroon);
+    color: var(--utm-maroon);
+    background: #fff5f5;
+}
+.page-btn.active {
+    background: var(--utm-maroon);
+    color: white;
+    border-color: var(--utm-maroon);
+}
+.page-btn:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+    background: var(--bg-light);
+}
+
+/* --- TOAST NOTIFICATIONS --- */
+#toast-container {
+    position: fixed; top: 24px; right: 24px; z-index: 9999;
+    display: flex; flex-direction: column; gap: 10px;
+}
+.toast-msg {
+    min-width: 300px; background: white; padding: 16px; border-radius: 8px;
+    box-shadow: 0 4px 12px rgba(0,0,0,0.15); display: flex; align-items: center; gap: 12px;
+    border-left: 4px solid #3b82f6; animation: slideIn 0.3s ease-out;
+}
+.toast-msg.success { border-left-color: #10b981; }
+.toast-msg.error { border-left-color: #ef4444; }
+.toast-icon { font-size: 18px; font-weight: bold; }
+.toast-content { font-size: 14px; font-weight: 500; color: #1f2937; flex: 1; }
+
+@keyframes slideIn { from { transform: translateX(100%); opacity: 0; } to { transform: translateX(0); opacity: 1; } }
+@keyframes fadeOut { from { opacity: 1; } to { opacity: 0; } }
+
+@media (max-width: 1024px) {
+  .sidebar { display: none; }
+  .layout { margin-left: 0; }
+}
 </style>
 </head>
 <body>
 
 <nav class="nav-bar">
-  <img class="nav-logo" src="../assets/images/utmlogo.png" alt="UTM Logo">
+    <div class="nav-left">
+        <img class="nav-logo" src="../assets/images/utmlogo.png" alt="UTM Logo">
+        <div class="nav-title">
+            <h1>Room Booking System</h1>
+            <p>Admin Control Panel</p>
+        </div>
+    </div>
+    <a href="../auth/logout.php" class="btn-logout"><i class="fa-solid fa-right-from-bracket"></i> Logout</a>
 </nav>
 
 <div class="layout">
-  <aside class="sidebar">
-    <div class="sidebar-title">Main Menu</div>
-    <ul class="sidebar-menu">
-      <li><a href="index-admin.php">Dashboard</a></li>
-      <li><a href="reservation_request.php" class="active">Reservation Request</a></li>
-      <li><a href="admin_timetable.php">Regular Timetable</a></li>
-      <li><a href="admin_recurring.php">Recurring Templates</a></li>
-      <?php if ($username === 'superadmin'): ?>
-          <li><a href="manage_users.php">Manage Users</a></li>
-      <?php endif; ?>
-      <li><a href="admin_logbook.php">Logbook</a></li>
-    </ul>
-    <div class="sidebar-profile">
-      <div class="profile-icon"><?php echo strtoupper(substr($admin_name,0,1)); ?></div>
-      <div class="profile-info">
-        <div class="profile-name"><?php echo htmlspecialchars($admin_name); ?></div>
-        <div class="profile-email"><?php echo htmlspecialchars($admin_email); ?></div>
-      </div>
-    </div>
-  </aside>
-
-  <div class="main">
-    <div class="header-card">
-      <div>
-        <h1>Reservation Requests</h1>
-        <div class="header-subtitle">Manage incoming bookings</div>
-      </div>
-      <span class="header-badge">Admin</span>
-    </div>
-
-    <section class="card">
-      <div class="top-controls">
-        <div class="tabs">
-          <?php foreach ($allowed_filters as $tab): ?>
-            <a class="tab <?php echo ($filter==$tab)?'active':'';?>" href="?filter=<?php echo $tab; ?>&search_room=<?php echo urlencode($search_room); ?>"><?php echo ucfirst($tab); ?></a>
-          <?php endforeach; ?>
-        </div>
-        <form method="GET" style="display:flex; gap:10px;">
-          <select name="search_room" class="room-select">
-            <option value="">-- All Rooms --</option>
-            <?php foreach($rooms as $room): ?>
-              <option value="<?php echo htmlspecialchars($room['room_id']); ?>" <?php echo ($search_room == $room['room_id']) ? 'selected' : ''; ?>>
-                <?php echo htmlspecialchars($room['name'] . " ({$room['room_id']})"); ?>
-              </option>
-            <?php endforeach; ?>
-          </select>
-          <input type="hidden" name="filter" value="<?php echo htmlspecialchars($filter); ?>">
-          <button type="submit" class="btn primary">Search</button>
-        </form>
-      </div>
-
-      <div class="table-wrap-list">
-        <table class="list-table">
-          <thead>
-            <tr>
-              <th>Ticket</th>
-              <th>Room</th>
-              <th>Requested By</th>
-              <th>Purpose</th>
-              <th>Date</th>
-              <th>Time</th>
-              <th>Status</th>
-              <th>Action</th>
-            </tr>
-          </thead>
-          <tbody>
-            <?php if ($result && $result->num_rows > 0): ?>
-              <?php while($row = $result->fetch_assoc()): ?>
-                <tr>
-                  <td><?php echo htmlspecialchars($row['ticket'] ?? ''); ?></td>
-                  <td><?php echo htmlspecialchars($row['room_name']); ?></td>
-                  <td><?php echo htmlspecialchars($row['requested_by']); ?></td>
-                  <td><?php echo htmlspecialchars($row['purpose']); ?></td>
-                  <td><?php echo htmlspecialchars($row['slot_date']); ?></td>
-                  <td><?php echo htmlspecialchars($row['time_slots']); ?></td>
-                  <td><span class="status <?php echo $row['status']; ?>"><?php echo ucfirst($row['status']); ?></span></td>
-                  <td class="actions">
-                      <button class="btn-view-time" onclick='openTimetable(<?php echo json_encode($row['room_no']); ?>, <?php echo json_encode($row['room_name']); ?>, <?php echo json_encode($row['slot_date']); ?>, <?php echo json_encode($row['time_slots']); ?>)'>📅 View</button>
-                      <?php if($row['status']=='pending'): ?>
-                        <button class="approve" data-session="<?php echo htmlspecialchars($row['session_id']); ?>">Approve</button>
-                        <button class="reject" data-session="<?php echo htmlspecialchars($row['session_id']); ?>">Reject</button>
-                      <?php endif; ?>
-                  </td>
-                </tr>
-              <?php endwhile; ?>
-            <?php else: ?>
-              <tr><td colspan="8" style="text-align:center;padding:20px">No bookings found.</td></tr>
+    <aside class="sidebar">
+        <div class="sidebar-title">Main Menu</div>
+        <ul class="sidebar-menu">
+            <li><a href="index-admin.php"><i class="fa-solid fa-gauge-high"></i> Dashboard</a></li>
+            <li><a href="reservation_request.php" class="active"><i class="fa-solid fa-inbox"></i> Requests</a></li>
+            <li><a href="admin_timetable.php"><i class="fa-solid fa-calendar-days"></i> Timetable</a></li>
+            <li><a href="admin_recurring.php"><i class="fa-solid fa-rotate"></i> Recurring</a></li>
+            <li><a href="admin_logbook.php"><i class="fa-solid fa-book"></i> Logbook</a></li>
+            <li><a href="generate_reports.php"><i class="fa-solid fa-chart-pie"></i> Reports</a></li>
+            <li><a href="admin_problems.php"><i class="fa-solid fa-triangle-exclamation"></i> Problems</a></li>
+            <?php if ($username === 'superadmin'): ?>
+            <li><a href="manage_users.php"><i class="fa-solid fa-users-gear"></i> Users</a></li>
             <?php endif; ?>
-          </tbody>
-        </table>
-      </div>
-    </section>
-  </div>
+        </ul>
+
+        <div class="sidebar-profile">
+            <div class="profile-icon"><?php echo strtoupper(substr($admin_name, 0, 1)); ?></div>
+            <div class="profile-info">
+                <div class="profile-name"><?php echo htmlspecialchars($admin_name); ?></div>
+                <div class="profile-email"><?php echo htmlspecialchars($admin_email); ?></div>
+            </div>
+        </div>
+    </aside>
+
+    <main class="main-content">
+        <div class="page-header">
+            <div class="page-title">
+                <h2>Reservation Requests</h2>
+                <p>Manage incoming booking approvals and schedule conflicts.</p>
+            </div>
+        </div>
+
+        <div class="card">
+            <div class="top-controls">
+                <div class="tabs">
+                    <?php foreach ($allowed_filters as $f): ?>
+                    <a href="?filter=<?php echo $f; ?>&search_room=<?php echo urlencode($search_room); ?>" 
+                       class="tab <?php echo ($filter==$f)?'active':''; ?>">
+                       <?php echo ucfirst($f); ?>
+                    </a>
+                    <?php endforeach; ?>
+                </div>
+                
+                <form method="GET" class="search-form">
+                    <input type="hidden" name="filter" value="<?php echo htmlspecialchars($filter); ?>">
+                    <select name="search_room" class="room-select">
+                        <option value="">All Rooms</option>
+                        <?php foreach($rooms as $room): ?>
+                            <option value="<?php echo htmlspecialchars($room['room_id']); ?>" <?php echo ($search_room == $room['room_id']) ? 'selected' : ''; ?>>
+                                <?php echo htmlspecialchars($room['name']); ?>
+                            </option>
+                        <?php endforeach; ?>
+                    </select>
+                    <button type="submit" class="btn btn-primary">Search</button>
+                </form>
+            </div>
+
+            <div class="table-wrap">
+                <table class="list-table">
+                    <thead>
+                        <tr>
+                            <th style="width:100px;">Ticket</th>
+                            <th style="width:180px;">Room</th>
+                            <th style="width:200px;">User</th>
+                            <th>Purpose & Time</th>
+                            <th style="width:120px;">Status</th>
+                            <th style="width:140px;">Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <?php if ($result && $result->num_rows > 0): ?>
+                            <?php while($row = $result->fetch_assoc()): ?>
+                                <tr>
+                                    <td>
+                                        <strong>#<?php echo htmlspecialchars($row['ticket'] ?? $row['session_id']); ?></strong>
+                                    </td>
+                                    <td>
+                                        <strong><?php echo htmlspecialchars($row['room_name']); ?></strong>
+                                        <span class="user-subtext"><?php echo htmlspecialchars($row['room_no']); ?></span>
+                                    </td>
+                                    <td>
+                                        <strong><?php echo htmlspecialchars($row['user_fullname'] ?: $row['requested_by']); ?></strong>
+                                        <span class="user-subtext"><?php echo htmlspecialchars($row['user_email']); ?></span>
+                                    </td>
+                                    <td>
+                                        <div style="font-weight:600; color:var(--utm-maroon); margin-bottom:4px;"><?php echo htmlspecialchars($row['purpose']); ?></div>
+                                        <div style="font-size:12px; color:var(--text-secondary); margin-bottom:4px;">
+                                            <i class="fa-regular fa-calendar"></i> <?php echo htmlspecialchars($row['slot_date']); ?>
+                                        </div>
+                                        <div class="slot-list">
+                                            <?php 
+                                                // Explode the string "08:00-08:50, 09:00-09:50" into an array
+                                                $slots = explode(',', $row['time_slots']);
+                                                foreach($slots as $slot): 
+                                            ?>
+                                                <span class="slot-pill">
+                                                    <i class="fa-regular fa-clock"></i> <?php echo htmlspecialchars(trim($slot)); ?>
+                                                </span>
+                                            <?php endforeach; ?>
+                                        </div>
+                                    </td>
+                                    <td>
+                                        <span class="status <?php echo strtolower($row['status']); ?>">
+                                            <?php echo ucfirst($row['status']); ?>
+                                        </span>
+                                    </td>
+                                    <td>
+                                        <div class="actions">
+                                            <button class="btn-icon view" title="View Schedule & Details"
+                                                data-room-id="<?php echo htmlspecialchars($row['room_no']); ?>"
+                                                data-room-name="<?php echo htmlspecialchars($row['room_name']); ?>"
+                                                data-date="<?php echo htmlspecialchars($row['slot_date']); ?>"
+                                                data-slots="<?php echo htmlspecialchars($row['time_slots']); ?>"
+                                                data-user="<?php echo htmlspecialchars($row['user_fullname'] ?: $row['requested_by']); ?>"
+                                                data-email="<?php echo htmlspecialchars($row['user_email']); ?>"
+                                                data-purpose="<?php echo htmlspecialchars($row['purpose']); ?>"
+                                                data-desc="<?php echo htmlspecialchars($row['description']); ?>"
+                                                data-status="<?php echo htmlspecialchars($row['status']); ?>"
+                                                onclick="openTimetable(this)">
+                                                <i class="fa-regular fa-eye"></i>
+                                            </button>
+
+                                            <?php if($row['status'] == 'pending'): ?>
+                                                <button class="btn-icon approve" title="Approve" onclick="openApprove('<?php echo htmlspecialchars($row['session_id']); ?>')">
+                                                    <i class="fa-solid fa-check"></i>
+                                                </button>
+                                                <button class="btn-icon reject" title="Reject" onclick="openReject('<?php echo htmlspecialchars($row['session_id']); ?>')">
+                                                    <i class="fa-solid fa-xmark"></i>
+                                                </button>
+                                            <?php endif; ?>
+                                        </div>
+                                    </td>
+                                </tr>
+                            <?php endwhile; ?>
+                        <?php else: ?>
+                            <tr>
+                                <td colspan="6" class="loading-cell">
+                                    <i class="fa-solid fa-inbox" style="font-size:24px; margin-bottom:10px; display:block; opacity:0.5;"></i> 
+                                    No <?php echo $filter !== 'all' ? $filter : ''; ?> requests found.
+                                </td>
+                            </tr>
+                        <?php endif; ?>
+                    </tbody>
+                </table>
+            </div>
+            <div id="pagination" class="pagination-container"></div>
+        </div>
+    </main>
 </div>
 
 <div id="timetableModal" class="modal">
-  <div class="modal-card">
-    <div class="modal-header-custom">
-      <h3 id="ttModalTitle">Room Schedule</h3>
-      <button class="btn-close-modal" onclick="closeModal('timetableModal')">&times;</button>
-    </div>
-    
-    <div class="legend-row">
-      <span><span class="legend-box" style="background:#dbeafe; border:2px dashed #2563eb;"></span> Requested</span>
-      <span><span class="legend-box" style="background:#dcfce7;"></span> Available</span>
-      <span><span class="legend-box" style="background:#fecaca;"></span> Booked</span>
-      <span><span class="legend-box" style="background:#fde68a;"></span> Pending</span>
-      <span><span class="legend-box" style="background:#fdba74;"></span> Maintenance</span>
-      <span><span class="legend-box" style="background:#c7d2fe;"></span> Recurring</span>
-      <span><span class="legend-box" style="background:#ef4444;"></span> CONFLICT!</span>
-    </div>
+    <div class="modal-card large">
+        <div class="modal-header">
+            <h3 id="ttModalTitle">Room Schedule</h3>
+            <button class="btn-close" onclick="closeModal('timetableModal')">&times;</button>
+        </div>
+        <div class="modal-body">
+            <div style="display:flex; gap:12px; margin-bottom:15px; font-size:11px; flex-wrap:wrap;">
+                <span style="display:flex;align-items:center;gap:4px;"><span style="width:15px;height:15px;background:#dbeafe;border:1px dashed #2563eb;"></span> Current Request</span>
+                <span style="display:flex;align-items:center;gap:4px;"><span style="width:15px;height:15px;background:#fee2e2;"></span> Booked</span>
+                <span style="display:flex;align-items:center;gap:4px;"><span style="width:15px;height:15px;background:#ef4444;border:1px solid #991b1b;"></span> Conflict</span>
+                <span style="display:flex;align-items:center;gap:4px;"><span style="width:15px;height:15px;background:#e0e7ff;border-left:2px solid #6366f1;"></span> Recurring</span>
+            </div>
+            
+            <div id="timetableContainer" style="overflow-x:auto;">Loading...</div>
 
-    <div id="timetableContainer" class="table-wrap"></div>
-
-    <div class="modal-actions">
-      <button class="btn outline" onclick="closeModal('timetableModal')">Close</button>
+            <div class="booking-details-panel">
+                <h4 style="font-size:14px; font-weight:700; color:var(--utm-maroon); border-bottom:1px solid var(--border); padding-bottom:8px; margin-bottom:8px;">
+                    <i class="fa-solid fa-circle-info"></i> Booking Request Details
+                </h4>
+                <div class="detail-grid">
+                    <div class="detail-item"><strong>Requested By</strong> <span id="detailUser">-</span></div>
+                    <div class="detail-item"><strong>Contact Email</strong> <span id="detailEmail">-</span></div>
+                    <div class="detail-item"><strong>Purpose</strong> <span id="detailPurpose">-</span></div>
+                    <div class="detail-item"><strong>Date & Time</strong> <span id="detailDateTime">-</span></div>
+                    <div class="detail-item detail-desc"><strong>Description</strong> <span id="detailDesc">-</span></div>
+                </div>
+            </div>
+        </div>
+        <div class="modal-footer">
+            <button class="btn btn-outline" onclick="closeModal('timetableModal')">Close</button>
+        </div>
     </div>
-  </div>
 </div>
 
 <div id="approveModal" class="modal">
-  <div class="modal-card" style="max-width:500px;">
-    <h3>Approve Booking</h3>
-    <p>Are you sure you want to approve this booking?</p>
-    <div class="modal-actions">
-      <button id="approveConfirm" class="btn primary">Yes, Approve</button>
-      <button class="btn outline" onclick="closeModal('approveModal')">Cancel</button>
+    <div class="modal-card">
+        <div class="modal-header">
+            <h3>Approve Request</h3>
+            <button class="btn-close" onclick="closeModal('approveModal')">&times;</button>
+        </div>
+        <div class="modal-body">
+            <p>Are you sure you want to approve this booking? This will occupy the slots on the timetable.</p>
+        </div>
+        <div class="modal-footer">
+            <button class="btn btn-outline" onclick="closeModal('approveModal')">Cancel</button>
+            <button id="approveConfirm" class="btn btn-primary">Yes, Approve</button>
+        </div>
     </div>
-  </div>
 </div>
 
 <div id="rejectModal" class="modal">
-  <div class="modal-card" style="max-width:500px;">
-    <h3>Reject Booking</h3>
-    <p>Please enter the reason for rejection:</p>
-    <textarea id="rejectReason" style="width:100%;height:100px;border:1px solid var(--gray-200);padding:10px;border-radius:8px;margin:10px 0;"></textarea>
-    <div class="modal-actions">
-      <button id="rejectConfirm" class="btn primary">Submit Rejection</button>
-      <button class="btn outline" onclick="closeModal('rejectModal')">Cancel</button>
+    <div class="modal-card">
+        <div class="modal-header">
+            <h3>Reject Request</h3>
+            <button class="btn-close" onclick="closeModal('rejectModal')">&times;</button>
+        </div>
+        <div class="modal-body">
+            <p>Please enter the reason for rejection (this will be sent to the user):</p>
+            <textarea id="rejectReason" class="modal-textarea" placeholder="e.g. Room under maintenance, Schedule conflict..."></textarea>
+        </div>
+        <div class="modal-footer">
+            <button class="btn btn-outline" onclick="closeModal('rejectModal')">Cancel</button>
+            <button id="rejectConfirm" class="btn btn-primary" style="background:var(--danger);">Reject Booking</button>
+        </div>
     </div>
-  </div>
 </div>
 
-<script>
-  // Complete Timetable Modal JavaScript for reservation_request.php
 
+
+<script>
 const TIME_SLOTS = [
     "08:00-08:50", "09:00-09:50", "10:00-10:50", "11:00-11:50", 
     "12:00-12:50", "13:00-13:50", "14:00-14:50", "15:00-15:50", 
@@ -350,272 +696,331 @@ const TIME_SLOTS = [
     "20:00-20:50", "21:00-21:50", "22:00-22:50", "23:00-23:50"
 ];
 
-function escapeHtml(s) {
-  if (!s) return '';
-  return String(s).replace(/[&<>"']/g, c => ({
-    '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;'
-  }[c]));
+let currentSession = null;
+
+function closeModal(id) {
+    document.getElementById(id).classList.remove('show');
 }
 
-async function openTimetable(roomId, roomName, reqDate, reqTimeStr) {
-    const modal = document.getElementById('timetableModal');
-    const container = document.getElementById('timetableContainer');
-    const title = document.getElementById('ttModalTitle');
+function escapeHtml(s) {
+    if (!s) return '';
+    return String(s).replace(/[&<>"']/g, c => ({'&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;'}[c]));
+}
+
+// Open Timetable with Highlight Logic and Details
+// Open Timetable (No Conflict Detection)
+async function openTimetable(btn) {
+    // 1. Get Data Attributes
+    const d = btn.dataset;
+    const roomId = d.roomId;
+    const roomName = d.roomName;
+    const reqDate = d.date; 
+    const reqSlotsStr = d.slots; 
     
-    // Calculate week range (Monday to Sunday)
-    const reqDateObj = new Date(reqDate + 'T12:00:00');
-    const dayOfWeek = reqDateObj.getDay();
-    const monday = new Date(reqDateObj);
-    monday.setDate(reqDateObj.getDate() - (dayOfWeek === 0 ? 6 : dayOfWeek - 1));
+    // 2. Populate Details Panel
+    document.getElementById('ttModalTitle').textContent = `Schedule: ${roomName}`;
+    document.getElementById('detailUser').textContent = d.user;
+    document.getElementById('detailEmail').textContent = d.email;
+    document.getElementById('detailPurpose').textContent = d.purpose;
+    document.getElementById('detailDateTime').textContent = `${d.date} (${d.slots})`;
+    document.getElementById('detailDesc').textContent = d.desc || 'No description provided.';
+    
+    // 3. Prepare Highlight Logic
+    const reqSlots = [];
+    if(reqSlotsStr) {
+        reqSlotsStr.split(',').forEach(s => {
+            const p = s.trim().split('-');
+            if(p.length===2) reqSlots.push({ start: p[0], end: p[1] });
+        });
+    }
+
+    // 4. Calculate Date Range (Monday - Sunday)
+    const dateObj = new Date(reqDate + 'T12:00:00');
+    const day = dateObj.getDay(); 
+    const monday = new Date(dateObj);
+    monday.setDate(dateObj.getDate() - (day === 0 ? 6 : day - 1));
     const sunday = new Date(monday);
     sunday.setDate(monday.getDate() + 6);
     
     const startISO = monday.toISOString().split('T')[0];
     const endISO = sunday.toISOString().split('T')[0];
-    
-    title.textContent = `${roomName} - Week of ${startISO}`;
-    container.innerHTML = '<div style="padding:40px; text-align:center; color:#666;">Loading schedule...</div>';
-    
+
+    // 5. Open Modal & Show Loading
+    const modal = document.getElementById('timetableModal');
+    const container = document.getElementById('timetableContainer');
     modal.classList.add('show');
+    container.innerHTML = '<div style="padding:40px; text-align:center;">Loading schedule...</div>';
 
     try {
-        // Fetch data using same endpoint as admin_timetable.php
+        // 6. Fetch Data
         const res = await fetch(`admin_timetable.php?endpoint=bookings&room=${encodeURIComponent(roomId)}&start=${startISO}&end=${endISO}`);
         const data = await res.json();
         
-        if (!data.success) {
-            throw new Error(data.msg || "Failed to load schedule");
-        }
+        if (!data.success) throw new Error(data.msg || "Failed to load");
 
-        // Parse requested slots from time string like "08:00:00-08:50:00, 09:00:00-09:50:00"
-        const reqSlots = [];
-        reqTimeStr.split(',').forEach(p => {
-            const trimmed = p.trim();
-            const [start, end] = trimmed.split('-');
-            if (start && end) {
-                reqSlots.push({
-                    start: start.substring(0, 5), // "08:00"
-                    end: end.substring(0, 5)       // "08:50"
-                });
-            }
-        });
+        // 7. Render Table
+        let html = '<table class="grid"><thead><tr><th style="min-width:100px;">Date</th>';
+        TIME_SLOTS.forEach(ts => html += `<th>${ts}</th>`);
+        html += '</tr></thead><tbody>';
 
-        console.log('Requested slots:', reqSlots);
-        console.log('Bookings:', data.bookings);
+        const days = ['Sunday','Monday','Tuesday','Wednesday','Thursday','Friday','Saturday'];
 
-        // Build table
-        let html = '<table class="grid">';
-        
-        // Header row
-        html += '<thead><tr>';
-        html += '<th>Date / Time</th>';
-        TIME_SLOTS.forEach(ts => {
-            html += `<th>${ts.replace('-', '<br>')}</th>`;
-        });
-        html += '</tr></thead>';
+        for(let i=0; i<7; i++){
+            const curr = new Date(monday);
+            curr.setDate(monday.getDate() + i);
+            const iso = curr.toISOString().split('T')[0];
+            const dName = days[curr.getDay()];
 
-        // Body rows (7 days)
-        html += '<tbody>';
-        const days = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
-        
-        for (let d = 0; d < 7; d++) {
-            const currDate = new Date(monday);
-            currDate.setDate(monday.getDate() + d);
-            const isoDate = currDate.toISOString().split('T')[0];
-            const dayName = days[currDate.getDay()];
+            html += `<tr><td class="date-col">${dName}<br><span style="font-weight:400;color:#888;">${iso}</span></td>`;
 
-            html += '<tr>';
-            // First column - Date
-            html += `<td>
-                <div class="day-head">${isoDate}</div>
-                <div class="day-name">${dayName}</div>
-            </td>`;
-
-            // Time slots
-            TIME_SLOTS.forEach(timeSlot => {
-                const [slotStart, slotEnd] = timeSlot.split('-');
-                let statusClass = 'available';
+            TIME_SLOTS.forEach(ts => {
+                const [sStart, sEnd] = ts.split('-');
+                let cls = 'available';
                 let content = '';
-                let isRequested = false;
-                let isOccupied = false;
-
-                // 1. Check if this is a requested slot
-                if (isoDate === reqDate) {
-                    for (const req of reqSlots) {
-                        // Check if time slot overlaps with request
-                        if (slotStart >= req.start && slotStart < req.end) {
-                            statusClass = 'requested';
-                            content = '<div class="cell-content"><strong>REQUEST</strong></div>';
-                            isRequested = true;
-                            break;
+                
+                // A. Check if this is the Request being viewed (Highlight it)
+                let isCurrentRequest = false;
+                if(iso === reqDate) {
+                    for(let r of reqSlots) {
+                        if(sStart >= r.start && sStart < r.end) {
+                            cls = 'highlight-request';
+                            content = 'CURRENT VIEW';
+                            isCurrentRequest = true;
                         }
                     }
                 }
 
-                // 2. Check existing bookings
-                for (const b of data.bookings) {
-                    if (b.slot_date !== isoDate) continue;
+                // B. Check Existing Bookings
+                for(let b of data.bookings) {
+                    if(b.slot_date !== iso) continue;
                     
-                    // --- FIX 1: IGNORE CANCELLED/REJECTED ---
-                    if (['cancelled', 'rejected', 'deleted'].includes(b.status)) continue;
-
-                    const bookStart = b.time_start;
-                    const bookEnd = b.time_end;
+                    const bStatus = (b.status || '').toLowerCase().trim();
+                    if(['cancelled','rejected','deleted'].includes(bStatus)) continue;
                     
-                    // Check if slot overlaps with booking
-                    if (slotStart >= bookStart && slotStart < bookEnd) {
-                        
-                        // --- FIX 2: ONLY "HARD" BOOKINGS CAUSE CONFLICTS ---
-                        // We only set isOccupied if the status is 'booked', 'approved', or 'maintenance'.
-                        // We IGNORE 'pending' here because 'isRequested' (above) already handles the visual for pending requests.
-                        const isHardBooking = ['booked', 'approved', 'maintenance'].includes(b.status) || b.recurring;
+                    const bStart = b.time_start.substring(0,5);
+                    const bEnd = b.time_end.substring(0,5);
 
-                        if (isHardBooking) {
-                            isOccupied = true;
-
-                            // Check for conflict with request
-                            if (isRequested) {
-                                statusClass = 'conflict';
-                                content = '<div class="cell-content"><strong>⚠️ CONFLICT</strong></div>';
-                            } else {
-                                // Regular booking display
-                                if (b.recurring) {
-                                    statusClass = 'recurring';
-                                    content = `<div class="cell-content"><strong>Recurring</strong><br>${escapeHtml(b.purpose || '')}</div>`;
-                                } else {
-                                    statusClass = b.status || 'booked';
-                                    let displayText = escapeHtml(b.purpose || 'Occupied');
-                                    if (b.status === 'maintenance') {
-                                        displayText = '🔧 ' + displayText;
-                                    }
-                                    content = `<div class="cell-content"><strong>${displayText}</strong></div>`;
-                                }
-                            }
+                    if(sStart >= bStart && sStart < bEnd) {
+                        // --- REMOVED CONFLICT CHECK HERE ---
+                        // Only show "Booked" if it is NOT currently highlighted as our request.
+                        // If it IS our request (isCurrentRequest = true), we ignore the booking underneath visually.
+                        if (!isCurrentRequest) {
+                            cls = bStatus || 'booked';
+                            if(b.recurring) cls = 'recurring';
+                            content = escapeHtml(b.purpose || 'Occupied');
                         }
-                        // If it is 'pending', we do nothing. 
-                        // The 'isRequested' logic above already drew the Blue Dashed box for us.
-                        break; 
                     }
                 }
-
-                html += `<td class="slot ${statusClass}">${content}</td>`;
+                
+                html += `<td class="slot ${cls}"><div class="cell-content">${content}</div></td>`;
             });
             html += '</tr>';
         }
-        
         html += '</tbody></table>';
         container.innerHTML = html;
 
-    } catch (err) {
-        console.error('Timetable load error:', err);
-        container.innerHTML = `<div style="padding:20px; text-align:center; color:#dc2626;">
-            <strong>Error loading schedule</strong><br>
-            <span style="font-size:13px;">${escapeHtml(err.message)}</span>
-        </div>`;
+    } catch(e) {
+        container.innerHTML = `<div style="color:red; text-align:center;">Error: ${e.message}</div>`;
     }
 }
 
-// Modal management
-function closeModal(modalId) {
-    const el = document.getElementById(modalId);
-    if (el) el.classList.remove('show');
+// Action Handlers
+function openApprove(id) {
+    currentSession = id;
+    document.getElementById('approveModal').classList.add('show');
 }
 
-// Approval/rejection logic
-document.addEventListener('DOMContentLoaded', () => {
-   let currentSession = null;
+function openReject(id) {
+    currentSession = id;
+    document.getElementById('rejectReason').value = '';
+    document.getElementById('rejectModal').classList.add('show');
+}
 
-   function toElement(node) {
-       let el = node;
-       while (el && el.nodeType !== 1) el = el.parentNode;
-       return el;
-   }
+// --- TOAST FUNCTION ---
+function showToast(message, type = 'info') {
+    let container = document.getElementById('toast-container');
+    if (!container) {
+        container = document.createElement('div');
+        container.id = 'toast-container';
+        document.body.appendChild(container);
+    }
 
-   document.body.addEventListener('click', (e) => {
-     const el = toElement(e.target);
-     if (!el) return;
-     const btn = el.closest('button.approve, button.reject');
-     if (!btn) return;
+    const toast = document.createElement('div');
+    toast.className = `toast-msg ${type}`;
+    
+    // Icons based on type
+    const icons = { success: '<i class="fa-solid fa-check-circle" style="color:#10b981"></i>', error: '<i class="fa-solid fa-circle-exclamation" style="color:#ef4444"></i>' };
+    const icon = icons[type] || '<i class="fa-solid fa-info-circle"></i>';
 
-     const action = btn.classList.contains('approve') ? 'approve' : 'reject';
-     const session = btn.getAttribute('data-session');
+    toast.innerHTML = `
+        <span class="toast-icon">${icon}</span>
+        <span class="toast-content">${message}</span>
+    `;
 
-     if (action === 'approve') openApprove(session);
-     if (action === 'reject') openReject(session);
-   });
+    container.appendChild(toast);
 
-   function openApprove(sessionId) {
-     currentSession = String(sessionId);
-     const m = document.getElementById('approveModal');
-     m.classList.add('show');
-   }
+    // Remove after 3 seconds
+    setTimeout(() => {
+        toast.style.animation = 'fadeOut 0.3s forwards';
+        setTimeout(() => toast.remove(), 300);
+    }, 3000);
+}
 
-   function openReject(sessionId) {
-     currentSession = String(sessionId);
-     document.getElementById('rejectReason').value = '';
-     const m = document.getElementById('rejectModal');
-     m.classList.add('show');
-   }
+async function postAction(fd) {
+    try {
+        const r = await fetch('../api/process_request.php', { method:'POST', body:fd });
+        return await r.json();
+    } catch(e) { return {success:false, message:e.message}; }
+}
 
-   window.closeModal = closeModal;
 
-   async function postAction(fd) {
-     try {
-       const res = await fetch('../api/process_request.php', { method: 'POST', body: fd });
-       return await res.json();
-     } catch (err) {
-       return { success: false, message: err.message };
-     }
-   }
+// APPROVE
+document.getElementById('approveConfirm').onclick = async function() {
+    if(!currentSession) return;
+    
+    // UI Feedback
+    const btn = this;
+    const originalText = btn.innerText;
+    btn.innerText = 'Processing...'; 
+    btn.disabled = true;
+    
+    const fd = new FormData();
+    fd.append('action', 'approve');
+    fd.append('session_id', currentSession);
+    
+    const res = await postAction(fd);
+    
+    if(res.success) {
+        closeModal('approveModal'); // Close modal immediately
+        showToast('Request Approved Successfully!', 'success'); // Show popup
+        setTimeout(() => location.reload(), 1500); // Reload after 1.5s
+    } else {
+        showToast(res.message || 'Failed to approve', 'error');
+        btn.innerText = originalText; 
+        btn.disabled = false; 
+    }
+};
 
-   const approveBtn = document.getElementById('approveConfirm');
-   if (approveBtn) {
-     approveBtn.addEventListener('click', async function() {
-        if (!currentSession) return alert('No session selected');
-        this.disabled = true;
-        this.textContent = 'Approving...';
-        const fd = new FormData();
-        fd.append('action', 'approve');
-        fd.append('session_id', currentSession);
-        const r = await postAction(fd);
-        this.disabled = false;
-        this.textContent = 'Yes, Approve';
-        if (r.success) {
-           location.reload(); 
-        } else {
-           alert('Error: ' + (r.message || 'Unable to approve'));
+// REJECT
+document.getElementById('rejectConfirm').onclick = async function() {
+    if(!currentSession) return;
+    const reason = document.getElementById('rejectReason').value;
+    
+    if(!reason) {
+        showToast('Please provide a rejection reason', 'error');
+        return;
+    }
+    
+    // UI Feedback
+    const btn = this;
+    const originalText = btn.innerText;
+    btn.innerText = 'Processing...'; 
+    btn.disabled = true;
+    
+    const fd = new FormData();
+    fd.append('action', 'reject');
+    fd.append('session_id', currentSession);
+    fd.append('reason', reason);
+    
+    const res = await postAction(fd);
+    
+    if(res.success) {
+        closeModal('rejectModal'); // Close modal immediately
+        showToast('Request Rejected Successfully', 'success'); // Show popup
+        setTimeout(() => location.reload(), 1500); // Reload after 1.5s
+    } else {
+        showToast(res.message || 'Failed to reject', 'error');
+        btn.innerText = originalText; 
+        btn.disabled = false; 
+    }
+};
+
+// --- PAGINATION LOGIC ---
+document.addEventListener('DOMContentLoaded', function() {
+    const table = document.querySelector('.list-table tbody');
+    // Select all rows that are NOT the empty state/loading row
+    const rows = Array.from(table.querySelectorAll('tr'));
+    const paginationContainer = document.getElementById('pagination');
+    
+    // CONFIGURATION
+    const rowsPerPage = 10; 
+    let currentPage = 1;
+    
+    // Check if table is empty or has the "No requests found" row
+    if (rows.length === 0 || rows[0].querySelector('.loading-cell') || rows[0].querySelector('.empty-state')) {
+        paginationContainer.style.display = 'none';
+        return;
+    }
+
+    function displayRows(page) {
+        const start = (page - 1) * rowsPerPage;
+        const end = start + rowsPerPage;
+
+        rows.forEach((row, index) => {
+            if (index >= start && index < end) {
+                row.style.display = ''; // Show
+            } else {
+                row.style.display = 'none'; // Hide
+            }
+        });
+    }
+
+    function setupPagination() {
+        const pageCount = Math.ceil(rows.length / rowsPerPage);
+        paginationContainer.innerHTML = '';
+
+        if (pageCount <= 1) return; // Hide if only 1 page
+
+        // Previous Button
+        const prevBtn = document.createElement('button');
+        prevBtn.className = 'page-btn';
+        prevBtn.innerHTML = '<i class="fa-solid fa-chevron-left"></i>';
+        prevBtn.disabled = currentPage === 1;
+        prevBtn.onclick = () => {
+            if (currentPage > 1) {
+                currentPage--;
+                updatePagination();
+            }
+        };
+        paginationContainer.appendChild(prevBtn);
+
+        // Page Numbers
+        for (let i = 1; i <= pageCount; i++) {
+            const btn = document.createElement('button');
+            btn.className = `page-btn ${i === currentPage ? 'active' : ''}`;
+            btn.innerText = i;
+            btn.onclick = () => {
+                currentPage = i;
+                updatePagination();
+            };
+            paginationContainer.appendChild(btn);
         }
-     });
-   }
 
-   const rejectBtn = document.getElementById('rejectConfirm');
-   if (rejectBtn) {
-     rejectBtn.addEventListener('click', async function() {
-        if (!currentSession) return alert('No session selected');
-        const reason = document.getElementById('rejectReason').value.trim();
-        if (reason.length < 3) {
-            alert('Please enter a reason');
-            return;
-        }
-        this.disabled = true;
-        this.textContent = 'Submitting...';
-        const fd = new FormData();
-        fd.append('action', 'reject');
-        fd.append('session_id', currentSession);
-        fd.append('reason', reason);
-        const r = await postAction(fd);
-        this.disabled = false;
-        this.textContent = 'Submit Rejection';
-        if (r.success) {
-           location.reload(); 
-        } else {
-           alert('Error: ' + (r.message || 'Unable to reject'));
-        }
-     });
-   }
+        // Next Button
+        const nextBtn = document.createElement('button');
+        nextBtn.className = 'page-btn';
+        nextBtn.innerHTML = '<i class="fa-solid fa-chevron-right"></i>';
+        nextBtn.disabled = currentPage === pageCount;
+        nextBtn.onclick = () => {
+            if (currentPage < pageCount) {
+                currentPage++;
+                updatePagination();
+            }
+        };
+        paginationContainer.appendChild(nextBtn);
+    }
+
+    function updatePagination() {
+        displayRows(currentPage);
+        setupPagination(); // Re-render buttons to update active state/disabled buttons
+    }
+
+    // Initialize
+    updatePagination();
 });
+
+
 </script>
 </body>
+
 </html>
-
-
