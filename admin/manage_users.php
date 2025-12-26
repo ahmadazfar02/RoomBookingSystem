@@ -598,6 +598,84 @@ body { font-family: 'Inter', sans-serif; background: var(--bg-light); min-height
     </div>
 </div>
 
+<div id="page-loader" class="loader-overlay">
+    <div class="spinner"></div>
+</div>
+
+<style>
+/* 1. Full Screen Overlay */
+.loader-overlay {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background: rgba(255, 255, 255, 0.8); /* White see-through background */
+    z-index: 99999; /* On top of everything */
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    opacity: 0;
+    pointer-events: none; /* Let clicks pass through when hidden */
+    transition: opacity 0.3s ease;
+}
+
+/* 2. The Round Bullet Spinner */
+.spinner {
+    width: 50px;
+    height: 50px;
+    border: 5px solid #e5e7eb; /* Light grey ring */
+    border-top: 5px solid #800000; /* UTM Maroon spinning part */
+    border-radius: 50%;
+    animation: spin 1s linear infinite;
+}
+
+/* 3. Animation Keyframes */
+@keyframes spin {
+    0% { transform: rotate(0deg); }
+    100% { transform: rotate(360deg); }
+}
+
+/* 4. Active State (Show Overlay) */
+.loader-overlay.active {
+    opacity: 1;
+    pointer-events: all; /* Block clicks while loading */
+}
+</style>
+
+<script>
+document.addEventListener('DOMContentLoaded', () => {
+    const loader = document.getElementById('page-loader');
+
+    // 1. Hide loader when the new page finishes loading
+    // We use a small timeout to make sure the transition is smooth
+    setTimeout(() => {
+        loader.classList.remove('active');
+    }, 300); 
+
+    // 2. Show loader when user clicks a valid link
+    document.querySelectorAll('a').forEach(link => {
+        link.addEventListener('click', function(e) {
+            const href = this.getAttribute('href');
+            const target = this.getAttribute('target');
+
+            // Ignore local anchors (#), javascript, or new tab links
+            if (!href || href.startsWith('#') || href.startsWith('javascript') || target === '_blank') return;
+
+            // Show the spinner immediately
+            loader.classList.add('active');
+        });
+    });
+    
+    // 3. Also show on form submissions (like filtering)
+    document.querySelectorAll('form').forEach(form => {
+        form.addEventListener('submit', function() {
+            loader.classList.add('active');
+        });
+    });
+});
+</script>
+
 <script>
 function openModal() { document.getElementById('createUserModal').classList.add('show'); }
 function closeModal() { document.getElementById('createUserModal').classList.remove('show'); }
