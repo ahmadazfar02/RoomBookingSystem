@@ -202,7 +202,7 @@ body { font-family: 'Inter', sans-serif; background: var(--bg-light); min-height
 .form-control:focus { border-color: var(--utm-maroon); }
 
 .btn { padding: 10px 16px; border-radius: 8px; border: 1px solid var(--border); background: white; color: var(--text-primary); font-weight: 600; cursor: pointer; font-size: 13px; transition: 0.2s; display: inline-flex; align-items: center; justify-content: center; gap: 6px; }
-.btn:hover { border-color: var(--utm-maroon); color: var(--utm-maroon); }
+
 .btn-primary { background: var(--utm-maroon); color: white; border-color: var(--utm-maroon); }
 .btn-primary:hover { background: var(--utm-maroon-light); color: white; border-color: var(--utm-maroon-light); }
 .btn-success { background: #059669; color: white; border-color: #059669; }
