@@ -25,7 +25,7 @@ $isTechAdmin  = (strcasecmp($userType, 'Technical Admin') === 0);
 
 // --- 2. DATA FETCHING (SPLIT BY ROLE) ---
 
-// Initialize default variables to avoid undefined errors
+// Initialize default variables
 $total_rooms = 0;
 $active_bookings_today = 0;
 $pending_approvals = 0;
@@ -35,50 +35,39 @@ $popular_room = ['name' => 'N/A', 'count' => 0];
 $recent_cancellations = [];
 $upcoming_bookings = [];
 
-// --- TECHNICAL ADMIN DATA ---
+// --- TECHNICAL ADMIN DATA (SYSTEM-WIDE) ---
 $tech_pending = 0;
 $tech_completed = 0;
 $tech_tasks = [];
 
 if ($isTechAdmin) {
-    // 1. Pending Tasks (Assigned to this technician)
-    // We check against Name OR Email to be safe
+    // 1. Overall Pending Repairs (System-Wide)
+    // Counts ANY booking that has a tech_token (maintenance) and is NOT done
     $sql = "SELECT COUNT(*) FROM bookings 
-            WHERE (technician = ? OR technician = ?) 
-            AND tech_status != 'Work Done' 
-            AND tech_token IS NOT NULL";
-    $stmt = $conn->prepare($sql);
-    $stmt->bind_param("ss", $admin_name, $admin_email);
-    $stmt->execute();
-    $stmt->bind_result($tech_pending);
-    $stmt->fetch();
-    $stmt->close();
+            WHERE tech_token IS NOT NULL 
+            AND tech_status != 'Work Done'";
+    $result = $conn->query($sql);
+    $row = $result->fetch_row();
+    $tech_pending = intval($row[0]);
 
-    // 2. Completed Tasks
+    // 2. Overall Completed Jobs (System-Wide)
     $sql = "SELECT COUNT(*) FROM bookings 
-            WHERE (technician = ? OR technician = ?) 
+            WHERE tech_token IS NOT NULL 
             AND tech_status = 'Work Done'";
-    $stmt = $conn->prepare($sql);
-    $stmt->bind_param("ss", $admin_name, $admin_email);
-    $stmt->execute();
-    $stmt->bind_result($tech_completed);
-    $stmt->fetch();
-    $stmt->close();
+    $result = $conn->query($sql);
+    $row = $result->fetch_row();
+    $tech_completed = intval($row[0]);
 
-    // 3. My Recent Task List
-    $sql = "SELECT b.id, r.name AS room_name, r.room_id AS room_no, b.purpose, b.description, b.slot_date, b.tech_status 
+    // 3. Latest Maintenance Tasks (Feed)
+    // Shows the 10 most recent maintenance tasks from ANYONE
+    $sql = "SELECT b.id, r.name AS room_name, r.room_id AS room_no, b.purpose, b.description, b.slot_date, b.tech_status, b.technician 
             FROM bookings b 
             JOIN rooms r ON b.room_id = r.room_id 
-            WHERE (b.technician = ? OR b.technician = ?) 
-            AND b.tech_token IS NOT NULL
-            ORDER BY b.slot_date DESC, b.time_start ASC 
+            WHERE b.tech_token IS NOT NULL
+            ORDER BY b.created_at DESC 
             LIMIT 10";
-    $stmt = $conn->prepare($sql);
-    $stmt->bind_param("ss", $admin_name, $admin_email);
-    $stmt->execute();
-    $res = $stmt->get_result();
+    $res = $conn->query($sql);
     while ($row = $res->fetch_assoc()) $tech_tasks[] = $row;
-    $stmt->close();
 
 } 
 // --- NORMAL ADMIN DATA ---
@@ -317,7 +306,6 @@ body {
     grid-template-columns: 2fr 1fr;
     gap: 24px;
 }
-/* For Tech Admin, make it full width if needed */
 .dashboard-grid.full { grid-template-columns: 1fr; }
 
 /* CARD GENERAL */
@@ -376,7 +364,7 @@ body {
 .status.pending { background: #fef3c7; color: #92400e; }
 .status.booked, .status.approved { background: #dcfce7; color: #166534; }
 .status.rejected, .status.cancelled { background: #fee2e2; color: #991b1b; }
-.status.work.done { background: #dcfce7; color: #166534; }
+.status.work.done { background: #d1fae5; color: #047857; }
 
 @media (max-width: 1024px) {
   .dashboard-grid { grid-template-columns: 1fr; }
@@ -437,7 +425,7 @@ body {
             <h2>Welcome back, <?php echo htmlspecialchars(explode(' ', $admin_name)[0]); ?>!</h2>
             <p>
                 <?php if($isTechAdmin): ?>
-                    You have <strong><?php echo $tech_pending; ?></strong> pending tasks assigned to you.
+                    System Maintenance Overview. You have <strong><?php echo $tech_pending; ?></strong> outstanding repairs system-wide.
                 <?php else: ?>
                     Here is an overview of the room booking activities today.
                 <?php endif; ?>
@@ -452,30 +440,30 @@ body {
                         <span class="stat-label">Pending Repairs</span>
                         <div class="stat-icon orange"><i class="fa-solid fa-screwdriver-wrench"></i></div>
                     </div>
-                    <div class="stat-value"><?php echo $tech_pending; ?></div>
+                    <div class="stat-value"><?php echo number_format($tech_pending); ?></div>
                 </div>
 
                 <div class="stat-card">
                     <div class="stat-top">
-                        <span class="stat-label">Completed Tasks</span>
+                        <span class="stat-label">Solved Issues</span>
                         <div class="stat-icon green"><i class="fa-solid fa-check-double"></i></div>
                     </div>
-                    <div class="stat-value"><?php echo $tech_completed; ?></div>
+                    <div class="stat-value"><?php echo number_format($tech_completed); ?></div>
                 </div>
 
                 <div class="stat-card">
                     <div class="stat-top">
-                        <span class="stat-label">Total Assigned</span>
-                        <div class="stat-icon blue"><i class="fa-solid fa-list-check"></i></div>
+                        <span class="stat-label">Total Maintenance</span>
+                        <div class="stat-icon blue"><i class="fa-solid fa-clipboard-list"></i></div>
                     </div>
-                    <div class="stat-value"><?php echo $tech_pending + $tech_completed; ?></div>
+                    <div class="stat-value"><?php echo number_format($tech_pending + $tech_completed); ?></div>
                 </div>
             </div>
 
             <div class="dashboard-grid full">
                 <div class="card">
                     <div class="card-header">
-                        <div class="card-title"><i class="fa-solid fa-clipboard-list"></i> My Assigned Tasks</div>
+                        <div class="card-title"><i class="fa-solid fa-helmet-safety"></i> Latest Maintenance Tasks</div>
                     </div>
                     <div class="table-wrap">
                         <table class="list-table">
@@ -484,6 +472,7 @@ body {
                                     <th>#ID</th>
                                     <th>Room</th>
                                     <th>Task / Issue</th>
+                                    <th>Assigned To</th>
                                     <th>Date</th>
                                     <th>Status</th>
                                 </tr>
@@ -501,10 +490,11 @@ body {
                                             <strong><?php echo htmlspecialchars($task['purpose']); ?></strong>
                                             <p style="margin:0; font-size:12px; color:#6b7280;"><?php echo htmlspecialchars(substr($task['description'], 0, 50)); ?>...</p>
                                         </td>
+                                        <td><?php echo htmlspecialchars($task['technician']); ?></td>
                                         <td><?php echo date('d M Y', strtotime($task['slot_date'])); ?></td>
                                         <td>
                                             <?php if($task['tech_status'] == 'Work Done'): ?>
-                                                <span class="status booked">Completed</span>
+                                                <span class="status work done">Solved</span>
                                             <?php else: ?>
                                                 <span class="status pending">Pending</span>
                                             <?php endif; ?>
@@ -512,7 +502,7 @@ body {
                                     </tr>
                                     <?php endforeach; ?>
                                 <?php else: ?>
-                                    <tr><td colspan="5" style="text-align:center; padding:30px; color:#6b7280;">No tasks assigned yet.</td></tr>
+                                    <tr><td colspan="6" style="text-align:center; padding:30px; color:#6b7280;">No maintenance tasks found.</td></tr>
                                 <?php endif; ?>
                             </tbody>
                         </table>
