@@ -2,8 +2,8 @@
 /**
  * manage_users.php - User Management
  * Roles: 
- * - SuperAdmin: Full Access
- * - Technical Admin: Can ONLY create Technicians
+ * - SuperAdmin: Full Access (All Roles)
+ * - Technical Admin: Can ONLY view and create Technicians
  */
 session_start();
 require_once __DIR__ . '/../includes/db_connect.php';
@@ -47,7 +47,7 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
         if ($isTechAdmin) {
             $new_role = 'Technician';
         } else {
-            $new_role = $_POST['new_role']; // SuperAdmin selects role
+            $new_role = $_POST['new_role']; 
         }
 
         // Check email uniqueness
@@ -60,7 +60,7 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
         } else {
             $stmt->close();
             
-            // Generate Username (email prefix + counter)
+            // Generate Username
             $username_base = explode('@', $new_email)[0];
             $new_username = $username_base;
             $counter = 1;
@@ -168,6 +168,7 @@ $where_clauses = ["username NOT IN ($placeholders)"];
 $params = $protected_usernames; 
 $types = str_repeat('s', count($protected_usernames));
 
+// Search Filter
 if (!empty($search_query)) {
     $where_clauses[] = "(username LIKE ? OR Fullname LIKE ? OR Email LIKE ?)";
     $like_term = "%" . $search_query . "%";
@@ -175,7 +176,12 @@ if (!empty($search_query)) {
     $types .= "sss";
 }
 
-if (!empty($role_filter)) {
+// Role Filter Logic
+if ($isTechAdmin) {
+    // 1. Technical Admin: FORCE filter to ONLY 'Technician'
+    $where_clauses[] = "User_Type = 'Technician'";
+} elseif (!empty($role_filter)) {
+    // 2. SuperAdmin: Allow selected filter
     $where_clauses[] = "User_Type = ?";
     $params[] = $role_filter;
     $types .= "s";
@@ -377,6 +383,8 @@ body { font-family: 'Inter', sans-serif; background: var(--bg-light); min-height
 
             <form method="GET" class="filters-container">
                 <input type="text" name="search" class="search-input" placeholder="Search users..." value="<?php echo htmlspecialchars($search_query); ?>">
+                
+                <?php if (!$isTechAdmin): ?>
                 <select name="role_filter" class="role-select">
                     <option value="">All Roles</option>
                     <option value="Admin" <?php if($role_filter == 'Admin') echo 'selected'; ?>>Admin</option>
@@ -385,6 +393,8 @@ body { font-family: 'Inter', sans-serif; background: var(--bg-light); min-height
                     <option value="Staff" <?php if($role_filter == 'Staff') echo 'selected'; ?>>Staff</option>
                     <option value="Student" <?php if($role_filter == 'Student') echo 'selected'; ?>>Student</option>
                 </select>
+                <?php endif; ?>
+
                 <button type="submit" class="btn btn-primary">Search</button>
                 <?php if (!empty($search_query) || !empty($role_filter)): ?>
                     <a href="manage_users.php" class="btn">Reset</a>
