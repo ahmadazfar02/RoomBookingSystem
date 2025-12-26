@@ -65,8 +65,12 @@ try {
         send_json_response(['success' => false, 'message' => 'Unauthorized access']);
     }
 
-    if (!isset($_SESSION['User_Type']) || strcasecmp(trim($_SESSION['User_Type']), 'Admin') !== 0) {
-        log_error('User is not admin. User type: ' . ($_SESSION['User_Type'] ?? 'not set'));
+    // FIX: Allow BOTH Admin and SuperAdmin
+    if (!isset($_SESSION['User_Type']) || 
+       (strcasecmp(trim($_SESSION['User_Type']), 'Admin') !== 0 && 
+        strcasecmp(trim($_SESSION['User_Type']), 'SuperAdmin') !== 0)) {
+        
+        log_error('User is not authorized. User type: ' . ($_SESSION['User_Type'] ?? 'not set'));
         send_json_response(['success' => false, 'message' => 'Unauthorized access']);
     }
 
