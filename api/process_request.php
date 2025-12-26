@@ -187,7 +187,7 @@ try {
 
         $updated_count = 0;
         $subject_base = "Booking Request — Session {$session_id}";
-        $link = rtrim(BASE_URL, '/') . "/booking_status.php?session_id=" . urlencode($session_id);
+        $link = rtrim(BASE_URL, '/') . "/booking_status.html?session_id=" . urlencode($session_id);
 
         // ---------------- APPROVE ----------------
         if ($action === 'approve') {

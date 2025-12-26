@@ -1,6 +1,6 @@
 <?php
 /**
- * admin_problems.php - Enhanced Filters, Pagination & Tech Comments
+ * admin_problems.php - Fixed Query to prevent "Unknown Column" error
  */
 session_start();
 require_once __DIR__ . '/../includes/db_connect.php';
@@ -26,6 +26,28 @@ $admin_email = $_SESSION['Email'] ?? ($_SESSION['User_Type'] ?? 'Admin');
 $username = $_SESSION['username'] ?? '';
 $isTechAdmin  = (strcasecmp($uType, 'Technical Admin') === 0);
 $isSuperAdmin = (strcasecmp($uType, 'SuperAdmin') === 0 || strtolower($username) === 'superadmin');
+
+// --- NOTIFICATION COUNTERS ---
+$tech_pending = 0;
+$pending_approvals = 0;
+$active_problems = 0;
+
+if ($isTechAdmin) {
+    // Tech Admin: Count Pending Repair SESSIONS
+    $sql = "SELECT COUNT(DISTINCT COALESCE(linked_problem_id, session_id)) FROM bookings WHERE tech_token IS NOT NULL AND tech_status != 'Work Done'";
+    $result = $conn->query($sql);
+    if($result) { $row = $result->fetch_row(); $tech_pending = intval($row[0]); }
+} else {
+    // Admin: Count Pending Request Sessions
+    $sql = "SELECT COUNT(DISTINCT session_id) FROM bookings WHERE status = 'pending'";
+    $result = $conn->query($sql);
+    if($result) { $row = $result->fetch_row(); $pending_approvals = intval($row[0]); }
+
+    // Admin: Count Active Problems
+    $sql = "SELECT COUNT(*) FROM room_problems WHERE status != 'Resolved'";
+    $result = $conn->query($sql);
+    if($result) { $row = $result->fetch_row(); $active_problems = intval($row[0]); }
+}
 
 // --- 2. HANDLE FORM SUBMISSIONS ---
 
@@ -92,9 +114,14 @@ $total_result = $conn->query("SELECT COUNT(*) as total FROM room_problems p $whe
 $total_rows = $total_result->fetch_assoc()['total'];
 $total_pages = ceil($total_rows / $limit);
 
+// FIX: Removed b.notice_msg and b.admin_notice causing the crash.
+// p.* covers them if they exist in room_problems.
 $problems = $conn->query("
     SELECT p.*, r.name AS room_name, u.username, 
-           b.slot_date, b.time_start, b.time_end, b.tech_status
+           MAX(b.slot_date) as slot_date, 
+           MIN(b.time_start) as time_start, 
+           MAX(b.time_end) as time_end, 
+           MAX(b.tech_status) as tech_status
     FROM room_problems p
     JOIN rooms r ON p.room_id = r.room_id
     JOIN users u ON p.user_id = u.id
@@ -131,6 +158,7 @@ $filter_rooms_list = $conn->query("SELECT room_id, name FROM rooms ORDER BY name
     --text-secondary: #64748b;
     --border: #e2e8f0;
     --nav-height: 70px;
+    --danger: #dc2626;
 }
 * { box-sizing: border-box; margin: 0; padding: 0; }
 body { font-family: 'Inter', sans-serif; background: var(--bg-light); min-height: 100vh; color: var(--text-primary); }
@@ -153,13 +181,19 @@ body { font-family: 'Inter', sans-serif; background: var(--bg-light); min-height
 .sidebar-menu a:hover { background: var(--bg-light); color: var(--utm-maroon); }
 .sidebar-menu a.active { background: #fef2f2; color: var(--utm-maroon); font-weight: 600; }
 .sidebar-menu a i { width: 20px; text-align: center; }
-.sidebar-profile { margin-top: auto; padding-top: 16px; border-top: 1px solid var(--border); display: flex; align-items: center; gap: 12px; }
-.profile-icon { 
-  width: 40px; height: 40px; 
-  background: linear-gradient(135deg, var(--utm-maroon) 0%, var(--utm-maroon-light) 100%); 
-  color: white; border-radius: 50%; display: flex; align-items: center; justify-content: center; 
-  font-weight: 700; font-size: 15px; box-shadow: 0 2px 8px rgba(128,0,0,0.2);
+
+.nav-badge {
+    background-color: var(--danger);
+    color: white; 
+    font-size: 10px; 
+    font-weight: 700;
+    padding: 2px 8px; 
+    border-radius: 99px; 
+    margin-left: auto; /* Pushes badge to the right */
 }
+
+.sidebar-profile { margin-top: auto; padding-top: 16px; border-top: 1px solid var(--border); display: flex; align-items: center; gap: 12px; }
+.profile-icon { width: 36px; height: 36px; background: #f3f4f6; color: var(--utm-maroon); border-radius: 50%; display: flex; align-items: center; justify-content: center; font-weight: 700; }
 .profile-info { font-size: 13px; overflow: hidden; }
 .profile-name { font-weight: 600; white-space: nowrap; text-overflow: ellipsis; }
 .profile-email { font-size: 11px; color: var(--text-secondary); white-space: nowrap; text-overflow: ellipsis; }
@@ -288,20 +322,45 @@ body { font-family: 'Inter', sans-serif; background: var(--bg-light); min-height
     <aside class="sidebar">
         <div class="sidebar-title">Main Menu</div>
         <ul class="sidebar-menu">
-            <li><a href="index-admin.php"><i class="fa-solid fa-gauge-high"></i> Dashboard</a></li>
+            <li>
+                <a href="index-admin.php">
+                    <i class="fa-solid fa-gauge-high"></i> Dashboard
+                </a>
+            </li>
+            
             <?php if (!$isTechAdmin): ?>
-            <li><a href="reservation_request.php"><i class="fa-solid fa-inbox"></i> Requests</a></li>
+            <li>
+                <a href="reservation_request.php">
+                    <i class="fa-solid fa-inbox"></i> Requests
+                    <?php if (isset($pending_approvals) && $pending_approvals > 0): ?>
+                        <span class="nav-badge"><?php echo $pending_approvals; ?></span>
+                    <?php endif; ?>
+                </a>
+            </li>
             <?php endif; ?>
+
             <li><a href="admin_timetable.php"><i class="fa-solid fa-calendar-days"></i> Timetable</a></li>
+            
             <?php if (!$isTechAdmin): ?>
             <li><a href="admin_recurring.php"><i class="fa-solid fa-rotate"></i> Recurring</a></li>
             <li><a href="admin_logbook.php"><i class="fa-solid fa-book"></i> Logbook</a></li>
             <?php endif; ?>
 
             <li><a href="generate_reports.php"><i class="fa-solid fa-chart-pie"></i> Reports</a></li>
-            <li><a href="admin_problems.php" class="active"><i class="fa-solid fa-triangle-exclamation"></i> Problems</a></li>
+            
+            <li>
+                <a href="admin_problems.php" class="active">
+                    <i class="fa-solid fa-triangle-exclamation"></i> Problems
+                    <?php if ($isTechAdmin && isset($tech_pending) && $tech_pending > 0): ?>
+                        <span class="nav-badge"><?php echo $tech_pending; ?></span>
+                    <?php elseif (!$isTechAdmin && isset($active_problems) && $active_problems > 0): ?>
+                        <span class="nav-badge"><?php echo $active_problems; ?></span>
+                    <?php endif; ?>
+                </a>
+            </li>
+            
             <?php if ($isSuperAdmin || $isTechAdmin): ?>
-            <li><a href="manage_users.php"><i class="fa-solid fa-users-gear"></i> Users</a></li>
+                <li><a href="manage_users.php"><i class="fa-solid fa-users-gear"></i> Users</a></li>
             <?php endif; ?>
         </ul>
         <div class="sidebar-profile">

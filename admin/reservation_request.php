@@ -1,10 +1,11 @@
 <?php
+// reservation_request.php
 session_start();
 require_once __DIR__ . '/../includes/db_connect.php';
 
 // Access control
 if(!isset($_SESSION["loggedin"]) || $_SESSION["loggedin"] !== true ||
-   strcasecmp(trim($_SESSION["User_Type"]), 'Admin') != 0 && strcasecmp(trim($_SESSION["User_Type"]), 'SuperAdmin') != 0) {
+   (strcasecmp(trim($_SESSION["User_Type"]), 'Admin') != 0 && strcasecmp(trim($_SESSION["User_Type"]), 'SuperAdmin') != 0)) {
     header("location: ../loginterface.html");
     exit;
 }
@@ -12,6 +13,33 @@ if(!isset($_SESSION["loggedin"]) || $_SESSION["loggedin"] !== true ||
 $admin_name = $_SESSION['Fullname'] ?? 'Admin'; 
 $admin_email = $_SESSION['Email'] ?? ($_SESSION['User_Type'] ?? 'Admin');
 $username = $_SESSION['username'] ?? 'superadmin';
+$uType = trim($_SESSION['User_Type']);
+
+// Define Roles
+$isTechAdmin  = (strcasecmp($uType, 'Technical Admin') === 0);
+$isSuperAdmin = (strcasecmp($uType, 'SuperAdmin') === 0 || strtolower($username) === 'superadmin');
+
+// --- 1. NOTIFICATION COUNTERS (Copy this block to all files) ---
+$tech_pending = 0;
+$pending_approvals = 0;
+$active_problems = 0;
+
+if ($isTechAdmin) {
+    // Tech Admin: Count Pending Repair SESSIONS (Not Slots)
+    $sql = "SELECT COUNT(DISTINCT session_id) FROM bookings WHERE tech_token IS NOT NULL AND tech_status != 'Work Done'";
+    $result = $conn->query($sql);
+    if($result) { $row = $result->fetch_row(); $tech_pending = intval($row[0]); }
+} else {
+    // Admin: Count Pending Request Sessions
+    $sql = "SELECT COUNT(DISTINCT session_id) FROM bookings WHERE status = 'pending'";
+    $result = $conn->query($sql);
+    if($result) { $row = $result->fetch_row(); $pending_approvals = intval($row[0]); }
+
+    // Admin: Count Active Problems
+    $sql = "SELECT COUNT(*) FROM room_problems WHERE status != 'Resolved'";
+    $result = $conn->query($sql);
+    if($result) { $row = $result->fetch_row(); $active_problems = intval($row[0]); }
+}
 
 // Determine current tab/filter
 $filter = $_GET['filter'] ?? 'pending';
@@ -160,6 +188,12 @@ body {
 .sidebar-menu a.active { background: #fef2f2; color: var(--utm-maroon); font-weight: 600; }
 .sidebar-menu a i { width: 20px; text-align: center; }
 
+/* NOTIFICATION BADGE */
+.nav-badge {
+    background-color: var(--danger); color: white; font-size: 10px; font-weight: 700;
+    padding: 2px 8px; border-radius: 99px; margin-left: auto;
+}
+
 .sidebar-profile {
   margin-top: auto; padding-top: 16px;
   border-top: 1px solid var(--border);
@@ -245,9 +279,6 @@ body {
 }
 .list-table tr:hover { background: #fafafa; }
 .user-subtext { font-size: 11px; color: var(--text-secondary); display: block; margin-top: 2px; }
-
-/* --- EMPTY STATE (Matches booking_status.html) --- */
-.loading-cell { text-align: center; padding: 40px !important; color: var(--text-secondary); }
 
 /* STATUS BADGES */
 .status {
@@ -470,14 +501,47 @@ body {
     <aside class="sidebar">
         <div class="sidebar-title">Main Menu</div>
         <ul class="sidebar-menu">
-            <li><a href="index-admin.php"><i class="fa-solid fa-gauge-high"></i> Dashboard</a></li>
-            <li><a href="reservation_request.php" class="active"><i class="fa-solid fa-inbox"></i> Requests</a></li>
+            <li>
+                <a href="index-admin.php">
+                    <i class="fa-solid fa-gauge-high"></i> Dashboard
+                    <?php if ($isTechAdmin && isset($tech_pending) && $tech_pending > 0): ?>
+                        <span class="nav-badge"><?php echo $tech_pending; ?></span>
+                    <?php endif; ?>
+                </a>
+            </li>
+            
+            <?php if (!$isTechAdmin): ?>
+            <li>
+                <a href="reservation_request.php" class="active">
+                    <i class="fa-solid fa-inbox"></i> Requests
+                    <?php if (isset($pending_approvals) && $pending_approvals > 0): ?>
+                        <span class="nav-badge"><?php echo $pending_approvals; ?></span>
+                    <?php endif; ?>
+                </a>
+            </li>
+            <?php endif; ?>
+
             <li><a href="admin_timetable.php"><i class="fa-solid fa-calendar-days"></i> Timetable</a></li>
+            
+            <?php if (!$isTechAdmin): ?>
             <li><a href="admin_recurring.php"><i class="fa-solid fa-rotate"></i> Recurring</a></li>
             <li><a href="admin_logbook.php"><i class="fa-solid fa-book"></i> Logbook</a></li>
+            <?php endif; ?>
+
             <li><a href="generate_reports.php"><i class="fa-solid fa-chart-pie"></i> Reports</a></li>
-            <li><a href="admin_problems.php"><i class="fa-solid fa-triangle-exclamation"></i> Problems</a></li>
-            <?php if ($username === 'superadmin'): ?>
+            
+            <li>
+                <a href="admin_problems.php">
+                    <i class="fa-solid fa-triangle-exclamation"></i> Problems
+                    <?php if ($isTechAdmin && isset($tech_pending) && $tech_pending > 0): ?>
+                        <span class="nav-badge"><?php echo $tech_pending; ?></span>
+                    <?php elseif (!$isTechAdmin && isset($active_problems) && $active_problems > 0): ?>
+                        <span class="nav-badge"><?php echo $active_problems; ?></span>
+                    <?php endif; ?>
+                </a>
+            </li>
+            
+            <?php if ($isSuperAdmin || $isTechAdmin): ?>
             <li><a href="manage_users.php"><i class="fa-solid fa-users-gear"></i> Users</a></li>
             <?php endif; ?>
         </ul>
@@ -685,9 +749,8 @@ body {
     </div>
 </div>
 
-
-
 <script>
+// ... (Scripts remain unchanged) ...
 const TIME_SLOTS = [
     "08:00-08:50", "09:00-09:50", "10:00-10:50", "11:00-11:50", 
     "12:00-12:50", "13:00-13:50", "14:00-14:50", "15:00-15:50", 
@@ -706,9 +769,8 @@ function escapeHtml(s) {
     return String(s).replace(/[&<>"']/g, c => ({'&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;'}[c]));
 }
 
-// Open Timetable with Highlight Logic and Details
-// Open Timetable (No Conflict Detection)
 async function openTimetable(btn) {
+    // ... (Keep existing timetable logic) ...
     // 1. Get Data Attributes
     const d = btn.dataset;
     const roomId = d.roomId;
@@ -823,7 +885,6 @@ async function openTimetable(btn) {
     }
 }
 
-// Action Handlers
 function openApprove(id) {
     currentSession = id;
     document.getElementById('approveModal').classList.add('show');
@@ -835,7 +896,6 @@ function openReject(id) {
     document.getElementById('rejectModal').classList.add('show');
 }
 
-// --- TOAST FUNCTION ---
 function showToast(message, type = 'info') {
     let container = document.getElementById('toast-container');
     if (!container) {
@@ -847,7 +907,6 @@ function showToast(message, type = 'info') {
     const toast = document.createElement('div');
     toast.className = `toast-msg ${type}`;
     
-    // Icons based on type
     const icons = { success: '<i class="fa-solid fa-check-circle" style="color:#10b981"></i>', error: '<i class="fa-solid fa-circle-exclamation" style="color:#ef4444"></i>' };
     const icon = icons[type] || '<i class="fa-solid fa-info-circle"></i>';
 
@@ -858,7 +917,6 @@ function showToast(message, type = 'info') {
 
     container.appendChild(toast);
 
-    // Remove after 3 seconds
     setTimeout(() => {
         toast.style.animation = 'fadeOut 0.3s forwards';
         setTimeout(() => toast.remove(), 300);
@@ -872,12 +930,8 @@ async function postAction(fd) {
     } catch(e) { return {success:false, message:e.message}; }
 }
 
-
-// APPROVE
 document.getElementById('approveConfirm').onclick = async function() {
     if(!currentSession) return;
-    
-    // UI Feedback
     const btn = this;
     const originalText = btn.innerText;
     btn.innerText = 'Processing...'; 
@@ -890,9 +944,9 @@ document.getElementById('approveConfirm').onclick = async function() {
     const res = await postAction(fd);
     
     if(res.success) {
-        closeModal('approveModal'); // Close modal immediately
-        showToast('Request Approved Successfully!', 'success'); // Show popup
-        setTimeout(() => location.reload(), 1500); // Reload after 1.5s
+        closeModal('approveModal'); 
+        showToast('Request Approved Successfully!', 'success'); 
+        setTimeout(() => location.reload(), 1500); 
     } else {
         showToast(res.message || 'Failed to approve', 'error');
         btn.innerText = originalText; 
@@ -900,7 +954,6 @@ document.getElementById('approveConfirm').onclick = async function() {
     }
 };
 
-// REJECT
 document.getElementById('rejectConfirm').onclick = async function() {
     if(!currentSession) return;
     const reason = document.getElementById('rejectReason').value;
@@ -910,7 +963,6 @@ document.getElementById('rejectConfirm').onclick = async function() {
         return;
     }
     
-    // UI Feedback
     const btn = this;
     const originalText = btn.innerText;
     btn.innerText = 'Processing...'; 
@@ -924,9 +976,9 @@ document.getElementById('rejectConfirm').onclick = async function() {
     const res = await postAction(fd);
     
     if(res.success) {
-        closeModal('rejectModal'); // Close modal immediately
-        showToast('Request Rejected Successfully', 'success'); // Show popup
-        setTimeout(() => location.reload(), 1500); // Reload after 1.5s
+        closeModal('rejectModal'); 
+        showToast('Request Rejected Successfully', 'success'); 
+        setTimeout(() => location.reload(), 1500); 
     } else {
         showToast(res.message || 'Failed to reject', 'error');
         btn.innerText = originalText; 
@@ -934,18 +986,14 @@ document.getElementById('rejectConfirm').onclick = async function() {
     }
 };
 
-// --- PAGINATION LOGIC ---
+// ... (Pagination Logic remains unchanged) ...
 document.addEventListener('DOMContentLoaded', function() {
     const table = document.querySelector('.list-table tbody');
-    // Select all rows that are NOT the empty state/loading row
     const rows = Array.from(table.querySelectorAll('tr'));
     const paginationContainer = document.getElementById('pagination');
-    
-    // CONFIGURATION
     const rowsPerPage = 10; 
     let currentPage = 1;
     
-    // Check if table is empty or has the "No requests found" row
     if (rows.length === 0 || rows[0].querySelector('.loading-cell') || rows[0].querySelector('.empty-state')) {
         paginationContainer.style.display = 'none';
         return;
@@ -954,12 +1002,11 @@ document.addEventListener('DOMContentLoaded', function() {
     function displayRows(page) {
         const start = (page - 1) * rowsPerPage;
         const end = start + rowsPerPage;
-
         rows.forEach((row, index) => {
             if (index >= start && index < end) {
-                row.style.display = ''; // Show
+                row.style.display = ''; 
             } else {
-                row.style.display = 'none'; // Hide
+                row.style.display = 'none'; 
             }
         });
     }
@@ -967,59 +1014,37 @@ document.addEventListener('DOMContentLoaded', function() {
     function setupPagination() {
         const pageCount = Math.ceil(rows.length / rowsPerPage);
         paginationContainer.innerHTML = '';
+        if (pageCount <= 1) return; 
 
-        if (pageCount <= 1) return; // Hide if only 1 page
-
-        // Previous Button
         const prevBtn = document.createElement('button');
         prevBtn.className = 'page-btn';
         prevBtn.innerHTML = '<i class="fa-solid fa-chevron-left"></i>';
         prevBtn.disabled = currentPage === 1;
-        prevBtn.onclick = () => {
-            if (currentPage > 1) {
-                currentPage--;
-                updatePagination();
-            }
-        };
+        prevBtn.onclick = () => { if (currentPage > 1) { currentPage--; updatePagination(); } };
         paginationContainer.appendChild(prevBtn);
 
-        // Page Numbers
         for (let i = 1; i <= pageCount; i++) {
             const btn = document.createElement('button');
             btn.className = `page-btn ${i === currentPage ? 'active' : ''}`;
             btn.innerText = i;
-            btn.onclick = () => {
-                currentPage = i;
-                updatePagination();
-            };
+            btn.onclick = () => { currentPage = i; updatePagination(); };
             paginationContainer.appendChild(btn);
         }
 
-        // Next Button
         const nextBtn = document.createElement('button');
         nextBtn.className = 'page-btn';
         nextBtn.innerHTML = '<i class="fa-solid fa-chevron-right"></i>';
         nextBtn.disabled = currentPage === pageCount;
-        nextBtn.onclick = () => {
-            if (currentPage < pageCount) {
-                currentPage++;
-                updatePagination();
-            }
-        };
+        nextBtn.onclick = () => { if (currentPage < pageCount) { currentPage++; updatePagination(); } };
         paginationContainer.appendChild(nextBtn);
     }
 
     function updatePagination() {
         displayRows(currentPage);
-        setupPagination(); // Re-render buttons to update active state/disabled buttons
+        setupPagination(); 
     }
-
-    // Initialize
     updatePagination();
 });
-
-
 </script>
 </body>
-
 </html>

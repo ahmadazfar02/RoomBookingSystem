@@ -28,6 +28,37 @@ if (!$admin_id || !$allowed) {
 
 $admin_name  = $_SESSION['Fullname'] ?? 'Admin';
 $admin_email = $_SESSION['Email'] ?? ($_SESSION['User_Type'] ?? 'Admin');
+
+// --- NOTIFICATION COUNTERS ---
+// --- NOTIFICATION COUNTERS (Paste this into report, timetable, and user files) ---
+$tech_pending = 0;
+$pending_approvals = 0;
+$active_problems = 0;
+
+// Ensure we know who the user is
+$uType = $_SESSION['User_Type'] ?? '';
+$isTechAdmin_Check = (strcasecmp($uType, 'Technical Admin') === 0);
+
+if ($isTechAdmin_Check) {
+    // Tech Admin: Count Pending Repair JOBS (Grouped by Ticket ID)
+    // This merges multiple slots (hours) into 1 notification if they belong to the same ticket
+    $sql = "SELECT COUNT(DISTINCT CASE WHEN linked_problem_id > 0 THEN linked_problem_id ELSE session_id END) 
+            FROM bookings 
+            WHERE tech_token IS NOT NULL 
+            AND tech_status != 'Work Done'";
+    $result = $conn->query($sql);
+    if($result) { $row = $result->fetch_row(); $tech_pending = intval($row[0]); }
+} else {
+    // Admin: Count Pending Request SESSIONS (Not Slots)
+    $sql = "SELECT COUNT(DISTINCT session_id) FROM bookings WHERE status = 'pending'";
+    $result = $conn->query($sql);
+    if($result) { $row = $result->fetch_row(); $pending_approvals = intval($row[0]); }
+
+    // Admin: Count Active Problems
+    $sql = "SELECT COUNT(*) FROM room_problems WHERE status != 'Resolved'";
+    $result = $conn->query($sql);
+    if($result) { $row = $result->fetch_row(); $active_problems = intval($row[0]); }
+}
 ?>
 <!doctype html>
 <html lang="en">
@@ -93,6 +124,18 @@ body { font-family: 'Inter', sans-serif; background: var(--bg-light); min-height
 .sidebar-menu a:hover { background: var(--bg-light); color: var(--utm-maroon); transform: translateX(2px); }
 .sidebar-menu a.active { background: linear-gradient(135deg, #fef2f2 0%, #fee2e2 100%); color: var(--utm-maroon); font-weight: 600; box-shadow: 0 1px 3px rgba(128,0,0,0.1); }
 .sidebar-menu a i { width: 20px; text-align: center; }
+
+/* NOTIFICATION BADGE */
+.nav-badge {
+    background-color: #dc2626; /* Red */
+    color: white; 
+    font-size: 10px; 
+    font-weight: 700;
+    padding: 2px 8px; 
+    border-radius: 99px; 
+    margin-left: auto; /* Pushes badge to the right */
+}
+
 .sidebar-profile { margin-top: auto; padding-top: 16px; border-top: 1px solid var(--border); display: flex; align-items: center; gap: 12px; }
 .profile-icon { 
   width: 40px; height: 40px; 
@@ -294,25 +337,45 @@ body { font-family: 'Inter', sans-serif; background: var(--bg-light); min-height
     <aside class="sidebar">
         <div class="sidebar-title">Main Menu</div>
         <ul class="sidebar-menu">
-            <li><a href="index-admin.php"><i class="fa-solid fa-gauge-high"></i> Dashboard</a></li>
+            <li>
+                <a href="index-admin.php">
+                    <i class="fa-solid fa-gauge-high"></i> Dashboard                  
+                </a>
+            </li>
             
             <?php if (!$isTechAdmin): ?>
-            <li><a href="reservation_request.php"><i class="fa-solid fa-inbox"></i> Requests</a></li>
+            <li>
+                <a href="reservation_request.php" <?php echo basename($_SERVER['PHP_SELF']) == 'reservation_request.php' ? 'class="active"' : ''; ?>>
+                    <i class="fa-solid fa-inbox"></i> Requests
+                    <?php if ($pending_approvals > 0): ?>
+                        <span class="nav-badge"><?php echo $pending_approvals; ?></span>
+                    <?php endif; ?>
+                </a>
+            </li>
             <?php endif; ?>
 
-            <li><a href="admin_timetable.php"><i class="fa-solid fa-calendar-days"></i> Timetable</a></li>
+            <li><a href="admin_timetable.php" <?php echo basename($_SERVER['PHP_SELF']) == 'admin_timetable.php' ? 'class="active"' : ''; ?>><i class="fa-solid fa-calendar-days"></i> Timetable</a></li>
             
             <?php if (!$isTechAdmin): ?>
-            <li><a href="admin_recurring.php"><i class="fa-solid fa-rotate"></i> Recurring</a></li>
-            <li><a href="admin_logbook.php"><i class="fa-solid fa-book"></i> Logbook</a></li>
+            <li><a href="admin_recurring.php" <?php echo basename($_SERVER['PHP_SELF']) == 'admin_recurring.php' ? 'class="active"' : ''; ?>><i class="fa-solid fa-rotate"></i> Recurring</a></li>
+            <li><a href="admin_logbook.php" <?php echo basename($_SERVER['PHP_SELF']) == 'admin_logbook.php' ? 'class="active"' : ''; ?>><i class="fa-solid fa-book"></i> Logbook</a></li>
             <?php endif; ?>
 
+            <li><a href="generate_reports.php" <?php echo basename($_SERVER['PHP_SELF']) == 'generate_reports.php' ? 'class="active"' : ''; ?>><i class="fa-solid fa-chart-pie"></i> Reports</a></li>
             
-            <li><a href="generate_reports.php" class="active"><i class="fa-solid fa-chart-pie"></i> Reports</a></li>
-            <li><a href="admin_problems.php"><i class="fa-solid fa-triangle-exclamation"></i> Problems</a></li>
+            <li>
+                <a href="admin_problems.php" <?php echo basename($_SERVER['PHP_SELF']) == 'admin_problems.php' ? 'class="active"' : ''; ?>>
+                    <i class="fa-solid fa-triangle-exclamation"></i> Problems
+                    <?php if ($isTechAdmin && $tech_pending > 0): ?>
+                        <span class="nav-badge"><?php echo $tech_pending; ?></span>
+                    <?php elseif (!$isTechAdmin && $active_problems > 0): ?>
+                        <span class="nav-badge"><?php echo $active_problems; ?></span>
+                    <?php endif; ?>
+                </a>
+            </li>
             
             <?php if ($isSuperAdmin || $isTechAdmin): ?>
-              <li><a href="manage_users.php"><i class="fa-solid fa-users-gear"></i> Users</a></li>
+                <li><a href="manage_users.php" <?php echo basename($_SERVER['PHP_SELF']) == 'manage_users.php' ? 'class="active"' : ''; ?>><i class="fa-solid fa-users-gear"></i> Users</a></li>
             <?php endif; ?>
         </ul>
 

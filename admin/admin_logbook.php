@@ -21,7 +21,31 @@ if (!$admin_id || !$allowed) {
 $admin_name = $_SESSION['Fullname'] ?? 'Admin';
 $admin_email = $_SESSION['Email'] ?? ($_SESSION['User_Type'] ?? 'Admin');
 
-// --- 2. LOGIC: FILTER & PAGINATION ---
+// --- 2. NOTIFICATION COUNTERS (NEW) ---
+$tech_pending = 0;
+$pending_approvals = 0;
+$active_problems = 0;
+
+if ($isTechAdmin) {
+    // Tech Admin: Count Pending Repair SESSIONS (Not Slots)
+    $sql = "SELECT COUNT(DISTINCT session_id) FROM bookings WHERE tech_token IS NOT NULL AND tech_status != 'Work Done'";
+    $result = $conn->query($sql);
+    if($result) { $row = $result->fetch_row(); $tech_pending = intval($row[0]); }
+} else {
+    // Admin: Count Pending Request Sessions
+    $sql = "SELECT COUNT(DISTINCT session_id) FROM bookings WHERE status = 'pending'";
+    $result = $conn->query($sql);
+    $row = $result->fetch_row();
+    $pending_approvals = intval($row[0]);
+
+    // Admin: Count Active Problems
+    $sql = "SELECT COUNT(*) FROM room_problems WHERE status != 'Resolved'";
+    $result = $conn->query($sql);
+    $row = $result->fetch_row();
+    $active_problems = intval($row[0]);
+}
+
+// --- 3. LOGIC: FILTER & PAGINATION ---
 $search = $_GET['search'] ?? '';
 $action_filter = $_GET['action'] ?? 'all';
 $start_date = $_GET['start'] ?? '';
@@ -57,7 +81,7 @@ if (!empty($end_date)) {
 
 $where_sql = implode(" AND ", $where_clauses);
 
-// --- 3. EXPORT LOGIC ---
+// --- 4. EXPORT LOGIC ---
 if (isset($_GET['export'])) {
     $filename = "admin_logs_" . date('Y-m-d') . ".csv";
     header('Content-Type: text/csv');
@@ -82,7 +106,6 @@ if (isset($_GET['export'])) {
     $res = $stmt->get_result();
     
     while ($row = $res->fetch_assoc()) {
-        // Ensure consistent columns in exported CSV order
         $rowOut = [
             $row['id'],
             $row['username'] ?? '',
@@ -104,8 +127,7 @@ if (isset($_GET['export'])) {
     exit;
 }
 
-// --- 4. FETCH DATA (Enhanced Query) ---
-// Count total rows (joins not required for count but safe)
+// --- 5. FETCH DATA (Enhanced Query) ---
 $count_sql = "SELECT COUNT(*) as total FROM admin_logs l LEFT JOIN users u ON l.admin_id = u.id WHERE $where_sql";
 $stmt = $conn->prepare($count_sql);
 if (!empty($params)) $stmt->bind_param($types, ...$params);
@@ -113,7 +135,6 @@ $stmt->execute();
 $total_rows = $stmt->get_result()->fetch_assoc()['total'];
 $total_pages = ceil($total_rows / $limit);
 
-// Main Query - Fetches Booking + Room Details
 $sql = "SELECT l.id, u.username, l.action, l.booking_id, l.note, l.ip_address, l.created_at,
                b.ticket, b.slot_date, b.time_start, b.time_end, b.purpose, b.technician, b.status AS booking_status,
                r.name AS room_name, r.floor AS room_floor
@@ -159,6 +180,7 @@ function getQueryLink($newPage = 1) {
     --text-secondary: #64748b;
     --border: #e2e8f0;
     --nav-height: 70px;
+    --danger: #dc2626;
 }
 
 * { box-sizing: border-box; margin: 0; padding: 0; }
@@ -176,8 +198,6 @@ body { font-family: 'Inter', sans-serif; background: var(--bg-light); min-height
 .nav-title p { font-size: 11px; color: var(--text-secondary); margin: 0; }
 .btn-logout { text-decoration: none; color: var(--text-secondary); font-size: 13px; font-weight: 500; padding: 8px 12px; border-radius: 6px; transition: 0.2s; }
 .btn-logout:hover { background: #fef2f2; color: var(--utm-maroon); }
-
-* { box-sizing: border-box; margin: 0; padding: 0; }
 
 /* LAYOUT */
 .layout { display: flex; margin-top: var(--nav-height); min-height: calc(100vh - var(--nav-height)); }
@@ -198,6 +218,13 @@ body { font-family: 'Inter', sans-serif; background: var(--bg-light); min-height
 .sidebar-menu a:hover { background: var(--bg-light); color: var(--utm-maroon); }
 .sidebar-menu a.active { background: #fef2f2; color: var(--utm-maroon); font-weight: 600; }
 .sidebar-menu a i { width: 20px; text-align: center; }
+
+/* NOTIFICATION BADGE */
+.nav-badge {
+    background-color: var(--danger); color: white; font-size: 10px; font-weight: 700;
+    padding: 2px 8px; border-radius: 99px; margin-left: auto;
+}
+
 .sidebar-profile { margin-top: auto; padding-top: 16px; border-top: 1px solid var(--border); display: flex; align-items: center; gap: 12px; }
 .profile-icon { 
   width: 40px; height: 40px; 
@@ -224,7 +251,7 @@ body { font-family: 'Inter', sans-serif; background: var(--bg-light); min-height
 .form-control { padding: 8px 12px; border: 1px solid var(--border); border-radius: 6px; font-size: 14px; min-width: 150px; outline: none; }
 .form-control:focus { border-color: var(--utm-maroon); }
 
-.btn { padding: 8px 16px; border-radius: 6px; border: 1px solid var(--border); background: white; color: var(--text-primary); font-weight: 600; cursor: pointer; font-size: 13px; transition: 0.2s; text-decoration: none; align-items: center; justify-content: center; }
+.btn { padding: 8px 16px; border-radius: 6px; border: 1px solid var(--border); background: white; color: var(--text-primary); font-weight: 600; cursor: pointer; font-size: 13px; transition: 0.2s; text-decoration: none; align-items: center; justify-content: center; display: inline-flex; gap: 6px; }
 .btn-primary { background: var(--utm-maroon); color: white; border-color: var(--utm-maroon); }
 .btn-primary:hover { background: var(--utm-maroon-light); color: white; border-color: var(--utm-maroon-light); }
 .btn-success { background: #059669; color: white; border-color: #059669; }
@@ -284,22 +311,45 @@ body { font-family: 'Inter', sans-serif; background: var(--bg-light); min-height
   <aside class="sidebar">
     <div class="sidebar-title">Main Menu</div>
     <ul class="sidebar-menu">
-      <li><a href="index-admin.php"><i class="fa-solid fa-gauge-high"></i> Dashboard</a></li>
+      <li>
+          <a href="index-admin.php">
+              <i class="fa-solid fa-gauge-high"></i> Dashboard
+              <?php if ($isTechAdmin && isset($tech_pending) && $tech_pending > 0): ?>
+                  <span class="nav-badge"><?php echo $tech_pending; ?></span>
+              <?php endif; ?>
+          </a>
+      </li>
       
       <?php if (!$isTechAdmin): ?>
-        <li><a href="reservation_request.php"><i class="fa-solid fa-inbox"></i> Requests</a></li>
+        <li>
+            <a href="reservation_request.php">
+                <i class="fa-solid fa-inbox"></i> Requests
+                <?php if (isset($pending_approvals) && $pending_approvals > 0): ?>
+                    <span class="nav-badge"><?php echo $pending_approvals; ?></span>
+                <?php endif; ?>
+            </a>
+        </li>
       <?php endif; ?>
 
       <li><a href="admin_timetable.php"><i class="fa-solid fa-calendar-days"></i> Timetable</a></li>
       
       <?php if (!$isTechAdmin): ?>
         <li><a href="admin_recurring.php"><i class="fa-solid fa-rotate"></i> Recurring</a></li>
-        <li><a href="admin_logbook.php"><i class="fa-solid fa-book"></i> Logbook</a></li>
+        <li><a href="admin_logbook.php" class="active"><i class="fa-solid fa-book"></i> Logbook</a></li>
       <?php endif; ?>
 
-
       <li><a href="generate_reports.php"><i class="fa-solid fa-chart-pie"></i> Reports</a></li>
-      <li><a href="admin_problems.php"><i class="fa-solid fa-triangle-exclamation"></i> Problems</a></li>
+      
+      <li>
+          <a href="admin_problems.php">
+              <i class="fa-solid fa-triangle-exclamation"></i> Problems
+              <?php if ($isTechAdmin && isset($tech_pending) && $tech_pending > 0): ?>
+                  <span class="nav-badge"><?php echo $tech_pending; ?></span>
+              <?php elseif (!$isTechAdmin && isset($active_problems) && $active_problems > 0): ?>
+                  <span class="nav-badge"><?php echo $active_problems; ?></span>
+              <?php endif; ?>
+          </a>
+      </li>
       
       <?php if ($isSuperAdmin || $isTechAdmin): ?>
         <li><a href="manage_users.php"><i class="fa-solid fa-users-gear"></i> Users</a></li>
@@ -446,7 +496,6 @@ body { font-family: 'Inter', sans-serif; background: var(--bg-light); min-height
   </main>
 </div>
 
-<!-- Modal (shows booking + room + note) -->
 <div id="logModal" class="modal-backdrop">
   <div class="modal">
     <div class="modal-header">
@@ -479,7 +528,6 @@ body { font-family: 'Inter', sans-serif; background: var(--bg-light); min-height
 
 <script>
 function openModal(log){
-  // `log` is a plain object from PHP json_encode
   document.getElementById('m_id').textContent = '#' + (log.id ?? '');
   document.getElementById('m_date').textContent = log.created_at ?? '';
   document.getElementById('m_admin').textContent = log.username ?? '';
@@ -487,15 +535,12 @@ function openModal(log){
   document.getElementById('m_note').textContent = log.note ?? '';
 
   const detDiv = document.getElementById('booking_details');
-  // Booking presence: check ticket or booking_id
   if (log.booking_id || log.ticket) {
       detDiv.style.display = 'block';
       document.getElementById('m_ticket').textContent = log.ticket ?? '-';
-      // Room (name + optional floor)
       let roomText = log.room_name ?? '-';
       document.getElementById('m_room').textContent = roomText;
       document.getElementById('m_floor').textContent = log.room_floor ?? '-';
-      // Date/time
       let ts = '';
       if (log.slot_date) {
           ts = log.slot_date;

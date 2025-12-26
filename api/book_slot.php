@@ -465,7 +465,7 @@ if ($fatalError) {
         $userName  = $userRow['username'] ?? 'User';
 
         // links for user/admin
-        $userLink  = rtrim(BASE_URL, '/') . "/booking_status.php?session_id=" . urlencode($session_id);
+        $userLink  = rtrim(BASE_URL, '/') . "/booking_status.html?session_id=" . urlencode($session_id);
         $adminLink = rtrim(BASE_URL, '/') . "/admin/reservation_request.php?session_id=" . urlencode($session_id);
 
         // plain-text helpers
