@@ -32,7 +32,7 @@ session_start();
             justify-content: center;
             align-items: center;
             padding: 20px;
-            background-image: linear-gradient(rgba(0, 0, 0, 0.5), rgba(0, 0, 0, 0.5)), url('../assets/images/image_utm_background.jpg');
+            background-image: linear-gradient(rgba(0, 0, 0, 0.5), rgba(0, 0, 0, 0.5)), url('../assets/images/Kampus-UTMKL.png');
             background-size: cover;
             background-position: center;
             background-repeat: no-repeat;
