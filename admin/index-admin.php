@@ -185,7 +185,12 @@ body { font-family: 'Inter', sans-serif; background: var(--bg-light); color: var
 .nav-badge { background-color: var(--danger); color: white; font-size: 10px; font-weight: 700; padding: 2px 8px; border-radius: 99px; margin-left: auto; }
 
 .sidebar-profile { margin-top: auto; padding-top: 16px; border-top: 1px solid var(--border); display: flex; align-items: center; gap: 12px; }
-.profile-icon { width: 36px; height: 36px; background: #f3f4f6; color: var(--utm-maroon); border-radius: 50%; display: flex; align-items: center; justify-content: center; font-weight: 700; }
+.profile-icon { 
+  width: 40px; height: 40px; 
+  background: linear-gradient(135deg, var(--utm-maroon) 0%, var(--utm-maroon-light) 100%); 
+  color: white; border-radius: 50%; display: flex; align-items: center; justify-content: center; 
+  font-weight: 700; font-size: 15px; box-shadow: 0 2px 8px rgba(128,0,0,0.2);
+}
 .profile-info { font-size: 13px; overflow: hidden; }
 .profile-name { font-weight: 600; white-space: nowrap; text-overflow: ellipsis; }
 .profile-email { font-size: 11px; color: var(--text-secondary); white-space: nowrap; text-overflow: ellipsis; }
