@@ -24,7 +24,6 @@ if (isset($_COOKIE['remember_me'])) {
             $_SESSION["Fullname"] = $fullname;
             $_SESSION["User_Type"] = $User_Type;
             
-            // --- FIX 1: Cookie Check (Admin OR Technical Admin OR SuperAdmin) ---
             $uType = trim($User_Type);
             if (strcasecmp($uType, 'Admin') == 0 || 
                 strcasecmp($uType, 'Technical Admin') == 0 || 
@@ -77,7 +76,6 @@ if ($_SERVER["REQUEST_METHOD"] == "POST"){
                         setcookie('remember_me', $token, time() + 60 * 60 * 24 * 30, '/'); // 30-day cookie
                     }
 
-                    // --- FIX 2: Login Check (Admin OR Technical Admin OR SuperAdmin) ---
                     $uType = trim($User_Type);
                     if (strcasecmp($uType, 'Admin') == 0 || 
                         strcasecmp($uType, 'Technical Admin') == 0 || 
@@ -89,14 +87,16 @@ if ($_SERVER["REQUEST_METHOD"] == "POST"){
                     }
                     exit;
                 } 
-                else{
-                    $login_err = "Invalid username or password.";
-                    echo "<script>alert('Invalid password'); window.location.href='../loginterface.html';</script>";
-                } 
+                else {
+                    // Redirect back with error message (Password incorrect)
+                    header("Location: ../loginterface.html?error=" . urlencode("The password you entered is incorrect."));
+                    exit;
+                }
             }
-            else{
-                $login_err = "Invalid username or password.";
-                echo "<script>alert('User not found'); window.location.href='../loginterface.html';</script>";
+            else {
+                // Redirect back with error message (User not found)
+                header("Location: ../loginterface.html?error=" . urlencode("No account found with that username."));
+                exit;
             }
         }
         $stmt->close();
