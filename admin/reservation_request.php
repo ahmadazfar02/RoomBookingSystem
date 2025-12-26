@@ -10,7 +10,7 @@ if(!isset($_SESSION["loggedin"]) || $_SESSION["loggedin"] !== true ||
 }
 
 $admin_name = $_SESSION['Fullname'] ?? 'Admin'; 
-$admin_email = $_SESSION['Email'] ?? 'Admin';
+$admin_email = $_SESSION['Email'] ?? ($_SESSION['User_Type'] ?? 'Admin');
 $username = $_SESSION['username'] ?? 'superadmin';
 
 // Determine current tab/filter
@@ -165,12 +165,11 @@ body {
   border-top: 1px solid var(--border);
   display: flex; align-items: center; gap: 12px;
 }
-.profile-icon {
-  width: 36px; height: 36px;
-  background: #f3f4f6; color: var(--utm-maroon);
-  border-radius: 50%;
-  display: flex; align-items: center; justify-content: center;
-  font-weight: 700;
+.profile-icon { 
+  width: 40px; height: 40px; 
+  background: linear-gradient(135deg, var(--utm-maroon) 0%, var(--utm-maroon-light) 100%); 
+  color: white; border-radius: 50%; display: flex; align-items: center; justify-content: center; 
+  font-weight: 700; font-size: 15px; box-shadow: 0 2px 8px rgba(128,0,0,0.2);
 }
 .profile-info { font-size: 13px; overflow: hidden; }
 .profile-name { font-weight: 600; white-space: nowrap; text-overflow: ellipsis; }
