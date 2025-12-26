@@ -337,8 +337,9 @@ body { font-family: 'Inter', sans-serif; background: var(--bg-light); min-height
             <li><a href="admin_timetable.php"><i class="fa-solid fa-calendar-days"></i> Timetable</a></li>
             <?php if (!$isTechAdmin): ?>
             <li><a href="admin_recurring.php"><i class="fa-solid fa-rotate"></i> Recurring</a></li>
-            <?php endif; ?>
             <li><a href="admin_logbook.php"><i class="fa-solid fa-book"></i> Logbook</a></li>
+            <?php endif; ?>
+
             <li><a href="generate_reports.php"><i class="fa-solid fa-chart-pie"></i> Reports</a></li>
             <li><a href="admin_problems.php"><i class="fa-solid fa-triangle-exclamation"></i> Problems</a></li>
             
