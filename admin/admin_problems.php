@@ -117,11 +117,15 @@ $total_pages = ceil($total_rows / $limit);
 // FIX: Removed b.notice_msg and b.admin_notice causing the crash.
 // p.* covers them if they exist in room_problems.
 $problems = $conn->query("
-    SELECT p.*, r.name AS room_name, u.username, 
-           MAX(b.slot_date) as slot_date, 
-           MIN(b.time_start) as time_start, 
-           MAX(b.time_end) as time_end, 
-           MAX(b.tech_status) as tech_status
+    SELECT p.*, 
+           r.name AS room_name, 
+           u.username, 
+           u.Fullname AS reporter_name,
+           u.User_Type AS reporter_role,
+           MAX(b.slot_date) AS slot_date, 
+           MIN(b.time_start) AS time_start, 
+           MAX(b.time_end) AS time_end, 
+           MAX(b.tech_status) AS tech_status
     FROM room_problems p
     JOIN rooms r ON p.room_id = r.room_id
     JOIN users u ON p.user_id = u.id
@@ -131,6 +135,7 @@ $problems = $conn->query("
     ORDER BY FIELD(p.status, 'In Progress', 'Pending', 'Resolved'), p.created_at DESC
     LIMIT $limit OFFSET $offset
 ");
+
 
 function buildUrl($newParams = []) {
     $params = $_GET;
@@ -464,10 +469,20 @@ body { font-family: 'Inter', sans-serif; background: var(--bg-light); min-height
                                     <span class="badge badge-source-<?php echo strtolower($row['report_source']); ?>">
                                         <?php echo htmlspecialchars($row['report_source']); ?>
                                     </span>
-                                    <div style="font-size:12px; color:var(--text-secondary); margin-top:6px;">
+
+                                    <div style="font-size:12px; margin-top:6px;">
+                                        <strong><?php echo htmlspecialchars($row['reporter_name']); ?></strong>
+                                    </div>
+
+                                    <div style="font-size:11px; color:var(--text-secondary);">
+                                        Role: <?php echo htmlspecialchars($row['reporter_role']); ?>
+                                    </div>
+
+                                    <div style="font-size:11px; color:var(--text-secondary); margin-top:4px;">
                                         <?php echo date('M d, Y', strtotime($row['created_at'])); ?>
                                     </div>
                                 </td>
+
                                 <td>
                                     <strong style="color:var(--utm-maroon);"><?php echo htmlspecialchars($row['room_name']); ?></strong>
                                 </td>

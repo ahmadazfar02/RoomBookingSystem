@@ -144,7 +144,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         
         $stmt = $conn->prepare("UPDATE recurring_bookings SET purpose=?, description=?, tel=?, status=? WHERE id=?");
         $stmt->bind_param("ssssi", $purpose, $description, $tel, $status, $id);
-        if ($stmt->execute()) json_ok(['msg'=>'Updated']);
+        if ($stmt->execute()) json_ok(['msg'=>'Updated successfully']);
         else json_err('Update failed');
     }
 
@@ -152,7 +152,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $id = intval($data['id'] ?? 0);
         $stmt = $conn->prepare("DELETE FROM recurring_bookings WHERE id=?");
         $stmt->bind_param("i", $id);
-        if ($stmt->execute()) json_ok(['msg'=>'Deleted']);
+        if ($stmt->execute()) json_ok(['msg'=>'Deleted successfully']);
         else json_err('Delete failed');
     }
     json_err('Unknown action');
@@ -205,13 +205,13 @@ body { font-family: 'Inter', sans-serif; background: var(--bg-light); min-height
 
 /* NOTIFICATION BADGE */
 .nav-badge {
-    background-color: #dc2626; /* Red */
+    background-color: #dc2626;
     color: white; 
     font-size: 10px; 
     font-weight: 700;
     padding: 2px 8px; 
     border-radius: 99px; 
-    margin-left: auto; /* Pushes badge to the right */
+    margin-left: auto;
 }
 
 .sidebar-profile { margin-top: auto; padding-top: 16px; border-top: 1px solid var(--border); display: flex; align-items: center; gap: 12px; }
@@ -269,11 +269,171 @@ td.recurring:hover { opacity: 0.9; }
 .modal-body { padding: 24px; font-size: 14px; }
 .modal-footer { padding: 16px 24px; border-top: 1px solid var(--border); display: flex; justify-content: flex-end; gap: 8px; background: #f8fafc; }
 
+/* CONFIRMATION DIALOG */
+.confirm-backdrop { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.5); z-index: 2001; align-items: center; justify-content: center; backdrop-filter: blur(4px); }
+.confirm-dialog { background: white; width: 95%; max-width: 420px; border-radius: 12px; box-shadow: 0 20px 25px -5px rgba(0,0,0,0.2); overflow: hidden; animation: popIn 0.2s ease-out; }
+.confirm-icon { padding: 24px 24px 16px; text-align: center; }
+.confirm-icon i { font-size: 48px; color: #dc2626; }
+.confirm-content { padding: 0 24px 24px; text-align: center; }
+.confirm-title { font-size: 20px; font-weight: 700; color: var(--text-primary); margin-bottom: 8px; }
+.confirm-message { font-size: 14px; color: var(--text-secondary); line-height: 1.6; margin-bottom: 24px; }
+.confirm-actions { display: flex; gap: 12px; padding: 16px 24px; background: #f8fafc; border-top: 1px solid var(--border); }
+.confirm-actions button { flex: 1; padding: 10px 16px; border-radius: 8px; font-size: 14px; font-weight: 600; cursor: pointer; transition: all 0.2s; border: none; }
+.btn-confirm-cancel { background: white; color: var(--text-primary); border: 1px solid var(--border) !important; }
+.btn-confirm-cancel:hover { background: var(--bg-light); }
+.btn-confirm-delete { background: #dc2626; color: white; }
+.btn-confirm-delete:hover { background: #b91c1c; }
+
+/* TOAST NOTIFICATION */
+.toast-container {
+    position: fixed;
+    top: 90px;
+    right: 24px;
+    z-index: 9999;
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+    pointer-events: none;
+}
+
+.toast {
+    background: white;
+    border-radius: 12px;
+    padding: 16px 20px;
+    box-shadow: 0 10px 25px rgba(0,0,0,0.15);
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    min-width: 320px;
+    max-width: 400px;
+    border-left: 4px solid #800000;
+    animation: slideInRight 0.3s ease-out, fadeOut 0.3s ease-out 2.7s;
+    pointer-events: all;
+}
+
+.toast.success { border-left-color: #16a34a; }
+.toast.error { border-left-color: #dc2626; }
+.toast.warning { border-left-color: #f59e0b; }
+.toast.info { border-left-color: #3b82f6; }
+
+.toast-icon {
+    width: 40px;
+    height: 40px;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 18px;
+    flex-shrink: 0;
+}
+
+.toast.success .toast-icon { background: #dcfce7; color: #16a34a; }
+.toast.error .toast-icon { background: #fee2e2; color: #dc2626; }
+.toast.warning .toast-icon { background: #fef3c7; color: #f59e0b; }
+.toast.info .toast-icon { background: #dbeafe; color: #3b82f6; }
+
+.toast-content {
+    flex: 1;
+    min-width: 0;
+}
+
+.toast-title {
+    font-weight: 600;
+    font-size: 14px;
+    color: var(--text-primary);
+    margin-bottom: 2px;
+}
+
+.toast-message {
+    font-size: 13px;
+    color: var(--text-secondary);
+    line-height: 1.4;
+}
+
+.toast-close {
+    background: none;
+    border: none;
+    color: var(--text-secondary);
+    cursor: pointer;
+    font-size: 18px;
+    padding: 4px;
+    line-height: 1;
+    opacity: 0.5;
+    transition: opacity 0.2s;
+}
+
+.toast-close:hover {
+    opacity: 1;
+}
+
+@keyframes slideInRight {
+    from {
+        transform: translateX(400px);
+        opacity: 0;
+    }
+    to {
+        transform: translateX(0);
+        opacity: 1;
+    }
+}
+
+@keyframes fadeOut {
+    to {
+        opacity: 0;
+        transform: translateX(20px);
+    }
+}
+
 @keyframes popIn { from { transform: scale(0.95); opacity: 0; } to { transform: scale(1); opacity: 1; } }
-@media (max-width: 1024px) { .sidebar { display: none; } .main-content { margin-left: 0; } }
+
+/* LOADER */
+.loader-overlay {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background: rgba(255, 255, 255, 0.8);
+    z-index: 99999;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity 0.3s ease;
+}
+
+.spinner {
+    width: 50px;
+    height: 50px;
+    border: 5px solid #e5e7eb;
+    border-top: 5px solid #800000;
+    border-radius: 50%;
+    animation: spin 1s linear infinite;
+}
+
+@keyframes spin {
+    0% { transform: rotate(0deg); }
+    100% { transform: rotate(360deg); }
+}
+
+.loader-overlay.active {
+    opacity: 1;
+    pointer-events: all;
+}
+
+@media (max-width: 1024px) { 
+    .sidebar { display: none; } 
+    .main-content { margin-left: 0; }
+    .toast-container { right: 12px; left: 12px; }
+    .toast { min-width: 0; max-width: 100%; }
+}
 </style>
 </head>
 <body>
+
+<!-- Toast Container -->
+<div class="toast-container" id="toastContainer"></div>
 
 <nav class="nav-bar">
     <div class="nav-left">
@@ -313,7 +473,7 @@ td.recurring:hover { opacity: 0.9; }
         <li><a href="admin_timetable.php" <?php echo basename($_SERVER['PHP_SELF']) == 'admin_timetable.php' ? 'class="active"' : ''; ?>><i class="fa-solid fa-calendar-days"></i> Timetable</a></li>
         
         <?php if (!$isTechAdmin): ?>
-        <li><a href="admin_recurring.php" <?php echo basename($_SERVER['PHP_SELF']) == 'admin_recurring.php' ? 'class="active"' : ''; ?>><i class="fa-solid fa-rotate"></i> Recurring</a></li>
+        <li><a href="admin_recurring.php" class="active"><i class="fa-solid fa-rotate"></i> Recurring</a></li>
         <li><a href="admin_logbook.php" <?php echo basename($_SERVER['PHP_SELF']) == 'admin_logbook.php' ? 'class="active"' : ''; ?>><i class="fa-solid fa-book"></i> Logbook</a></li>
         <?php endif; ?>
 
@@ -419,85 +579,98 @@ td.recurring:hover { opacity: 0.9; }
   </div>
 </div>
 
+<!-- Confirmation Dialog -->
+<div id="confirmDialog" class="confirm-backdrop">
+  <div class="confirm-dialog">
+    <div class="confirm-icon">
+      <i class="fa-solid fa-triangle-exclamation"></i>
+    </div>
+    <div class="confirm-content">
+      <div class="confirm-title">Delete Template?</div>
+      <div class="confirm-message">This will permanently delete this recurring template. This action cannot be undone.</div>
+    </div>
+    <div class="confirm-actions">
+      <button class="btn-confirm-cancel" onclick="closeConfirm()">Cancel</button>
+      <button class="btn-confirm-delete" onclick="confirmDelete()">
+        <i class="fa-solid fa-trash"></i> Delete
+      </button>
+    </div>
+  </div>
+</div>
+
 <div id="page-loader" class="loader-overlay">
     <div class="spinner"></div>
 </div>
 
-<style>
-/* 1. Full Screen Overlay */
-.loader-overlay {
-    position: fixed;
-    top: 0;
-    left: 0;
-    width: 100%;
-    height: 100%;
-    background: rgba(255, 255, 255, 0.8); /* White see-through background */
-    z-index: 99999; /* On top of everything */
-    display: flex;
-    justify-content: center;
-    align-items: center;
-    opacity: 0;
-    pointer-events: none; /* Let clicks pass through when hidden */
-    transition: opacity 0.3s ease;
-}
-
-/* 2. The Round Bullet Spinner */
-.spinner {
-    width: 50px;
-    height: 50px;
-    border: 5px solid #e5e7eb; /* Light grey ring */
-    border-top: 5px solid #800000; /* UTM Maroon spinning part */
-    border-radius: 50%;
-    animation: spin 1s linear infinite;
-}
-
-/* 3. Animation Keyframes */
-@keyframes spin {
-    0% { transform: rotate(0deg); }
-    100% { transform: rotate(360deg); }
-}
-
-/* 4. Active State (Show Overlay) */
-.loader-overlay.active {
-    opacity: 1;
-    pointer-events: all; /* Block clicks while loading */
-}
-</style>
-
 <script>
+// ============================================
+// TOAST NOTIFICATION SYSTEM
+// ============================================
+function showToast(title, message, type = 'info') {
+    const container = document.getElementById('toastContainer');
+    
+    const toast = document.createElement('div');
+    toast.className = `toast ${type}`;
+    
+    const icons = {
+        success: 'fa-circle-check',
+        error: 'fa-circle-xmark',
+        warning: 'fa-triangle-exclamation',
+        info: 'fa-circle-info'
+    };
+    
+    toast.innerHTML = `
+        <div class="toast-icon">
+            <i class="fa-solid ${icons[type] || icons.info}"></i>
+        </div>
+        <div class="toast-content">
+            <div class="toast-title">${title}</div>
+            <div class="toast-message">${message}</div>
+        </div>
+        <button class="toast-close" onclick="this.parentElement.remove()">×</button>
+    `;
+    
+    container.appendChild(toast);
+    
+    // Auto remove after 3 seconds
+    setTimeout(() => {
+        if (toast.parentElement) {
+            toast.remove();
+        }
+    }, 3000);
+}
+
+// ============================================
+// PAGE LOADER
+// ============================================
 document.addEventListener('DOMContentLoaded', () => {
     const loader = document.getElementById('page-loader');
 
-    // 1. Hide loader when the new page finishes loading
-    // We use a small timeout to make sure the transition is smooth
     setTimeout(() => {
         loader.classList.remove('active');
     }, 300); 
 
-    // 2. Show loader when user clicks a valid link
     document.querySelectorAll('a').forEach(link => {
         link.addEventListener('click', function(e) {
             const href = this.getAttribute('href');
             const target = this.getAttribute('target');
 
-            // Ignore local anchors (#), javascript, or new tab links
             if (!href || href.startsWith('#') || href.startsWith('javascript') || target === '_blank') return;
 
-            // Show the spinner immediately
             loader.classList.add('active');
         });
     });
     
-    // 3. Also show on form submissions (like filtering)
     document.querySelectorAll('form').forEach(form => {
         form.addEventListener('submit', function() {
             loader.classList.add('active');
         });
     });
 });
-</script>
 
-<script>
+// ============================================
+// MAIN LOGIC
+// ============================================
 const TIME_SLOTS = [
   "08:00-08:50","09:00-09:50","10:00-10:50","11:00-11:50",
   "12:00-12:50","13:00-13:50","14:00-14:50","15:00-15:50",
@@ -523,7 +696,10 @@ function loadRooms(){
   fetch('admin_recurring.php?endpoint=rooms')
     .then(r=>r.json())
     .then(j=>{
-      if(!j.success) return alert(j.msg);
+      if(!j.success) {
+          showToast('Error', j.msg || 'Failed to load rooms', 'error');
+          return;
+      }
       roomSelect.innerHTML = '<option value="">-- Select Room --</option>';
       j.rooms.forEach(r=>{
           const opt = document.createElement('option');
@@ -531,12 +707,19 @@ function loadRooms(){
           opt.textContent = r.name;
           roomSelect.appendChild(opt);
       });
+    })
+    .catch(err => {
+        console.error(err);
+        showToast('Error', 'Network error loading rooms', 'error');
     });
 }
 
 function renderGrid(){
   const room = roomSelect.value;
-  if (!room) return;
+  if (!room) {
+      showToast('Info', 'Please select a room first', 'info');
+      return;
+  }
   currentRoom = room;
   recurringIndex = {};
   selectedCells.clear();
@@ -546,8 +729,15 @@ function renderGrid(){
   fetch(`admin_recurring.php?endpoint=list&room=${encodeURIComponent(room)}`)
     .then(r=>r.json())
     .then(j=>{
-        if(!j.success) return alert(j.msg);
+        if(!j.success) {
+            showToast('Error', j.msg || 'Failed to load templates', 'error');
+            return;
+        }
         buildTable(j.recurring);
+    })
+    .catch(err => {
+        console.error(err);
+        showToast('Error', 'Network error loading templates', 'error');
     });
 }
 
@@ -614,6 +804,27 @@ function toggleSelect(td, day, slot){
 function openModal() { modal.style.display = 'flex'; }
 function closeModal() { modal.style.display = 'none'; }
 
+// Confirmation Dialog Logic
+let pendingDeleteId = null;
+const confirmDialog = document.getElementById('confirmDialog');
+
+function showConfirm(id) {
+    pendingDeleteId = id;
+    confirmDialog.style.display = 'flex';
+}
+
+function closeConfirm() {
+    pendingDeleteId = null;
+    confirmDialog.style.display = 'none';
+}
+
+function confirmDelete() {
+    if(pendingDeleteId) {
+        sendPost({ action: 'delete', id: pendingDeleteId });
+        closeConfirm();
+    }
+}
+
 function openEdit(rec){
     document.getElementById('modalTitle').textContent = 'Edit Template';
     document.getElementById('editId').value = rec.id;
@@ -630,7 +841,10 @@ function openEdit(rec){
 }
 
 document.getElementById('addSelectedBtn').onclick = () => {
-    if(selectedCells.size === 0) return alert("Please select empty slots first.");
+    if(selectedCells.size === 0) {
+        showToast('Warning', 'Please select empty slots first', 'warning');
+        return;
+    }
     
     document.getElementById('modalTitle').textContent = 'Create Templates';
     document.getElementById('editId').value = '';
@@ -647,8 +861,11 @@ document.getElementById('addSelectedBtn').onclick = () => {
 
 document.getElementById('modalSaveBtn').onclick = () => {
     const id = document.getElementById('editId').value;
-    const purpose = document.getElementById('modalPurpose').value;
-    if(!purpose) return alert("Subject Code required");
+    const purpose = document.getElementById('modalPurpose').value.trim();
+    if(!purpose) {
+        showToast('Warning', 'Subject Code is required', 'warning');
+        return;
+    }
     
     const payload = {
         purpose,
@@ -678,8 +895,10 @@ document.getElementById('modalSaveBtn').onclick = () => {
 };
 
 document.getElementById('modalDeleteBtn').onclick = () => {
-    if(!confirm("Delete this recurring template?")) return;
-    sendPost({ action: 'delete', id: document.getElementById('editId').value });
+    const id = document.getElementById('editId').value;
+    if(id) {
+        showConfirm(id);
+    }
 };
 
 function sendPost(data){
@@ -692,10 +911,24 @@ function sendPost(data){
     .then(j=>{
         if(j.success) {
             closeModal();
+            
+            // Success messages
+            if(data.action === 'create_bulk') {
+                showToast('Success!', `Created ${j.created} template(s)${j.skipped > 0 ? `, skipped ${j.skipped}` : ''}`, 'success');
+            } else if(data.action === 'update') {
+                showToast('Success!', j.msg || 'Template updated successfully', 'success');
+            } else if(data.action === 'delete') {
+                showToast('Success!', j.msg || 'Template deleted successfully', 'success');
+            }
+            
             renderGrid();
         } else {
-            alert("Error: " + j.msg);
+            showToast('Error', j.msg || 'Operation failed', 'error');
         }
+    })
+    .catch(err => {
+        console.error(err);
+        showToast('Error', 'Network error occurred', 'error');
     });
 }
 
@@ -704,11 +937,13 @@ document.getElementById('roomSelect').onchange = renderGrid;
 document.getElementById('clearSelBtn').onclick = () => {
     selectedCells.forEach(v => v.td.classList.remove('selected'));
     selectedCells.clear();
+    showToast('Info', 'Selection cleared', 'info');
 };
 
 // Close on outside click
 window.onclick = function(e) {
     if(e.target == modal) closeModal();
+    if(e.target == confirmDialog) closeConfirm();
 }
 </script>
 </body>
