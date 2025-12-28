@@ -48,7 +48,7 @@
     }
     
     .header-content {
-        max-width: 1400px;
+        max-width: 1800px;
         margin: 0 auto;
         padding: 16px 24px;
         display: flex;
@@ -376,6 +376,26 @@
         color: white;
         font-weight: 600;
         font-size: 12px;
+    }
+
+    .timetable-wrapper {
+        overflow-x: auto;
+        margin: 0 -24px;
+        padding: 0 24px;
+    }
+
+    .timetable-wrapper::-webkit-scrollbar {
+        height: 8px;
+    }
+
+    .timetable-wrapper::-webkit-scrollbar-track {
+        background: var(--bg-light);
+        border-radius: 4px;
+    }
+
+    .timetable-wrapper::-webkit-scrollbar-thumb {
+        background: var(--utm-maroon);
+        border-radius: 4px;
     }
     
     .slot {
@@ -922,10 +942,12 @@
 
       <div class="card">
         <h2 id="weekTitle">Week: Loading...</h2>
-        <table class="timetable" id="timetableTable" aria-label="Timetable">
-          <thead><tr><th style="width:12%;">Date / Time</th></tr></thead>
-          <tbody></tbody>
-        </table>
+          <div class="timetable-wrapper">
+            <table class="timetable" id="timetableTable" aria-label="Timetable">
+              <thead><tr><th style="width:12%;">Date / Time</th></tr></thead>
+              <tbody></tbody>
+            </table>
+          </div>
 
         <div class="card-footer">
           <div class="footer-info">Select one or more <strong>available slots</strong>, then press <strong>Book Now</strong>.</div>
