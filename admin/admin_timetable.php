@@ -135,7 +135,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'GET' && isset($_GET['endpoint'])) {
         while ($r = $res->fetch_assoc()) {
             $slotTime = substr($r['time_start'],0,5) . '-' . substr($r['time_end'],0,5);
             $key = $r['slot_date'] . '|' . $slotTime;
-            $existingKeys[$key] = true;
+            $existingKeys[$key] = $r['status'];
 
             $out[] = [
                 'id' => (int)$r['id'],
@@ -183,7 +183,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'GET' && isset($_GET['endpoint'])) {
                             $dateStr = $dt->format('Y-m-d');
                             $slotTime = substr($rr['time_start'],0,5) . '-' . substr($rr['time_end'],0,5);
                             $key = $dateStr . '|' . $slotTime;
-                            if (isset($existingKeys[$key])) continue;
+                            if (isset($existingKeys[$key])) {
+                                $status = strtolower($existingKeys[$key]);
+                                if ($status !== 'cancelled' && $status !== 'rejected') {
+                                    continue;
+                                }
+                            }
                             $out[] = [
                                 'id' => 0,
                                 'ticket' => 'REC-' . $rr['id'],
