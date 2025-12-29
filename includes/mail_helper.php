@@ -103,4 +103,45 @@ function insert_email_log(mysqli $conn,
     $stmt->close();
     return $ok;
 }
+
+// 1. user verification
+function sendVerificationEmail($userEmail, $userName, $token) {
+    $mail = new PHPMailer(true);
+    try {
+        $mail->isSMTP();
+        $mail->Host = MAIL_HOST;
+        $mail->SMTPAuth = true;
+        $mail->Username = MAIL_USERNAME;
+        $mail->Password = MAIL_PASSWORD;
+        $mail->SMTPSecure = PHPMailer::ENCRYPTION_STARTTLS;
+        $mail->Port = MAIL_PORT;
+        $mail->setFrom(MAIL_FROM, MAIL_FROM_NAME);
+        $mail->addAddress($userEmail, $userName);
+
+        // Build the link (Update this URL to match your server path) this one might need update
+        $verifyLink = "http://localhost/new%20folder/roombookingsystem/auth/verify.php?token=" . $token;
+
+        $mail->isHTML(true);
+        $mail->Subject = 'Verify Your Account - UTM Room Reservation';
+        $mail->Body    = "
+            <div style='font-family: Arial, sans-serif; border: 1px solid #ddd; padding: 20px; border-radius: 10px;'>
+                <h2 style='color: #800000;'>Welcome to UTM Room Reservation!</h2>
+                <p>Hello $userName,</p>
+                <p>Thank you for registering. Please click the button below to verify your email address and activate your account:</p>
+                <div style='text-align: center; margin: 30px 0;'>
+                    <a href='$verifyLink' style='background-color: #800000; color: white; padding: 12px 25px; text-decoration: none; border-radius: 5px; font-weight: bold;'>Verify My Account</a>
+                </div>
+                <p>If the button doesn't work, copy and paste this link into your browser:</p>
+                <p><a href='$verifyLink'>$verifyLink</a></p>
+                <hr style='border: none; border-top: 1px solid #eee;'>
+                <p style='font-size: 12px; color: #777;'>If you did not create this account, please ignore this email.</p>
+            </div>
+        ";
+
+        $mail->send();
+        return true;
+    } catch (Exception $e) {
+        return false;
+    }
+}
 ?>

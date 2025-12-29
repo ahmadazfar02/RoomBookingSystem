@@ -5,8 +5,8 @@ require_once __DIR__ . '/../includes/db_connect.php';
 if (isset($_COOKIE['remember_me'])) {
     $token = $_COOKIE['remember_me'];
     $token_hash = hash('sha256', $token);
-
-    $sql = "SELECT id, username, Fullname, User_Type FROM users WHERE remember_token = ?";
+    //added is_verified
+    $sql = "SELECT id, username, Fullname, User_Type, is_verified FROM users WHERE remember_token = ?";
     
     if ($stmt = $conn->prepare($sql)) {
         $stmt->bind_param("s", $token_hash);
@@ -14,9 +14,15 @@ if (isset($_COOKIE['remember_me'])) {
         $stmt->store_result();
 
         if ($stmt->num_rows == 1) {
-            $stmt->bind_result($id, $username, $fullname, $User_Type);
+            $stmt->bind_result($id, $username, $fullname, $User_Type, $is_verified);
             $stmt->fetch();
 
+            // Allow login if verified OR if user is SuperAdmin (bypass check)
+            $uType = trim($User_Type);
+            $is_super = (strcasecmp($uType, 'SuperAdmin') == 0);
+
+            //check verified aku tambah if(is verified)
+            if ($is_verified==1 || $is_super){
             session_start();
             $_SESSION["loggedin"] = true;
             $_SESSION["id"] = $id;
@@ -26,14 +32,16 @@ if (isset($_COOKIE['remember_me'])) {
             
             $uType = trim($User_Type);
             if (strcasecmp($uType, 'Admin') == 0 || 
-                strcasecmp($uType, 'Technical Admin') == 0 || 
-                strcasecmp($uType, 'SuperAdmin') == 0) {
+                strcasecmp($uType, 'Technical Admin') == 0 ||
+                $is_super /*strcasecmp($uType, 'SuperAdmin') == 0*/) {
                 
                 header("location: ../admin/index-admin.php");
             } else {
                 header("location: ../timetable.html");
             }
             exit;
+            }
+            
         }
     }
 }
@@ -42,7 +50,7 @@ if ($_SERVER["REQUEST_METHOD"] == "POST"){
     $email = $_POST["username"];
     $password = $_POST["password"];
 
-    $sql = "SELECT id, username, Fullname, password_hash, User_Type FROM users WHERE username = ?";
+    $sql = "SELECT id, username, Fullname, password_hash, User_Type, is_verified FROM users WHERE username = ?";
 
     if ($stmt = $conn->prepare($sql)){
         $stmt->bind_param("s", $email);
@@ -50,11 +58,22 @@ if ($_SERVER["REQUEST_METHOD"] == "POST"){
         if($stmt->execute()){
             $stmt->store_result();
             if($stmt->num_rows == 1){
-                $stmt->bind_result($id, $username, $fullname, $hashed_password, $User_Type);
+                $stmt->bind_result($id, $username, $fullname, $hashed_password, $User_Type, $is_verified);
                 $stmt->fetch();
+
+                // Allow login if verified OR if user is SuperAdmin (bypass check)
+                $uType = trim($User_Type);
+                $is_super = (strcasecmp($uType, 'SuperAdmin') == 0);
 
                 // Pass null string if password hash is null to prevent error
                 if (password_verify($password, $hashed_password ?? '')){
+
+                    //check verified aku tambah if(is verified)
+                    if($is_verified == 0 && !$is_super){
+                        header("Location: ../loginterface.html?error=" . urlencode("Please verify your email address before logging in. Check your inbox."));
+                        exit;
+                    }
+
                     session_start();
                     $_SESSION["loggedin"] = true;
                     $_SESSION["id"] = $id;
@@ -78,8 +97,8 @@ if ($_SERVER["REQUEST_METHOD"] == "POST"){
 
                     $uType = trim($User_Type);
                     if (strcasecmp($uType, 'Admin') == 0 || 
-                        strcasecmp($uType, 'Technical Admin') == 0 || 
-                        strcasecmp($uType, 'SuperAdmin') == 0) {
+                        strcasecmp($uType, 'Technical Admin') == 0 ||
+                        $is_super /*strcasecmp($uType, 'SuperAdmin') == 0*/) {
                         
                         header("location: ../admin/index-admin.php");
                     } else {

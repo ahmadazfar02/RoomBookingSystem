@@ -1,6 +1,7 @@
 <?php
 
 include __DIR__ . '/../includes/db_connect.php';
+require_once __DIR__ . '/../includes/mail_helper.php';
 
 // Variable to trigger modal from PHP if server-side validation fails
 $server_error_title = "";
@@ -73,20 +74,37 @@ if ($_SERVER["REQUEST_METHOD"] === "POST") {
         }
         $check_stmt->close();
 
-        // Insert User
+
+        $token = bin2hex(random_bytes(32));
         $password_hash = password_hash($password, PASSWORD_BCRYPT);
-        $stmt = $conn->prepare("INSERT INTO users (username, Fullname, Email, password_hash, User_Type, Phone_Number, Created_At, Updated_At)
-                                VALUES (?, ?, ?, ?, ?, ?, NOW(), NOW())");
-        $stmt->bind_param("ssssss", $username, $fullname, $email, $password_hash, $role, $phone_number);
+        
+        // added INSERT INTO ...(..., verification_token, is_verified) VALUES (..., ?, 1) / $stmt->bind_param("....s", .... $token);
+        $stmt = $conn->prepare("INSERT INTO users (username, Fullname, Email, password_hash, User_Type, Phone_Number, Created_At, Updated_At, verification_token, is_verified)
+                                VALUES (?, ?, ?, ?, ?, ?, NOW(), NOW(), ?, 0)");
+        $stmt->bind_param("sssssss", $username, $fullname, $email, $password_hash, $role, $phone_number, $token);
 
         if ($stmt->execute()) {
+                    // 5. SEND THE EMAIL
+                    if (sendVerificationEmail($email, $fullname, $token)) {
+                        $server_success_title = "Verification Sent!";
+                        $server_success_msg = "Account created! We sent a link to <b>$email</b>. Please check your inbox (and spam folder) to verify your account before logging in.";
+                    } else {
+                        $server_success_title = "Account Created";
+                        $server_success_msg = "Account created, but we couldn't send the verification email. Please contact admin.";
+                    }
+                } else {
+                    $server_error_title = "System Error";
+                    $server_error_msg = "Database error: " . $stmt->error;
+                }
+                
+        /*if ($stmt->execute()) {
             // <-- replace alert() with success modal variables -->
             $server_success_title = "Registration Successful";
             $server_success_msg = "Your account has been created successfully. Click the button below to log in.";
             // do not redirect here — let client-side button handle redirect after user sees modal
         } else {
             echo "<script>alert('Error: " . addslashes($stmt->error) . "');</script>";
-        }
+        }*/
 
         $stmt->close();
         $conn->close();

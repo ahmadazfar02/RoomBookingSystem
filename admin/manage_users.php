@@ -106,8 +106,9 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
             $temp_password = bin2hex(random_bytes(8)); 
             $hashed_password = password_hash($temp_password, PASSWORD_DEFAULT);
 
-            // Insert
-            $ins = $conn->prepare("INSERT INTO users (username, Fullname, Email, password_hash, User_Type, reset_token, reset_token_expiry) VALUES (?, ?, ?, ?, ?, ?, ?)");
+            // Insert 
+            // added INSERT INTO ...(..., is_verified) VALUES (..., 1)
+            $ins = $conn->prepare("INSERT INTO users (username, Fullname, Email, password_hash, User_Type, reset_token, reset_token_expiry, is_verified) VALUES (?, ?, ?, ?, ?, ?, ?, 1)");
             $ins->bind_param("sssssss", $new_username, $new_fullname, $new_email, $hashed_password, $new_role, $token, $expiry);
             
             if ($ins->execute()) {
