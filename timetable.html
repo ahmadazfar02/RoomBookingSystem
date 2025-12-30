@@ -470,11 +470,6 @@
         line-height: 1.4;
     }
     
-    .cell-capacity {
-        font-size: 11px;
-        margin-top: 4px;
-        opacity: 0.9;
-    }
     
     .card-footer {
         display: flex;
@@ -1023,7 +1018,6 @@ const TIME_SLOTS = [
   "20:00-20:50","21:00-21:50","22:00-22:50","23:00-23:50"
 ];
 
-const ROOM_CAPACITY = {};
 const datePicker = document.getElementById('datePicker');
 const roomTitleEl = document.getElementById('roomTitle');
 const timetableContainer = document.getElementById('timetableContainer');
@@ -1093,7 +1087,6 @@ function loadAllRooms() {
         opt.value = room.room_id;
         opt.textContent = `${room.name}${room.capacity ? ' (' + room.capacity + ' pax)' : ''}`;
         roomSelect.appendChild(opt);
-        ROOM_CAPACITY[room.room_id] = room.capacity || 0;
       });
       return data.rooms;
     })
@@ -1156,7 +1149,7 @@ function renderTableSkeleton(){
       td.className = 'slot available';
       td.dataset.slot = ts;
       td.dataset.date = iso;
-      td.innerHTML = `<div class="cell-title"></div><div class="cell-meta"></div><div class="cell-capacity"></div>`;
+      td.innerHTML = `<div class="cell-title"></div><div class="cell-meta"></div>`;
       
       if (isPastDate(iso)) {
         td.classList.remove('available');
@@ -1194,37 +1187,21 @@ function loadBookings(){
         }
         td.removeAttribute('data-booking-id');
         td.removeAttribute('data-booking-user-id');
-        td.removeAttribute('data-booking-count');
         const titleEl = td.querySelector('.cell-title');
         const metaEl = td.querySelector('.cell-meta');
-        const capacityEl = td.querySelector('.cell-capacity');
         if (titleEl) titleEl.textContent = '';
         if (metaEl) metaEl.textContent = '';
-        if (capacityEl) capacityEl.textContent = '';
       });
 
       if (!Array.isArray(data)) return;
-      
-      const slotCounts = {};
-      data.forEach(item => {
-        if (!item.recurring) {
-          const key = `${item.date}|${item.time_slot}`;
-          slotCounts[key] = (slotCounts[key] || 0) + 1;
-        }
-      });
 
       data.forEach(item => {
         const selector = `td.slot[data-date="${item.date}"][data-slot="${item.time_slot}"]`;
         const td = document.querySelector(selector);
         
         if (td) {
-          const slotKey = `${item.date}|${item.time_slot}`;
-          const currentCount = slotCounts[slotKey] || 0;
-          const capacity = ROOM_CAPACITY[room] || 0;
-          
           if (item.id) td.setAttribute('data-booking-id', item.id);
           if (item.user_id) td.setAttribute('data-booking-user-id', item.user_id);
-          if (!item.recurring) td.setAttribute('data-booking-count', currentCount);
           
           td.classList.remove('available','selected','pending','booked','maintenance','recurring');
           
@@ -1240,7 +1217,6 @@ function loadBookings(){
           
           const titleEl = td.querySelector('.cell-title');
           const metaEl = td.querySelector('.cell-meta');
-          const capacityEl = td.querySelector('.cell-capacity');
           
           if (titleEl) {
             if (item.status === 'recurring' || item.recurring) titleEl.textContent = '' + (item.purpose || 'Reserved');
@@ -1250,13 +1226,6 @@ function loadBookings(){
           
           const meta = [item.tel || '', item.description || ''].filter(Boolean).join(' • ');
           if (metaEl) metaEl.textContent = meta;
-          
-          if (capacityEl && capacity > 0 && !item.recurring) {
-            capacityEl.textContent = `${currentCount}/${capacity} booked`;
-            if (currentCount >= capacity) {
-              capacityEl.style.color = '#dc2626'; capacityEl.style.fontWeight = '700';
-            }
-          }
         }
       });
 
