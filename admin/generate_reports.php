@@ -419,6 +419,10 @@ body { font-family: 'Inter', sans-serif; background: var(--bg-light); min-height
                         <input type="radio" name="period" id="period12m" value="12months">
                         <label for="period12m">Last 12 Months</label>
                     </div>
+                    <div class="period-option">
+                        <input type="radio" name="period" id="period2y" value="2years">
+                        <label for="period2y">Last 2 Years</label>
+                    </div>
                 </div>
                 <div class="period-info">
                     <i class="fa-solid fa-circle-info"></i> Reports will only include data from the selected time period.

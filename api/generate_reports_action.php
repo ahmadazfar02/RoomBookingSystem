@@ -46,7 +46,7 @@ if (!in_array($report, $allowedReports)) {
 }
 
 // Validate and process time period
-$allowedPeriods = ['7days', '30days', '6months', '12months'];
+$allowedPeriods = ['7days', '30days', '6months', '12months', '2years'];
 if (!in_array($period, $allowedPeriods)) {
     exit("Invalid Time Period. Please select a valid data collection period.");
 }
@@ -56,13 +56,15 @@ $periodLabels = [
     '7days' => 'Last 7 Days',
     '30days' => 'Last 30 Days',
     '6months' => 'Last 6 Months',
-    '12months' => 'Last 12 Months'
+    '12months' => 'Last 12 Months',
+    '2years' => 'Last 2 Years'
 ];
 $periodFileNames = [
     '7days' => 'Last_7_Days',
     '30days' => 'Last_30_Days',
     '6months' => 'Last_6_Months',
-    '12months' => 'Last_12_Months'
+    '12months' => 'Last_12_Months',
+    '2years' => 'Last_2_Years'
 ];
 
 $periodLabel = $periodLabels[$period];
@@ -82,6 +84,9 @@ switch ($period) {
         break;
     case '12months':
         $startDate = date('Y-m-d', strtotime('-12 months'));
+        break;
+    case '2years':
+        $startDate = date('Y-m-d', strtotime('-2 years'));
         break;
 }
 
